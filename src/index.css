@@ -1,0 +1,163 @@
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+  background: #F8FAFC;
+  color: #0F172A;
+  -webkit-font-smoothing: antialiased;
+}
+
+::selection { background: #2563EB; color: #fff; }
+
+input, button, textarea, select { font-family: inherit; }
+
+input[type=range] {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 6px;
+  border-radius: 99px;
+  background: #E2E8F0;
+  outline: none;
+}
+input[type=range]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #2563EB;
+  cursor: pointer;
+  border: 3px solid #fff;
+  box-shadow: 0 2px 6px rgba(37,99,235,.5);
+}
+
+@keyframes spin { to { transform: rotate(360deg); } }
+@keyframes pop { 0% { transform: scale(.96); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
+@keyframes slideUp { 0% { transform: translateY(14px); opacity: 0; } 100% { transform: translateY(0); opacity: 1; } }
+@keyframes fadein { 0% { opacity: 0; } 100% { opacity: 1; } }
+
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-thumb { background: #CBD5E1; border-radius: 99px; border: 3px solid #F8FAFC; }
+
+@media print {
+  .no-print { display: none !important; }
+  body, #root { background: #fff !important; }
+  /* Imprimir únicamente la propuesta (#brivia-doc-wrap): oculta cualquier
+     modal/overlay administrativo (detalle, stepper, historial, etc.) que
+     siga montado detrás de ella. */
+  body * { visibility: hidden !important; }
+  #brivia-doc-wrap, #brivia-doc-wrap * { visibility: visible !important; }
+  #brivia-doc-wrap { position: absolute !important; inset: auto !important; top: 0 !important; left: 0 !important; width: 100% !important; height: auto !important; min-height: 0 !important; overflow: visible !important; padding: 0 !important; background: #fff !important; display: block !important; z-index: 999999 !important; }
+  #brivia-doc-scroll { overflow: visible !important; height: auto !important; padding: 0 !important; }
+  #brivia-doc { box-shadow: none !important; margin: 0 !important; max-width: none !important; }
+  /* Conserva colores de fondo (header azul, badges, totales, footer) en la
+     vista previa de impresión y en el PDF generado por el navegador. */
+  #brivia-doc-wrap, #brivia-doc-wrap * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    color-adjust: exact !important;
+  }
+}
+
+html, body, #root { height: 100%; }
+
+/* Quote flow — Paso 1 "Cliente y proyecto" */
+.qf-modal { width: 100%; max-width: 680px; height: 96vh; border-radius: 26px 26px 0 0; }
+@media (min-width: 900px) {
+  .qf-modal--wide { max-width: 1160px; height: 92vh; border-radius: 24px; }
+}
+.qf-stepper-wrap { overflow-x: auto; }
+.qf-stepper-wrap::-webkit-scrollbar { display: none; }
+.qf-step0-grid { display: grid; grid-template-columns: 1fr; gap: 24px; }
+@media (min-width: 900px) {
+  .qf-step0-grid { grid-template-columns: 1fr 320px; align-items: start; }
+}
+.qf-client-grid { display: grid; grid-template-columns: 1fr; gap: 12px; }
+@media (min-width: 700px) {
+  .qf-client-grid { grid-template-columns: repeat(3, 1fr); }
+}
+.qf-project-grid { display: grid; grid-template-columns: 1fr; gap: 16px; }
+@media (min-width: 640px) {
+  .qf-project-grid { grid-template-columns: 1fr 1fr; }
+}
+.qf-body { padding: 16px; }
+@media (min-width: 640px) {
+  .qf-body { padding: 20px; }
+}
+@media (min-width: 900px) {
+  .qf-body { padding: 24px; }
+}
+.qf-header { padding: 16px 16px 14px; }
+@media (min-width: 640px) {
+  .qf-header { padding: 18px 20px 14px; }
+}
+@media (min-width: 900px) {
+  .qf-header { padding: 20px 24px 16px; }
+}
+.qf-chip { border: 1.5px solid #E2E8F0; background: #fff; color: #475569; font-weight: 700; font-size: 13.5px; padding: 12px 14px; border-radius: 12px; cursor: pointer; }
+.qf-chip--active { border-color: #2563EB; background: #2563EB; color: #fff; }
+.qf-vcard-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+@media (min-width: 640px) {
+  .qf-vcard-grid { grid-template-columns: repeat(3, 1fr); }
+}
+.qf-vcard { height: 64px; border: 1px solid #E2E8F0; border-radius: 16px; background: #fff; color: #334155; font-size: 18px; font-weight: 600; font-family: inherit; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all .15s ease; }
+.qf-vcard--active { background: #2563EB; color: #fff; border-color: #2563EB; box-shadow: 0 4px 12px rgba(37,99,235,.15); }
+.qf-sidebar { background: #fff; border: 1px solid #E2E8F0; border-radius: 20px; padding: 20px; display: flex; flex-direction: column; gap: 18px; position: sticky; top: 0; }
+.qf-sidebar-rows { display: flex; flex-direction: column; gap: 18px; }
+.qf-sidebar-rows > * { padding-bottom: 16px; border-bottom: 1px solid #F1F5F9; }
+.qf-sidebar-rows > *:last-child { padding-bottom: 0; border-bottom: none; }
+.qf-input56 { height: 56px; border-radius: 16px; }
+
+/* Quote flow — Paso 3 "Servicio": campos de configuración en grid 2 cols (desktop) */
+.qf-fields-grid { display: grid; grid-template-columns: 1fr; gap: 22px; }
+@media (min-width: 640px) {
+  .qf-fields-grid { grid-template-columns: 1fr 1fr; }
+}
+
+/* Quote flow — Paso 5 "Costos y resumen": grid de 3 columnas (desktop) */
+.qf-step5-grid { display: grid; grid-template-columns: 1fr; gap: 24px; align-items: start; }
+@media (min-width: 1100px) {
+  .qf-step5-grid { grid-template-columns: 1.55fr 0.95fr 1.05fr; }
+}
+.qf-step5-grid > .qf-sidebar { position: static; }
+@media (min-width: 1100px) {
+  .qf-step5-grid > .qf-sidebar { position: sticky; top: 0; }
+}
+.qf-step5-card { background: #fff; border: 1px solid #E5E7EB; border-radius: 16px; padding: 20px; box-shadow: 0 1px 3px rgba(0,0,0,.04); }
+
+/* Quote flow — Paso 5: footer fijo con totales */
+.qf-step5-footer-stats { display: flex; flex-wrap: wrap; gap: 20px; }
+@media (min-width: 640px) {
+  .qf-step5-footer-stats { flex-wrap: nowrap; gap: 28px; }
+}
+.qf-step5-footer-stat { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; flex: 1; min-width: 90px; text-align: center; }
+
+/* Quote flow — Paso 6 "Compartir propuesta" */
+.qf-step6-grid { display: grid; grid-template-columns: 1fr; gap: 24px; align-items: start; }
+@media (min-width: 1100px) {
+  .qf-step6-grid { grid-template-columns: 1.85fr 1fr; }
+  .qf-step6-grid > .qf-sidebar { position: sticky; top: 0; }
+}
+.qf-step6-banner { background: #F0FDF4; border: 1px solid #BBF7D0; border-radius: 16px; padding: 20px; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px; }
+.qf-step6-channels { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; }
+@media (min-width: 700px) {
+  .qf-step6-channels { grid-template-columns: repeat(4, 1fr); }
+}
+.qf-step6-options { display: grid; grid-template-columns: 1fr; gap: 12px; }
+@media (min-width: 700px) {
+  .qf-step6-options { grid-template-columns: repeat(3, 1fr); }
+}
+.qf-step6-option { display: flex; align-items: center; gap: 12px; background: #fff; border: 1px solid #E5E7EB; border-radius: 16px; padding: 16px; cursor: pointer; text-align: left; font-family: inherit; box-shadow: 0 1px 3px rgba(0,0,0,.04); transition: border-color .15s ease; }
+.qf-step6-option:hover { border-color: #CBD5E1; }
+.qf-step6-option:disabled { cursor: not-allowed; opacity: .6; }
+
+/* Quote flow — Paso 2 "Categoría" */
+.qf-cat-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; }
+@media (min-width: 640px) {
+  .qf-cat-grid { grid-template-columns: repeat(3, 1fr); }
+}
+@media (min-width: 1100px) {
+  .qf-cat-grid { grid-template-columns: repeat(4, 1fr); }
+}
+.qf-cat-card { background: #fff; border: 2px solid #E2E8F0; border-radius: 16px; overflow: hidden; cursor: pointer; text-align: left; padding: 0; transition: border-color .15s ease, box-shadow .15s ease; font-family: inherit; }
+.qf-cat-card:hover { border-color: #CBD5E1; }
+.qf-cat-card--active { border-color: #2563EB; box-shadow: 0 4px 14px rgba(37,99,235,.15); }

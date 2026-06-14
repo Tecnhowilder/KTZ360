@@ -1,0 +1,47 @@
+import { Outlet } from 'react-router-dom';
+import { useWindowWidth, navModeFor } from '../../hooks/useWindowWidth';
+import { Sidebar } from './Sidebar';
+import { MobileHeader } from './MobileHeader';
+import { BottomNav } from './BottomNav';
+import { QuoteFlowOverlay } from '../overlays/QuoteFlowOverlay';
+import { QuoteDetailOverlay } from '../overlays/QuoteDetailOverlay';
+import { ClientDetailOverlay } from '../overlays/ClientDetailOverlay';
+import { DocumentOverlay } from '../overlays/DocumentOverlay';
+
+export function AppShell() {
+  const width = useWindowWidth();
+  const navMode = navModeFor(width);
+  const showSidebar = navMode !== 'bottom';
+  const navBottom = navMode === 'bottom';
+  const sidebarW = navMode === 'full' ? 232 : 76;
+
+  const mainLeft = showSidebar ? sidebarW : 0;
+  const mainPadTop = navBottom ? 16 : 28;
+  const mainPadBottom = navBottom ? 96 : 48;
+
+  return (
+    <div style={{ minHeight: '100vh', background: '#F8FAFC' }}>
+      {showSidebar && <Sidebar width={sidebarW} rail={navMode === 'rail'} />}
+      {navBottom && <MobileHeader />}
+
+      <main
+        style={{
+          marginLeft: mainLeft,
+          padding: `${mainPadTop}px clamp(14px,3.5vw,36px) ${mainPadBottom}px`,
+          minHeight: '100vh',
+        }}
+      >
+        <div style={{ maxWidth: 1120, margin: '0 auto' }}>
+          <Outlet />
+        </div>
+      </main>
+
+      {navBottom && <BottomNav />}
+
+      <QuoteFlowOverlay />
+      <QuoteDetailOverlay />
+      <ClientDetailOverlay />
+      <DocumentOverlay />
+    </div>
+  );
+}

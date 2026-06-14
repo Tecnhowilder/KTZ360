@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm run *)",
+      "Bash(curl -sv \"https://jufhoywqixzfaqhhwymp.supabase.co/rest/v1/catalog_categories?select=id&limit=1\" -H \"apikey: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imp1ZmhveXdxaXh6ZmFxaGh3eW1wIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODEyMjU5NDUsImV4cCI6MjA5NjgwMTk0NX0.oWT-gd8eLQHT6CEzaxen4bOknqUq-IskkNHetciUF5c\")",
+      "Bash(echo -n \"service_types -> \")",
+      "Bash(curl -s --ssl-no-revoke 'https://jufhoywqixzfaqhhwymp.supabase.co/rest/v1/service_types?select=id&limit=1' -H 'apikey: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imp1ZmhveXdxaXh6ZmFxaGh3eW1wIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODEyMjU5NDUsImV4cCI6MjA5NjgwMTk0NX0.oWT-gd8eLQHT6CEzaxen4bOknqUq-IskkNHetciUF5c' -H 'Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imp1ZmhveXdxaXh6ZmFxaGh3eW1wIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODEyMjU5NDUsImV4cCI6MjA5NjgwMTk0NX0.oWT-gd8eLQHT6CEzaxen4bOknqUq-IskkNHetciUF5c' -D - -o /dev/null)",
+      "Bash(npx tsc *)"
+    ]
+  }
+}
