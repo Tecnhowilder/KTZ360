@@ -2,6 +2,7 @@ import { useState, type FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { signIn } from '../../services/auth';
 import { AuthLayout, inputStyle, labelStyle, primaryButtonStyle, errorStyle, linkStyle } from './AuthLayout';
+import { APP_NAME } from '../../lib/brand';
 
 export function LoginPage() {
   const navigate = useNavigate();
@@ -25,7 +26,7 @@ export function LoginPage() {
   }
 
   return (
-    <AuthLayout title="Bienvenido de nuevo" subtitle="Ingresa a tu cuenta de Brivia">
+    <AuthLayout title="Bienvenido de nuevo" subtitle={`Ingresa a tu cuenta de ${APP_NAME}`}>
       <form onSubmit={handleSubmit}>
         {error && <div style={errorStyle}>{error}</div>}
         <div style={{ marginBottom: 16 }}>

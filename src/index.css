@@ -41,17 +41,17 @@ input[type=range]::-webkit-slider-thumb {
 @media print {
   .no-print { display: none !important; }
   body, #root { background: #fff !important; }
-  /* Imprimir únicamente la propuesta (#brivia-doc-wrap): oculta cualquier
+  /* Imprimir únicamente la propuesta (#ktz-doc-wrap): oculta cualquier
      modal/overlay administrativo (detalle, stepper, historial, etc.) que
      siga montado detrás de ella. */
   body * { visibility: hidden !important; }
-  #brivia-doc-wrap, #brivia-doc-wrap * { visibility: visible !important; }
-  #brivia-doc-wrap { position: absolute !important; inset: auto !important; top: 0 !important; left: 0 !important; width: 100% !important; height: auto !important; min-height: 0 !important; overflow: visible !important; padding: 0 !important; background: #fff !important; display: block !important; z-index: 999999 !important; }
-  #brivia-doc-scroll { overflow: visible !important; height: auto !important; padding: 0 !important; }
-  #brivia-doc { box-shadow: none !important; margin: 0 !important; max-width: none !important; }
+  #ktz-doc-wrap, #ktz-doc-wrap * { visibility: visible !important; }
+  #ktz-doc-wrap { position: absolute !important; inset: auto !important; top: 0 !important; left: 0 !important; width: 100% !important; height: auto !important; min-height: 0 !important; overflow: visible !important; padding: 0 !important; background: #fff !important; display: block !important; z-index: 999999 !important; }
+  #ktz-doc-scroll { overflow: visible !important; height: auto !important; padding: 0 !important; }
+  #ktz-doc { box-shadow: none !important; margin: 0 !important; max-width: none !important; }
   /* Conserva colores de fondo (header azul, badges, totales, footer) en la
      vista previa de impresión y en el PDF generado por el navegador. */
-  #brivia-doc-wrap, #brivia-doc-wrap * {
+  #ktz-doc-wrap, #ktz-doc-wrap * {
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
     color-adjust: exact !important;

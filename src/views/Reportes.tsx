@@ -1,11 +1,15 @@
 import { useQuery } from '@tanstack/react-query';
 import { useDerivedQuotes, useQuotesRaw } from '../hooks/useQuotes';
 import { useWorkspace } from '../features/auth/WorkspaceProvider';
+import { useUI } from '../features/app/UIProvider';
+import { useFeatureAccess } from '../hooks/usePermissions';
 import { chartData, fmt, fmtM } from '../lib/calc';
 import { listQuoteEvents } from '../services/events';
 
 export function Reportes() {
   const { workspace } = useWorkspace();
+  const { openUpgradeModal } = useUI();
+  const advancedAccess = useFeatureAccess('advanced_reports_enabled');
   const { quotes, isLoading } = useDerivedQuotes();
   const rawQuery = useQuotesRaw();
   const eventsQuery = useQuery({
@@ -108,40 +112,65 @@ export function Reportes() {
             {topServices.length === 0 && <div style={{ fontSize: 12.5, color: '#94A3B8' }}>Sin datos todavía.</div>}
           </div>
         </div>
-        <div style={{ background: '#0F172A', borderRadius: 20, padding: 22, color: '#fff', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-          <div style={{ fontSize: 12, color: '#94A3B8', fontWeight: 600 }}>TASA DE CIERRE PROMEDIO</div>
-          <div style={{ fontSize: 44, fontWeight: 800, letterSpacing: '-2px', marginTop: 6 }}>{closeRate}%</div>
-          <div style={{ height: 1, background: 'rgba(255,255,255,.1)', margin: '18px 0' }} />
-          <div style={{ fontSize: 13, color: '#C7D2E4', lineHeight: 1.5 }}>
-            Las cotizaciones enviadas el mismo día cierran un <strong style={{ color: '#fff' }}>40% más</strong>.
+        {advancedAccess.data === false ? (
+          <div style={{ background: '#0F172A', borderRadius: 20, padding: 22, color: '#fff', display: 'flex', flexDirection: 'column', justifyContent: 'center', gridColumn: '1/-1' }}>
+            <div style={{ fontSize: 12, color: '#94A3B8', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 8 }}>
+              REPORTES AVANZADOS
+              <span style={{ fontSize: 10, fontWeight: 800, color: '#D97706', background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 6, padding: '1px 6px' }}>PRO</span>
+            </div>
+            <div style={{ fontSize: 13, color: '#C7D2E4', lineHeight: 1.5, marginTop: 8, maxWidth: 480 }}>
+              Tasa de cierre, embudo de propuestas (apertura, aceptación, tiempo de cierre) y valor ganado/perdido están disponibles desde el plan PRO.
+            </div>
+            <button
+              onClick={() => openUpgradeModal({
+                title: 'Reportes avanzados disponibles en PRO',
+                message: 'Accede a la tasa de cierre, el embudo de propuestas y el valor ganado/perdido actualizando a PRO por $39.900/mes.',
+                targetPlan: 'pro',
+                ctaLabel: 'Actualizar a PRO',
+              })}
+              style={{ marginTop: 16, alignSelf: 'flex-start', border: 'none', background: '#2563EB', color: '#fff', fontWeight: 700, fontSize: 13, padding: '10px 18px', borderRadius: 11, cursor: 'pointer' }}
+            >
+              Ver reportes avanzados
+            </button>
           </div>
-        </div>
+        ) : (
+          <>
+            <div style={{ background: '#0F172A', borderRadius: 20, padding: 22, color: '#fff', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+              <div style={{ fontSize: 12, color: '#94A3B8', fontWeight: 600 }}>TASA DE CIERRE PROMEDIO</div>
+              <div style={{ fontSize: 44, fontWeight: 800, letterSpacing: '-2px', marginTop: 6 }}>{closeRate}%</div>
+              <div style={{ height: 1, background: 'rgba(255,255,255,.1)', margin: '18px 0' }} />
+              <div style={{ fontSize: 13, color: '#C7D2E4', lineHeight: 1.5 }}>
+                Las cotizaciones enviadas el mismo día cierran un <strong style={{ color: '#fff' }}>40% más</strong>.
+              </div>
+            </div>
 
-        <div style={{ background: '#fff', border: '1px solid #E2E8F0', borderRadius: 20, padding: 22, gridColumn: '1/-1' }}>
-          <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 16 }}>Embudo de propuestas</h3>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(140px,1fr))', gap: 14 }}>
-            <div>
-              <div style={{ fontSize: 11, color: '#64748B', fontWeight: 600 }}>TASA DE APERTURA</div>
-              <div style={{ fontSize: 28, fontWeight: 800, marginTop: 4 }}>{openRate}%</div>
+            <div style={{ background: '#fff', border: '1px solid #E2E8F0', borderRadius: 20, padding: 22, gridColumn: '1/-1' }}>
+              <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 16 }}>Embudo de propuestas</h3>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(140px,1fr))', gap: 14 }}>
+                <div>
+                  <div style={{ fontSize: 11, color: '#64748B', fontWeight: 600 }}>TASA DE APERTURA</div>
+                  <div style={{ fontSize: 28, fontWeight: 800, marginTop: 4 }}>{openRate}%</div>
+                </div>
+                <div>
+                  <div style={{ fontSize: 11, color: '#64748B', fontWeight: 600 }}>TASA DE ACEPTACIÓN</div>
+                  <div style={{ fontSize: 28, fontWeight: 800, marginTop: 4 }}>{acceptRate}%</div>
+                </div>
+                <div>
+                  <div style={{ fontSize: 11, color: '#64748B', fontWeight: 600 }}>TIEMPO PROMEDIO DE CIERRE</div>
+                  <div style={{ fontSize: 28, fontWeight: 800, marginTop: 4 }}>{avgCloseDays === null ? '—' : `${avgCloseDays} d`}</div>
+                </div>
+                <div>
+                  <div style={{ fontSize: 11, color: '#64748B', fontWeight: 600 }}>VALOR GANADO</div>
+                  <div style={{ fontSize: 28, fontWeight: 800, marginTop: 4, color: '#16A34A' }}>{fmt(valueWon)}</div>
+                </div>
+                <div>
+                  <div style={{ fontSize: 11, color: '#64748B', fontWeight: 600 }}>VALOR PERDIDO</div>
+                  <div style={{ fontSize: 28, fontWeight: 800, marginTop: 4, color: '#DC2626' }}>{fmt(valueLost)}</div>
+                </div>
+              </div>
             </div>
-            <div>
-              <div style={{ fontSize: 11, color: '#64748B', fontWeight: 600 }}>TASA DE ACEPTACIÓN</div>
-              <div style={{ fontSize: 28, fontWeight: 800, marginTop: 4 }}>{acceptRate}%</div>
-            </div>
-            <div>
-              <div style={{ fontSize: 11, color: '#64748B', fontWeight: 600 }}>TIEMPO PROMEDIO DE CIERRE</div>
-              <div style={{ fontSize: 28, fontWeight: 800, marginTop: 4 }}>{avgCloseDays === null ? '—' : `${avgCloseDays} d`}</div>
-            </div>
-            <div>
-              <div style={{ fontSize: 11, color: '#64748B', fontWeight: 600 }}>VALOR GANADO</div>
-              <div style={{ fontSize: 28, fontWeight: 800, marginTop: 4, color: '#16A34A' }}>{fmt(valueWon)}</div>
-            </div>
-            <div>
-              <div style={{ fontSize: 11, color: '#64748B', fontWeight: 600 }}>VALOR PERDIDO</div>
-              <div style={{ fontSize: 28, fontWeight: 800, marginTop: 4, color: '#DC2626' }}>{fmt(valueLost)}</div>
-            </div>
-          </div>
-        </div>
+          </>
+        )}
       </div>
     </div>
   );

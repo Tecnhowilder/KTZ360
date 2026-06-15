@@ -7,6 +7,8 @@ export interface PublicQuoteData {
   client: ClientRow | null;
   company: CompanySettingsRow | null;
   consent_status: 'pending' | 'accepted' | 'rejected' | null;
+  pdf_tier: 'free' | 'pro';
+  custom_qr_enabled: boolean;
 }
 
 export async function getOrCreateQuoteToken(quoteId: string): Promise<string> {

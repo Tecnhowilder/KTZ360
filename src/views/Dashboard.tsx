@@ -3,6 +3,7 @@ import { Icon, KPI_ICONS, COPY_ICON_PATH } from '../lib/icons';
 import { useWorkspace } from '../features/auth/WorkspaceProvider';
 import { useUI, defaultQConfig } from '../features/app/UIProvider';
 import { useDerivedQuotes } from '../hooks/useQuotes';
+import { usePlanLimit } from '../hooks/usePermissions';
 import { fmtM, statusStyle, daysAgo, TODAY } from '../lib/calc';
 import { MONTHS_LONG } from '../lib/data';
 import type { DerivedQuote } from '../lib/types';
@@ -10,10 +11,15 @@ import type { DerivedQuote } from '../lib/types';
 export function Dashboard() {
   const navigate = useNavigate();
   const { profile, company } = useWorkspace();
-  const { openQuoteFlow, openQuoteDetail } = useUI();
+  const { openQuoteFlow, openQuoteDetail, openUpgradeModal } = useUI();
   const { quotes, isLoading } = useDerivedQuotes();
+  const quotesLimitQuery = usePlanLimit('quotes_month');
 
   if (isLoading) return null;
+
+  const quotesLimit = quotesLimitQuery.data;
+  const remainingQuotes = quotesLimit?.max != null ? quotesLimit.max - quotesLimit.current : null;
+  const showQuotaWarning = remainingQuotes != null && remainingQuotes > 0 && remainingQuotes <= 2;
 
   const firstName = (profile.full_name || '').split(' ')[0] || '';
 
@@ -83,6 +89,27 @@ export function Dashboard() {
           <span style={{ fontSize: 17 }}>+</span> Nueva cotización
         </button>
       </div>
+
+      {showQuotaWarning && (
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 14, padding: '12px 16px', marginBottom: 14 }}>
+          <div style={{ fontSize: 13, color: '#92400E', fontWeight: 600 }}>
+            Te queda{remainingQuotes === 1 ? '' : 'n'} {remainingQuotes} cotización{remainingQuotes === 1 ? '' : 'es'} este mes en tu plan FREE.
+          </div>
+          <button
+            onClick={() =>
+              openUpgradeModal({
+                title: 'Cotizaciones ilimitadas con PRO',
+                message: 'Tu plan FREE permite hasta 10 cotizaciones por mes. Actualiza a PRO por $39.900/mes y elimina este límite.',
+                targetPlan: 'pro',
+                ctaLabel: 'Actualizar a PRO',
+              })
+            }
+            style={{ border: 'none', background: '#F59E0B', color: '#fff', fontWeight: 700, fontSize: 12.5, padding: '8px 14px', borderRadius: 10, cursor: 'pointer' }}
+          >
+            Actualizar a PRO
+          </button>
+        </div>
+      )}
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(220px,1fr))', gap: 14 }}>
         <div style={{ background: 'linear-gradient(150deg,#2563EB,#1D4ED8)', borderRadius: 20, padding: 22, color: '#fff', position: 'relative', overflow: 'hidden' }}>
@@ -193,7 +220,7 @@ export function Dashboard() {
           <div style={{ background: '#0F172A', borderRadius: 20, padding: 22, color: '#fff', position: 'relative', overflow: 'hidden' }}>
             <div style={{ position: 'absolute', right: -20, bottom: -20, width: 90, height: 90, borderRadius: '50%', background: 'rgba(34,197,94,.2)' }} />
             <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'rgba(34,197,94,.15)', border: '1px solid rgba(34,197,94,.3)', padding: '4px 10px', borderRadius: 99, fontSize: 10, fontWeight: 800, color: '#7CFFB0', letterSpacing: '.5px' }}>
-              ✦ BRIVIA IA
+              ✦ KTZ360 IA
             </div>
             <p style={{ fontSize: 14, lineHeight: 1.5, marginTop: 12, color: '#E2E8F0' }}>Describe el trabajo y la IA calcula materiales y mano de obra.</p>
             <div style={{ display: 'flex', gap: 8, marginTop: 14, flexWrap: 'wrap' }}>

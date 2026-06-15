@@ -7,6 +7,7 @@ import { QuoteFlowOverlay } from '../overlays/QuoteFlowOverlay';
 import { QuoteDetailOverlay } from '../overlays/QuoteDetailOverlay';
 import { ClientDetailOverlay } from '../overlays/ClientDetailOverlay';
 import { DocumentOverlay } from '../overlays/DocumentOverlay';
+import { UpgradeModal } from '../upgrade/UpgradeModal';
 
 export function AppShell() {
   const width = useWindowWidth();
@@ -42,6 +43,7 @@ export function AppShell() {
       <QuoteDetailOverlay />
       <ClientDetailOverlay />
       <DocumentOverlay />
+      <UpgradeModal />
     </div>
   );
 }

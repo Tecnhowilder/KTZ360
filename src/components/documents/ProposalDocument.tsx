@@ -3,6 +3,7 @@ import { QRCodeSVG } from 'qrcode.react';
 import { fmt, fmtDateLong } from '../../lib/calc';
 import { DOC_NOTICE, type CalcDocResultV2, type DocItem } from '../../lib/engine';
 import { logoUrl } from '../../services/workspaces';
+import { APP_NAME, APP_URL } from '../../lib/brand';
 import type { CompanySettings, DerivedQuote } from '../../lib/types';
 
 const TAX_LABELS: Record<string, string> = {
@@ -29,13 +30,15 @@ export interface ProposalDocumentProps {
   advance: number;
   /** Enlace público para verificar/consultar esta cotización (portal del cliente). */
   verifyUrl?: string | null;
+  /** Nivel de PDF del plan: 'free' muestra branding "Generado con KTZ360"; 'pro' entrega PDF limpio (white-label). */
+  pdfTier?: 'free' | 'pro';
 }
 
-function DocSection({ title, items, subtotalLabel, subtotal }: { title: string; items: DocItem[]; subtotalLabel: string; subtotal: number }) {
+function DocSection({ title, items, subtotalLabel, subtotal, color }: { title: string; items: DocItem[]; subtotalLabel: string; subtotal: number; color: string }) {
   if (items.length === 0) return null;
   return (
     <div style={{ border: '1px solid #E2E8F0', borderRadius: 12, overflow: 'hidden', marginBottom: 18 }}>
-      <div style={{ padding: '10px 14px', fontSize: 11.5, fontWeight: 800, color: '#2563EB', letterSpacing: '.5px', background: '#F5F7FB', borderBottom: '1px solid #E2E8F0' }}>{title}</div>
+      <div style={{ padding: '10px 14px', fontSize: 11.5, fontWeight: 800, color, letterSpacing: '.5px', background: '#F5F7FB', borderBottom: '1px solid #E2E8F0' }}>{title}</div>
       <div style={{ display: 'grid', gridTemplateColumns: GRID, padding: '9px 14px', fontSize: 11, fontWeight: 700, color: '#64748B', background: '#F5F7FB' }}>
         <div>No.</div><div>Descripción</div><div>Unidad</div><div>Cantidad</div><div style={{ textAlign: 'right' }}>Precio Unitario</div><div style={{ textAlign: 'right' }}>Total</div>
       </div>
@@ -51,21 +54,23 @@ function DocSection({ title, items, subtotalLabel, subtotal }: { title: string; 
       ))}
       <div style={{ display: 'grid', gridTemplateColumns: GRID, alignItems: 'center', padding: '10px 14px', minHeight: 40, borderTop: '1px solid #E2E8F0', background: '#F8FAFC' }}>
         <div style={{ gridColumn: '1 / 6', textAlign: 'right', fontSize: 13, fontWeight: 700 }}>{subtotalLabel}</div>
-        <div style={{ textAlign: 'right', fontSize: 13, fontWeight: 800, color: '#2563EB', fontVariantNumeric: 'tabular-nums' }}>{fmt(subtotal)}</div>
+        <div style={{ textAlign: 'right', fontSize: 13, fontWeight: 800, color, fontVariantNumeric: 'tabular-nums' }}>{fmt(subtotal)}</div>
       </div>
     </div>
   );
 }
 
-export function ProposalDocument({ quoteNumber, title, location, clientName, clientPhone, clientEmail, clientMeta, issuedAt, due, doc, cfg, company, advance, verifyUrl }: ProposalDocumentProps) {
+export function ProposalDocument({ quoteNumber, title, location, clientName, clientPhone, clientEmail, clientMeta, issuedAt, due, doc, cfg, company, advance, verifyUrl, pdfTier = 'free' }: ProposalDocumentProps) {
   const logo = logoUrl(company.logo_path);
   const materialItems = doc.items.filter((i) => i.kind === 'material');
   const laborItems = doc.items.filter((i) => i.kind === 'labor');
   const equipmentItems = doc.items.filter((i) => i.kind === 'equipment');
+  const colorPrimary = company.color_primary || '#2563EB';
+  const colorAccent = company.color_accent || '#0F172A';
 
   return (
-    <div id="brivia-doc" style={{ background: '#fff', maxWidth: 820, margin: '0 auto', borderRadius: 14, overflow: 'hidden', boxShadow: '0 12px 40px rgba(0,0,0,.25)' }}>
-      <div style={{ background: '#2563EB', padding: '26px 32px', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 14, borderRadius: '14px 14px 0 0' }}>
+    <div id="ktz-doc" style={{ background: '#fff', maxWidth: 820, margin: '0 auto', borderRadius: 14, overflow: 'hidden', boxShadow: '0 12px 40px rgba(0,0,0,.25)' }}>
+      <div style={{ background: colorPrimary, padding: '26px 32px', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 14, borderRadius: '14px 14px 0 0' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
           {logo ? (
             <div style={{ width: 64, height: 64, borderRadius: 14, background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', flexShrink: 0 }}>
@@ -147,9 +152,9 @@ export function ProposalDocument({ quoteNumber, title, location, clientName, cli
           </div>
         </div>
 
-        <DocSection title="MATERIALES" items={materialItems} subtotalLabel="Subtotal materiales" subtotal={doc.materialsAmt} />
-        <DocSection title="MANO DE OBRA" items={laborItems} subtotalLabel="Subtotal mano de obra" subtotal={doc.laborAmt} />
-        <DocSection title="EQUIPOS / OTROS" items={equipmentItems} subtotalLabel="Subtotal equipos" subtotal={doc.equipmentAmt} />
+        <DocSection title="MATERIALES" items={materialItems} subtotalLabel="Subtotal materiales" subtotal={doc.materialsAmt} color={colorPrimary} />
+        <DocSection title="MANO DE OBRA" items={laborItems} subtotalLabel="Subtotal mano de obra" subtotal={doc.laborAmt} color={colorPrimary} />
+        <DocSection title="EQUIPOS / OTROS" items={equipmentItems} subtotalLabel="Subtotal equipos" subtotal={doc.equipmentAmt} color={colorPrimary} />
 
         <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 18 }}>
           <div style={{ width: 320, display: 'flex', flexDirection: 'column', gap: 10, border: '1px solid #E2E8F0', borderRadius: 12, padding: '18px 20px' }}>
@@ -166,9 +171,9 @@ export function ProposalDocument({ quoteNumber, title, location, clientName, cli
             {doc.taxMode !== 'none' && (
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}><span style={{ color: '#64748B' }}>{TAX_LABELS[doc.taxMode] || 'IVA'} ({doc.taxRate}%)</span><span style={{ fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>{fmt(doc.ivaAmt)}</span></div>
             )}
-            <div style={{ borderTop: '2px solid #0F172A', paddingTop: 10, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div style={{ borderTop: `2px solid ${colorAccent}`, paddingTop: 10, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <span style={{ fontSize: 15, fontWeight: 800 }}>TOTAL</span>
-              <span style={{ fontSize: 30, fontWeight: 800, color: '#2563EB', fontVariantNumeric: 'tabular-nums' }}>{fmt(doc.total)}</span>
+              <span style={{ fontSize: 30, fontWeight: 800, color: colorPrimary, fontVariantNumeric: 'tabular-nums' }}>{fmt(doc.total)}</span>
             </div>
           </div>
         </div>
@@ -246,41 +251,47 @@ export function ProposalDocument({ quoteNumber, title, location, clientName, cli
           </div>
         )}
 
-        {!company.white_label_enabled && (
-          <div style={{ paddingTop: 22, marginTop: 6, borderTop: '1px solid #F1F5F9', display: 'grid', gridTemplateColumns: verifyUrl ? '1fr 1px 1fr' : '1fr', alignItems: 'stretch', gap: 24 }}>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, justifyContent: 'center' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <div style={{ display: 'flex', gap: 2 }}>
-                  <div style={{ width: 5, height: 18, borderRadius: 3, background: '#CBD5E1', transform: 'skewX(-16deg)' }} />
-                  <div style={{ width: 5, height: 18, borderRadius: 3, background: '#94A3B8', transform: 'skewX(-16deg)' }} />
-                  <div style={{ width: 5, height: 18, borderRadius: 3, background: '#2563EB', transform: 'skewX(-16deg)' }} />
+        {(() => {
+          const showBranding = pdfTier !== 'pro' && !company.white_label_enabled;
+          if (!showBranding && !verifyUrl) return null;
+          return (
+            <div style={{ paddingTop: 22, marginTop: 6, borderTop: '1px solid #F1F5F9', display: 'grid', gridTemplateColumns: showBranding && verifyUrl ? '1fr 1px 1fr' : '1fr', alignItems: 'stretch', gap: 24 }}>
+              {showBranding && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6, justifyContent: 'center' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <div style={{ display: 'flex', gap: 2 }}>
+                      <div style={{ width: 5, height: 18, borderRadius: 3, background: '#CBD5E1', transform: 'skewX(-16deg)' }} />
+                      <div style={{ width: 5, height: 18, borderRadius: 3, background: '#94A3B8', transform: 'skewX(-16deg)' }} />
+                      <div style={{ width: 5, height: 18, borderRadius: 3, background: colorPrimary, transform: 'skewX(-16deg)' }} />
+                    </div>
+                    <span style={{ fontSize: 13, color: '#94A3B8' }}>Generado con <strong style={{ color: '#0F172A' }}>{APP_NAME}</strong></span>
+                  </div>
+                  <div style={{ fontSize: 10.5, color: '#94A3B8', lineHeight: 1.6, maxWidth: 280 }}>
+                    Software para cotización profesional de construcción, remodelación y servicios técnicos.
+                  </div>
+                  <div style={{ fontSize: 10.5, color: '#94A3B8', marginTop: 2 }}>🌐 {APP_URL.replace(/^https?:\/\//, '')}</div>
                 </div>
-                <span style={{ fontSize: 13, color: '#94A3B8' }}>Generado con <strong style={{ color: '#0F172A' }}>Brivia</strong></span>
-              </div>
-              <div style={{ fontSize: 10.5, color: '#94A3B8', lineHeight: 1.6, maxWidth: 280 }}>
-                Software para cotización profesional de construcción, remodelación y servicios técnicos.
-              </div>
-              <div style={{ fontSize: 10.5, color: '#94A3B8', marginTop: 2 }}>🌐 www.brivia.co</div>
-            </div>
+              )}
 
-            {verifyUrl && (
-              <>
-                <div style={{ width: 1, background: '#E2E8F0' }} />
-                <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#fff', border: '1px solid #E2E8F0', borderRadius: 10, padding: 8, flexShrink: 0 }}>
-                    <QRCodeSVG value={verifyUrl} size={110} />
+              {verifyUrl && (
+                <>
+                  {showBranding && <div style={{ width: 1, background: '#E2E8F0' }} />}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#fff', border: '1px solid #E2E8F0', borderRadius: 10, padding: 8, flexShrink: 0 }}>
+                      <QRCodeSVG value={verifyUrl} size={110} />
+                    </div>
+                    <div style={{ fontSize: 10.5, color: '#94A3B8', lineHeight: 1.6 }}>
+                      <div style={{ fontSize: 12, fontWeight: 700, color: '#0F172A', marginBottom: 3 }}>Verifica esta cotización</div>
+                      <div>Escanea el código QR o ingresa a:</div>
+                      <div><a href={verifyUrl} style={{ color: colorPrimary, wordBreak: 'break-all' }}>{verifyUrl.replace(/^https?:\/\//, '')}</a></div>
+                      <div>Consulta, aprueba o descarga esta cotización online.</div>
+                    </div>
                   </div>
-                  <div style={{ fontSize: 10.5, color: '#94A3B8', lineHeight: 1.6 }}>
-                    <div style={{ fontSize: 12, fontWeight: 700, color: '#0F172A', marginBottom: 3 }}>Verifica esta cotización</div>
-                    <div>Escanea el código QR o ingresa a:</div>
-                    <div><a href={verifyUrl} style={{ color: '#2563EB', wordBreak: 'break-all' }}>{verifyUrl.replace(/^https?:\/\//, '')}</a></div>
-                    <div>Consulta, aprueba o descarga esta cotización online.</div>
-                  </div>
-                </div>
-              </>
-            )}
-          </div>
-        )}
+                </>
+              )}
+            </div>
+          );
+        })()}
       </div>
     </div>
   );

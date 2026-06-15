@@ -10,8 +10,10 @@ import { Clientes } from './views/Clientes';
 import { Materiales } from './views/Materiales';
 import { Plantillas } from './views/Plantillas';
 import { Reportes } from './views/Reportes';
-import { BriviaIA } from './views/BriviaIA';
+import { KtzIA } from './views/KtzIA';
 import { Empresa } from './views/Empresa';
+import { Planes } from './views/Planes';
+import { AdminPanel } from './views/AdminPanel';
 import { SimpleEmpty } from './views/SimpleEmpty';
 import { PublicQuotePortal } from './views/public/PublicQuotePortal';
 
@@ -36,8 +38,10 @@ export const router = createBrowserRouter([
       { path: 'plantillas', element: <Plantillas /> },
       { path: 'materiales', element: <Materiales /> },
       { path: 'reportes', element: <Reportes /> },
-      { path: 'ia', element: <BriviaIA /> },
+      { path: 'ia', element: <KtzIA /> },
       { path: 'empresa', element: <Empresa /> },
+      { path: 'planes', element: <Planes /> },
+      { path: 'admin', element: <AdminPanel /> },
       { path: 'proyectos', element: <SimpleEmpty variant="proyectos" /> },
       { path: 'config', element: <SimpleEmpty variant="config" /> },
     ],

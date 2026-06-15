@@ -1,7 +1,10 @@
 import { useNavigate, useLocation } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
 import { Icon, NAV_ICONS, NAV_ITEMS, type NavId } from '../../lib/icons';
 import { useWorkspace } from '../../features/auth/WorkspaceProvider';
 import { useUI, defaultQConfig } from '../../features/app/UIProvider';
+import { isSuperAdmin } from '../../lib/permissions';
+import { APP_NAME } from '../../lib/brand';
 
 interface SidebarProps {
   width: number;
@@ -13,11 +16,14 @@ export function Sidebar({ width, rail }: SidebarProps) {
   const location = useLocation();
   const { profile, planName, company } = useWorkspace();
   const { openQuoteFlow } = useUI();
+  const adminQuery = useQuery({ queryKey: ['isSuperAdmin'], queryFn: isSuperAdmin });
 
   const activeView = location.pathname.split('/')[2] as NavId | undefined;
   const navJustify = rail ? 'center' : 'flex-start';
   const labelDisplay = rail ? 'none' : 'inline';
   const profileDisplay = rail ? 'none' : 'flex';
+
+  const navItems = adminQuery.data ? [...NAV_ITEMS, { id: 'admin' as NavId, label: 'Admin' }] : NAV_ITEMS;
 
   const initial = (profile.full_name || profile.email || '?').trim().charAt(0).toUpperCase();
 
@@ -37,18 +43,19 @@ export function Sidebar({ width, rail }: SidebarProps) {
       }}
     >
       <div style={{ display: 'flex', alignItems: 'center', gap: 11, padding: '6px 6px 18px', justifyContent: navJustify }}>
-        <div style={{ display: 'flex', gap: 3, flexShrink: 0 }}>
-          <div style={{ width: 7, height: 26, borderRadius: 4, background: '#64748B', transform: 'skewX(-16deg)' }} />
-          <div style={{ width: 7, height: 26, borderRadius: 4, background: '#3B82F6', transform: 'skewX(-16deg)' }} />
-          <div style={{ width: 7, height: 26, borderRadius: 4, background: '#fff', transform: 'skewX(-16deg)' }} />
-        </div>
+        {!rail && (
+          <img src="/icons/logo-dark.png" alt="KTZ360" style={{ width: 40, height: 40, objectFit: 'contain', flexShrink: 0 }} />
+        )}
+        {rail && (
+          <img src="/icons/logo-icon.png" alt="KTZ360" style={{ width: 32, height: 32, objectFit: 'contain', flexShrink: 0 }} />
+        )}
         <span style={{ fontWeight: 800, fontSize: 20, color: '#fff', letterSpacing: '-.8px', display: labelDisplay }}>
-          Brivia
+          {APP_NAME}
         </span>
       </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 3, marginTop: 6, flex: 1, overflowY: 'auto' }}>
-        {NAV_ITEMS.map((it) => {
+        {navItems.map((it) => {
           const active = activeView === it.id;
           return (
             <button
@@ -152,7 +159,13 @@ export function Sidebar({ width, rail }: SidebarProps) {
           <div style={{ fontSize: 12.5, fontWeight: 700, color: '#fff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
             {profile.full_name || profile.email}
           </div>
-          <div style={{ fontSize: 10.5, color: '#94A3B8' }}>Plan {planName}</div>
+          <div
+            onClick={() => navigate('/app/planes')}
+            style={{ fontSize: 10.5, color: '#94A3B8', cursor: 'pointer' }}
+            title="Ver planes y precios"
+          >
+            Plan {planName}
+          </div>
         </div>
       </div>
     </aside>

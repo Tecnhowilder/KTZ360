@@ -1,17 +1,20 @@
 import { useState, type FormEvent } from 'react';
-import { useMutation } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useWorkspace } from '../../features/auth/WorkspaceProvider';
 import { useAuth } from '../../features/auth/AuthProvider';
 import { useInvalidateClients } from '../../hooks/useQuotes';
 import { createClient } from '../../services/clients';
 import { useToast } from '../ui/Toast';
+import { useUI } from '../../features/app/UIProvider';
 import type { Client } from '../../lib/types';
 
 export function ClientFormModal({ onClose, onCreated }: { onClose: () => void; onCreated?: (client: Client) => void }) {
   const { workspace } = useWorkspace();
   const { user } = useAuth();
   const invalidate = useInvalidateClients();
+  const queryClient = useQueryClient();
   const { showToast } = useToast();
+  const { openUpgradeModal } = useUI();
   const [name, setName] = useState('');
   const [meta, setMeta] = useState('');
   const [phone, setPhone] = useState('');
@@ -21,9 +24,24 @@ export function ClientFormModal({ onClose, onCreated }: { onClose: () => void; o
     mutationFn: () => createClient(workspace.id, user!.id, { name, meta: meta || null, phone: phone || null, email: email || null }),
     onSuccess: (client) => {
       invalidate();
+      queryClient.invalidateQueries({ queryKey: ['planLimit', workspace.id, 'clients'] });
       showToast('Cliente creado');
       onCreated?.(client);
       onClose();
+    },
+    onError: (err: unknown) => {
+      const message = err instanceof Error ? err.message : String(err);
+      if (message.includes('plan_limit_exceeded')) {
+        onClose();
+        openUpgradeModal({
+          title: 'Has alcanzado el límite de tu plan',
+          message: 'Tu plan FREE permite hasta 20 clientes. Actualiza a PRO por $39.900/mes para registrar clientes ilimitados.',
+          targetPlan: 'pro',
+          ctaLabel: 'Actualizar a PRO',
+        });
+      } else {
+        showToast('No se pudo crear el cliente');
+      }
     },
   });
 

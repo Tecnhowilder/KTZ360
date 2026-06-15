@@ -12,6 +12,8 @@ import { getLatestClientConsent } from '../../services/events';
 import { computeServiceLine, computeQuote, groupLineItems, materialGroupKey, type LineItemKind, type ServiceLine, type ServiceWithRules, type TaxMode, type DocDetailLevel } from '../../lib/engine';
 import { fmt, fmtDateY, dueDate, TODAY, serviceLabel, followMessage, openWhats } from '../../lib/calc';
 import { saveQuoteDraft, loadQuoteDraft, clearQuoteDraft, hasMeaningfulDraft, type QuoteDraft } from '../../lib/draftStorage';
+import { useFeatureAccess } from '../../hooks/usePermissions';
+import { APP_NAME } from '../../lib/brand';
 import { useToast } from '../../components/ui/Toast';
 import { CategoryPicker } from '../quote-flow/CategoryPicker';
 import { ServicePicker } from '../quote-flow/ServicePicker';
@@ -139,9 +141,10 @@ function IndirectRow({ icon, label, sub, pct, max, amt, onChange, isLast }: { ic
 }
 
 export function QuoteFlowOverlay() {
-  const { quoteFlow, closeQuoteFlow, setQuoteFlowStep, setQuoteCfg, openDocument } = useUI();
+  const { quoteFlow, closeQuoteFlow, setQuoteFlowStep, setQuoteCfg, openDocument, openUpgradeModal } = useUI();
   const { workspace, company } = useWorkspace();
   const { user } = useAuth();
+  const templatesAccess = useFeatureAccess('templates_enabled');
   const queryClient = useQueryClient();
   const { showToast } = useToast();
   const clientsQuery = useClients();
@@ -234,6 +237,21 @@ export function QuoteFlowOverlay() {
       setCreatedQuoteId(q.id);
       setCreatedQuoteNumber(q.quote_number);
       invalidateQuotes();
+      queryClient.invalidateQueries({ queryKey: ['planLimit', workspace.id, 'quotes_month'] });
+    },
+    onError: (err: unknown) => {
+      const message = err instanceof Error ? err.message : String(err);
+      if (message.includes('plan_limit_exceeded')) {
+        closeQuoteFlow();
+        openUpgradeModal({
+          title: 'Has alcanzado el límite de tu plan',
+          message: 'Tu plan FREE permite hasta 10 cotizaciones por mes. Actualiza a PRO por $39.900/mes para crear cotizaciones ilimitadas.',
+          targetPlan: 'pro',
+          ctaLabel: 'Actualizar a PRO',
+        });
+      } else {
+        showToast('No se pudo crear la cotización');
+      }
     },
   });
 
@@ -243,6 +261,18 @@ export function QuoteFlowOverlay() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['templates', workspace.id] });
       showToast('⭐ Guardada como plantilla');
+    },
+    onError: (err: Error) => {
+      if (err.message.includes('feature_not_available')) {
+        openUpgradeModal({
+          title: 'Plantillas disponibles en PRO',
+          message: 'Guardar cotizaciones como plantilla está disponible desde el plan PRO por $39.900/mes.',
+          targetPlan: 'pro',
+          ctaLabel: 'Actualizar a PRO',
+        });
+      } else {
+        showToast('No se pudo guardar la plantilla');
+      }
     },
   });
 
@@ -521,7 +551,7 @@ export function QuoteFlowOverlay() {
       'Saludos,',
       workspace.name,
       '',
-      'Generado con Brivia',
+      `Generado con ${APP_NAME}`,
     ];
     const body = bodyLines.join('\n');
 
@@ -1463,10 +1493,30 @@ export function QuoteFlowOverlay() {
                   <div style={{ fontSize: 15, fontWeight: 700, color: '#0F172A' }}>Opciones adicionales</div>
                   <div style={{ fontSize: 12.5, color: '#64748B', marginTop: 2, marginBottom: 14 }}>Guarda, edita o reutiliza esta cotización cuando lo necesites.</div>
                   <div className="qf-step6-options">
-                    <button className="qf-step6-option" onClick={() => createTemplateMutation.mutate()} disabled={createTemplateMutation.isPending}>
+                    <button
+                      className="qf-step6-option"
+                      onClick={() => {
+                        if (templatesAccess.data === false) {
+                          openUpgradeModal({
+                            title: 'Plantillas disponibles en PRO',
+                            message: 'Guardar cotizaciones como plantilla está disponible desde el plan PRO por $39.900/mes.',
+                            targetPlan: 'pro',
+                            ctaLabel: 'Actualizar a PRO',
+                          });
+                          return;
+                        }
+                        createTemplateMutation.mutate();
+                      }}
+                      disabled={createTemplateMutation.isPending}
+                    >
                       <span style={{ width: 38, height: 38, borderRadius: 10, background: '#F8FAFC', color: '#475569', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}><Bookmark size={17} /></span>
                       <div>
-                        <div style={{ fontSize: 13.5, fontWeight: 700, color: '#0F172A' }}>Guardar como plantilla</div>
+                        <div style={{ fontSize: 13.5, fontWeight: 700, color: '#0F172A', display: 'flex', alignItems: 'center', gap: 6 }}>
+                          Guardar como plantilla
+                          {templatesAccess.data === false && (
+                            <span style={{ fontSize: 10, fontWeight: 800, color: '#D97706', background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 6, padding: '1px 6px' }}>PRO</span>
+                          )}
+                        </div>
                         <div style={{ fontSize: 12, color: '#64748B' }}>Úsala como base para futuras cotizaciones</div>
                       </div>
                     </button>

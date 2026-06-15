@@ -8,7 +8,7 @@ export interface QuoteDraft {
   savedAt: string;
 }
 
-const KEY_PREFIX = 'brivia_quote_draft_';
+const KEY_PREFIX = 'ktz360_quote_draft_';
 
 export function saveQuoteDraft(workspaceId: string, draft: QuoteDraft) {
   try {

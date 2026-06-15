@@ -26,6 +26,17 @@ interface UIContextValue {
   docQuoteId: string | null;
   openDocument: (id: string) => void;
   closeDocument: () => void;
+
+  upgradeModal: UpgradeModalInfo | null;
+  openUpgradeModal: (info: UpgradeModalInfo) => void;
+  closeUpgradeModal: () => void;
+}
+
+export interface UpgradeModalInfo {
+  title: string;
+  message: string;
+  targetPlan: 'pro' | 'premium';
+  ctaLabel: string;
 }
 
 const UIContext = createContext<UIContextValue | undefined>(undefined);
@@ -67,6 +78,7 @@ export function UIProvider({ children }: { children: ReactNode }) {
   const [detailQuoteId, setDetailQuoteId] = useState<string | null>(null);
   const [detailClientId, setDetailClientId] = useState<string | null>(null);
   const [docQuoteId, setDocQuoteId] = useState<string | null>(null);
+  const [upgradeModal, setUpgradeModal] = useState<UpgradeModalInfo | null>(null);
 
   function openQuoteFlow(opts?: { step?: number; quoteId?: string | null; cfg?: Partial<QConfig> }) {
     setQuoteFlow({
@@ -106,6 +118,9 @@ export function UIProvider({ children }: { children: ReactNode }) {
         docQuoteId,
         openDocument: setDocQuoteId,
         closeDocument: () => setDocQuoteId(null),
+        upgradeModal,
+        openUpgradeModal: setUpgradeModal,
+        closeUpgradeModal: () => setUpgradeModal(null),
       }}
     >
       {children}

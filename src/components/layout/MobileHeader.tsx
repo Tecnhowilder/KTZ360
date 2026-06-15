@@ -1,4 +1,5 @@
 import { useWorkspace } from '../../features/auth/WorkspaceProvider';
+import { APP_NAME } from '../../lib/brand';
 
 export function MobileHeader() {
   const { profile } = useWorkspace();
@@ -20,12 +21,8 @@ export function MobileHeader() {
       }}
     >
       <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
-        <div style={{ display: 'flex', gap: 2.5 }}>
-          <div style={{ width: 6, height: 22, borderRadius: 3, background: '#64748B', transform: 'skewX(-16deg)' }} />
-          <div style={{ width: 6, height: 22, borderRadius: 3, background: '#3B82F6', transform: 'skewX(-16deg)' }} />
-          <div style={{ width: 6, height: 22, borderRadius: 3, background: '#0F172A', transform: 'skewX(-16deg)' }} />
-        </div>
-        <span style={{ fontWeight: 800, fontSize: 18, letterSpacing: '-.6px' }}>Brivia</span>
+        <img src="/icons/logo-light.png" alt="KTZ360" style={{ width: 36, height: 36, objectFit: 'contain', flexShrink: 0 }} />
+        <span style={{ fontWeight: 800, fontSize: 18, letterSpacing: '-.6px' }}>{APP_NAME}</span>
       </div>
       <div
         style={{

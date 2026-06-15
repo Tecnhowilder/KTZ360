@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useUI, defaultQConfig } from '../features/app/UIProvider';
+import { useFeatureAccess } from '../hooks/usePermissions';
+import { useAI } from '../hooks/useAI';
 import { fmt } from '../lib/calc';
 import { NumberField } from '../components/ui/NumberField';
 import { listCategories, listServicesByCategory, getServiceWithRules } from '../services/catalogV2';
@@ -45,8 +47,11 @@ async function estimate(categoryKey: string, area: number): Promise<IaEstimate |
   return { area, categoryKey: category.key, serviceLine, total };
 }
 
-export function BriviaIA() {
-  const { openQuoteFlow } = useUI();
+export function KtzIA() {
+  const { openQuoteFlow, openUpgradeModal } = useUI();
+  const aiAccess = useFeatureAccess('ai_enabled');
+  const photoAccess = useFeatureAccess('photo_quote_enabled');
+  const { generate, loading: aiLoading, error: aiError } = useAI();
   const categoriesQuery = useQuery({ queryKey: ['catalog-categories'], queryFn: listCategories });
   const [mode, setMode] = useState<'text' | 'photo'>('text');
   const [iaText, setIaText] = useState('');
@@ -57,24 +62,56 @@ export function BriviaIA() {
   const [photoArea, setPhotoArea] = useState(80);
 
   async function iaGenerate() {
-    if (iaLoading) return;
+    if (iaLoading || aiLoading) return;
+    if (aiAccess.data === false) {
+      openUpgradeModal({
+        title: 'KTZ360 IA está disponible en PREMIUM',
+        message: 'Genera cotizaciones desde una descripción. Calcula materiales automáticamente. Obtén reportes avanzados.',
+        targetPlan: 'premium',
+        ctaLabel: 'Pasar a PREMIUM',
+      });
+      return;
+    }
     setIaLoading(true);
     setIaResult(null);
+
     const txt = iaText || 'Pintura de una casa de 120 metros cuadrados';
-    const num = txt.match(/(\d{2,4})/);
-    const area = num ? parseInt(num[1], 10) : 120;
-    const low = txt.toLowerCase();
-    let categoryKey = 'pintura';
-    KEYWORD_CATEGORY_MAP.forEach(({ keyword, categoryKey: ck }) => {
-      if (low.includes(keyword)) categoryKey = ck;
-    });
-    const result = await estimate(categoryKey, area || 120);
-    setIaLoading(false);
-    setIaResult(result);
+    let prompt = `Extrae el área en metros cuadrados y el tipo de servicio de esta descripción para generar una cotización: "${txt}". Responde solo con texto plano.`;
+
+    try {
+      const resp = await generate(prompt, { model: 'gemini-1.5', max_tokens: 200, temperature: 0.2 });
+      const content = typeof resp === 'string'
+        ? resp
+        : resp.output_text || resp?.candidates?.[0]?.content?.[0]?.text || resp?.choices?.[0]?.message?.content || JSON.stringify(resp);
+
+      const num = content.match(/(\d{2,4})/);
+      const area = num ? parseInt(num[1], 10) : 120;
+      const low = content.toLowerCase();
+      let categoryKey = 'pintura';
+      KEYWORD_CATEGORY_MAP.forEach(({ keyword, categoryKey: ck }) => {
+        if (low.includes(keyword)) categoryKey = ck;
+      });
+      const result = await estimate(categoryKey, area || 120);
+      setIaResult(result);
+    } catch (error) {
+      console.error('AI generation error', error);
+      setIaResult(null);
+    } finally {
+      setIaLoading(false);
+    }
   }
 
   async function photoGenerate() {
     if (iaLoading) return;
+    if (photoAccess.data === false) {
+      openUpgradeModal({
+        title: 'Cotización desde foto disponible en PREMIUM',
+        message: 'Genera cotizaciones desde fotografías. Calcula materiales automáticamente. Obtén reportes avanzados.',
+        targetPlan: 'premium',
+        ctaLabel: 'Pasar a PREMIUM',
+      });
+      return;
+    }
     setIaLoading(true);
     setIaResult(null);
     const result = await estimate(photoCategory, photoArea || 80);
@@ -109,11 +146,11 @@ export function BriviaIA() {
     <div style={{ maxWidth: 680, margin: '0 auto' }}>
       <div style={{ textAlign: 'center', marginBottom: 18 }}>
         <div style={{ display: 'inline-flex', alignItems: 'center', gap: 7, background: '#0F172A', color: '#7CFFB0', padding: '6px 14px', borderRadius: 99, fontSize: 11, fontWeight: 800, letterSpacing: '.5px' }}>
-          ✦ BRIVIA IA
+          ✦ KTZ360 IA
         </div>
         <h1 style={{ fontSize: 'clamp(24px,4vw,32px)', fontWeight: 800, letterSpacing: '-1px', marginTop: 14 }}>Cotiza en segundos</h1>
         <p style={{ fontSize: 13.5, color: '#64748B', marginTop: 6, lineHeight: 1.5 }}>
-          Brivia detecta el trabajo y el área, y usa <strong>el catálogo de reglas</strong> para calcular materiales y mano de obra. La IA solo pule la redacción.
+          KTZ360 detecta el trabajo y el área, y usa <strong>el catálogo de reglas</strong> para calcular materiales y mano de obra. La IA solo pule la redacción.
         </p>
       </div>
 
@@ -157,6 +194,9 @@ export function BriviaIA() {
           >
             {iaLoading && spinner}
             {iaLoading ? 'Calculando…' : '✦ Generar cotización'}
+            {aiAccess.data === false && (
+              <span style={{ fontSize: 9, fontWeight: 800, color: '#0F172A', background: '#7CFFB0', padding: '2px 7px', borderRadius: 6, letterSpacing: '.5px' }}>PREMIUM</span>
+            )}
           </button>
         </div>
       )}
@@ -212,6 +252,9 @@ export function BriviaIA() {
               >
                 {iaLoading && spinner}
                 ✦ Generar propuesta
+                {photoAccess.data === false && (
+                  <span style={{ fontSize: 9, fontWeight: 800, color: '#0F172A', background: '#7CFFB0', padding: '2px 7px', borderRadius: 6, letterSpacing: '.5px' }}>PREMIUM</span>
+                )}
               </button>
             </div>
           )}

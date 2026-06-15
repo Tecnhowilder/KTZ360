@@ -3,6 +3,8 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useWorkspace } from '../features/auth/WorkspaceProvider';
 import { updateCompanySettings, uploadLogo, logoUrl } from '../services/workspaces';
 import { useToast } from '../components/ui/Toast';
+import { useUI } from '../features/app/UIProvider';
+import { useFeatureAccess } from '../hooks/usePermissions';
 import { NumberField } from '../components/ui/NumberField';
 import type { CompanySettings, TaxMode } from '../lib/types';
 
@@ -10,6 +12,8 @@ export function Empresa() {
   const { workspace, company } = useWorkspace();
   const queryClient = useQueryClient();
   const { showToast } = useToast();
+  const { openUpgradeModal } = useUI();
+  const brandingAccess = useFeatureAccess('branding_enabled');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [name, setName] = useState(company.name);
@@ -21,6 +25,9 @@ export function Empresa() {
   const [validDaysDefault, setValidDaysDefault] = useState(company.valid_days_default);
   const [terms, setTerms] = useState<string[]>(Array.isArray(company.terms_conditions) ? (company.terms_conditions as unknown as string[]) : []);
   const [newTerm, setNewTerm] = useState('');
+  const [colorPrimary, setColorPrimary] = useState(company.color_primary);
+  const [colorSecondary, setColorSecondary] = useState(company.color_secondary);
+  const [colorAccent, setColorAccent] = useState(company.color_accent);
 
   const saveMutation = useMutation({
     mutationFn: (patch: Partial<CompanySettings>) => updateCompanySettings(workspace.id, patch),
@@ -75,6 +82,43 @@ export function Empresa() {
     logoMutation.mutate(f);
   }
 
+  function handleUploadLogoClick() {
+    if (brandingAccess.data === false) {
+      openUpgradeModal({
+        title: 'Personaliza tus cotizaciones con tu logo',
+        message: 'Subir tu logo y personalizar el branding está disponible en PRO. Actualiza por $39.900/mes.',
+        targetPlan: 'pro',
+        ctaLabel: 'Actualizar a PRO',
+      });
+      return;
+    }
+    fileInputRef.current?.click();
+  }
+
+  function openBrandingUpgrade() {
+    openUpgradeModal({
+      title: 'Personaliza los colores de tus cotizaciones',
+      message: 'Aplica los colores de tu marca al PDF de tus propuestas. Disponible en PRO por $39.900/mes.',
+      targetPlan: 'pro',
+      ctaLabel: 'Actualizar a PRO',
+    });
+  }
+
+  function handleColorChange(field: 'color_primary' | 'color_secondary' | 'color_accent', value: string) {
+    if (field === 'color_primary') setColorPrimary(value);
+    if (field === 'color_secondary') setColorSecondary(value);
+    if (field === 'color_accent') setColorAccent(value);
+    saveMutation.mutate({ [field]: value });
+  }
+
+  function resetColors() {
+    const defaults = { color_primary: '#2563EB', color_secondary: '#06B6D4', color_accent: '#0F172A' };
+    setColorPrimary(defaults.color_primary);
+    setColorSecondary(defaults.color_secondary);
+    setColorAccent(defaults.color_accent);
+    saveMutation.mutate(defaults);
+  }
+
   const inputStyle: React.CSSProperties = { width: '100%', border: '1.5px solid #E2E8F0', borderRadius: 11, padding: '11px 13px', fontSize: 14, outline: 'none' };
   const labelStyle: React.CSSProperties = { fontSize: 12, fontWeight: 600, color: '#475569', display: 'block', marginBottom: 5 };
 
@@ -97,11 +141,14 @@ export function Empresa() {
             )}
             <input ref={fileInputRef} type="file" accept="image/*" onChange={handleLogoChange} style={{ display: 'none' }} />
             <button
-              onClick={() => fileInputRef.current?.click()}
+              onClick={handleUploadLogoClick}
               disabled={logoMutation.isPending}
-              style={{ border: '1.5px solid #E2E8F0', background: '#fff', color: '#2563EB', fontWeight: 700, fontSize: 13, padding: '9px 14px', borderRadius: 11, cursor: 'pointer' }}
+              style={{ border: '1.5px solid #E2E8F0', background: '#fff', color: '#2563EB', fontWeight: 700, fontSize: 13, padding: '9px 14px', borderRadius: 11, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}
             >
               {logoMutation.isPending ? 'Subiendo…' : 'Subir logo'}
+              {brandingAccess.data === false && (
+                <span style={{ fontSize: 9, fontWeight: 800, color: '#2563EB', background: '#EFF6FF', padding: '2px 6px', borderRadius: 6, letterSpacing: '.5px' }}>PRO</span>
+              )}
             </button>
           </div>
           <div>
@@ -229,11 +276,63 @@ export function Empresa() {
           </div>
         </div>
 
+        <div style={{ background: '#fff', border: '1px solid #E2E8F0', borderRadius: 18, padding: 22, display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+            <div style={{ fontSize: 14, fontWeight: 800 }}>Colores de marca</div>
+            {brandingAccess.data === false && (
+              <span style={{ fontSize: 9, fontWeight: 800, color: '#2563EB', background: '#EFF6FF', padding: '2px 6px', borderRadius: 6, letterSpacing: '.5px' }}>PRO</span>
+            )}
+          </div>
+          <p style={{ fontSize: 12.5, color: '#64748B', margin: 0, lineHeight: 1.5 }}>
+            Personaliza los colores que se usan en el encabezado y los totales de tus cotizaciones en PDF.
+          </p>
+          <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap' }} onClick={() => brandingAccess.data === false && openBrandingUpgrade()}>
+            <div>
+              <label style={labelStyle}>Primario</label>
+              <input
+                type="color"
+                value={colorPrimary}
+                disabled={brandingAccess.data === false}
+                onChange={(e) => handleColorChange('color_primary', e.target.value)}
+                style={{ width: 52, height: 38, border: '1.5px solid #E2E8F0', borderRadius: 10, padding: 2, cursor: brandingAccess.data === false ? 'pointer' : 'pointer' }}
+              />
+            </div>
+            <div>
+              <label style={labelStyle}>Secundario</label>
+              <input
+                type="color"
+                value={colorSecondary}
+                disabled={brandingAccess.data === false}
+                onChange={(e) => handleColorChange('color_secondary', e.target.value)}
+                style={{ width: 52, height: 38, border: '1.5px solid #E2E8F0', borderRadius: 10, padding: 2, cursor: 'pointer' }}
+              />
+            </div>
+            <div>
+              <label style={labelStyle}>Acento</label>
+              <input
+                type="color"
+                value={colorAccent}
+                disabled={brandingAccess.data === false}
+                onChange={(e) => handleColorChange('color_accent', e.target.value)}
+                style={{ width: 52, height: 38, border: '1.5px solid #E2E8F0', borderRadius: 10, padding: 2, cursor: 'pointer' }}
+              />
+            </div>
+          </div>
+          {brandingAccess.data !== false && (
+            <button
+              onClick={resetColors}
+              style={{ alignSelf: 'flex-start', border: '1.5px solid #E2E8F0', background: '#fff', color: '#475569', fontWeight: 700, fontSize: 12, padding: '7px 12px', borderRadius: 10, cursor: 'pointer' }}
+            >
+              Restablecer colores
+            </button>
+          )}
+        </div>
+
         <div style={{ background: '#fff', border: '1px solid #E2E8F0', borderRadius: 18, padding: 0, overflow: 'hidden' }}>
           <div style={{ background: '#F8FAFC', padding: '12px 16px', borderBottom: '1px solid #EEF2F7', fontSize: 11, fontWeight: 700, color: '#94A3B8', letterSpacing: '.5px' }}>VISTA PREVIA EN PDF</div>
           <div style={{ padding: 20 }}>
             <div style={{ border: '1px solid #E2E8F0', borderRadius: 12, overflow: 'hidden' }}>
-              <div style={{ background: '#2563EB', padding: '14px 16px', color: '#fff', display: 'flex', alignItems: 'center', gap: 9 }}>
+              <div style={{ background: colorPrimary, padding: '14px 16px', color: '#fff', display: 'flex', alignItems: 'center', gap: 9 }}>
                 <div style={{ display: 'flex', gap: 2.5 }}>
                   <div style={{ width: 5, height: 18, borderRadius: 3, background: 'rgba(255,255,255,.5)', transform: 'skewX(-16deg)' }} />
                   <div style={{ width: 5, height: 18, borderRadius: 3, background: 'rgba(255,255,255,.8)', transform: 'skewX(-16deg)' }} />
@@ -252,9 +351,9 @@ export function Empresa() {
                 <div style={{ marginTop: 4 }}>
                   Cliente: Constructora Andina<br />Proyecto: Remodelación Apto 502
                 </div>
-                <div style={{ borderTop: '2px solid #0F172A', marginTop: 12, paddingTop: 10, display: 'flex', justifyContent: 'space-between' }}>
+                <div style={{ borderTop: `2px solid ${colorAccent}`, marginTop: 12, paddingTop: 10, display: 'flex', justifyContent: 'space-between' }}>
                   <span style={{ fontWeight: 700, color: '#0F172A' }}>TOTAL</span>
-                  <span style={{ fontWeight: 800, color: '#2563EB', fontSize: 15 }}>$ 4.850.000</span>
+                  <span style={{ fontWeight: 800, color: colorPrimary, fontSize: 15 }}>$ 4.850.000</span>
                 </div>
               </div>
             </div>

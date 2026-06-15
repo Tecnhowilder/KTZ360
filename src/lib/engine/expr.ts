@@ -1,4 +1,4 @@
-// BRIVIA ENGINE V2 — Expresiones declarativas (sin eval()).
+// KTZ360 ENGINE V2 — Expresiones declarativas (sin eval()).
 // Usadas en quantity_expr, waste_pct (overrides), condition_expr y visible_if
 // del catálogo (catalog_questions, catalog_*_rules, catalog_recommendations).
 

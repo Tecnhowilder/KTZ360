@@ -10,6 +10,7 @@ import { listQuoteEventsForQuote } from '../../services/events';
 import { useAuth } from '../../features/auth/AuthProvider';
 import { deriveQuote, fmt, fmtDate, daysAgo, statusStyle, followMessage, openWhats, serviceLabel } from '../../lib/calc';
 import { useToast } from '../../components/ui/Toast';
+import { useFeatureAccess } from '../../hooks/usePermissions';
 import type { QuoteStatus } from '../../lib/types';
 import type { QuoteEventType } from '../../lib/database.types';
 
@@ -25,8 +26,9 @@ const EVENT_LABELS: Record<QuoteEventType, string> = {
 };
 
 export function QuoteDetailOverlay() {
-  const { detailQuoteId, closeQuoteDetail, openDocument } = useUI();
+  const { detailQuoteId, closeQuoteDetail, openDocument, openUpgradeModal } = useUI();
   const { workspace, company } = useWorkspace();
+  const templatesAccess = useFeatureAccess('templates_enabled');
   const { user } = useAuth();
   const clientsQuery = useClients();
   const rawQuery = useQuotesRaw();
@@ -81,6 +83,18 @@ export function QuoteDetailOverlay() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['templates', workspace.id] });
       showToast('⭐ Guardada como plantilla');
+    },
+    onError: (err: Error) => {
+      if (err.message.includes('feature_not_available')) {
+        openUpgradeModal({
+          title: 'Plantillas disponibles en PRO',
+          message: 'Guardar cotizaciones como plantilla está disponible desde el plan PRO por $39.900/mes.',
+          targetPlan: 'pro',
+          ctaLabel: 'Actualizar a PRO',
+        });
+      } else {
+        showToast('No se pudo guardar la plantilla');
+      }
     },
   });
 
@@ -240,8 +254,23 @@ export function QuoteDetailOverlay() {
           <button onClick={() => duplicateMutation.mutate()} disabled={duplicateMutation.isPending} style={{ flex: 1, border: '1.5px solid #E2E8F0', background: '#fff', color: '#475569', fontWeight: 700, fontSize: 13, padding: 13, borderRadius: 13, cursor: 'pointer' }}>
             Duplicar
           </button>
-          <button onClick={() => templateMutation.mutate()} disabled={templateMutation.isPending} style={{ flex: 1, border: 'none', background: '#FFFBEB', color: '#92400E', fontWeight: 700, fontSize: 13, padding: 13, borderRadius: 13, cursor: 'pointer' }}>
-            ⭐ Plantilla
+          <button
+            onClick={() => {
+              if (templatesAccess.data === false) {
+                openUpgradeModal({
+                  title: 'Plantillas disponibles en PRO',
+                  message: 'Guardar cotizaciones como plantilla está disponible desde el plan PRO por $39.900/mes.',
+                  targetPlan: 'pro',
+                  ctaLabel: 'Actualizar a PRO',
+                });
+                return;
+              }
+              templateMutation.mutate();
+            }}
+            disabled={templateMutation.isPending}
+            style={{ flex: 1, border: 'none', background: '#FFFBEB', color: '#92400E', fontWeight: 700, fontSize: 13, padding: 13, borderRadius: 13, cursor: 'pointer' }}
+          >
+            ⭐ Plantilla{templatesAccess.data === false ? ' (PRO)' : ''}
           </button>
           <button onClick={() => openDocument(quote.id)} style={{ flex: 1.4, border: 'none', background: '#2563EB', color: '#fff', fontWeight: 700, fontSize: 13, padding: 13, borderRadius: 13, cursor: 'pointer' }}>
             Ver propuesta · PDF

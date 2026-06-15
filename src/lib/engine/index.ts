@@ -1,4 +1,4 @@
-// BRIVIA ENGINE V2 — Motor de reglas: evalúa una línea de servicio del
+// KTZ360 ENGINE V2 — Motor de reglas: evalúa una línea de servicio del
 // catálogo maestro (materiales, mano de obra, equipos) y agrega cotizaciones.
 
 import { evalBool, evalNumber, type Expr, type ExprContext } from './expr';
@@ -584,7 +584,7 @@ export function computeDoc(lines: ServiceLine[], cfg: QuoteCalcConfig, detailLev
 export const TRANSPARENCY_NOTICE =
   'Los precios de materiales y mano de obra son valores sugeridos de referencia para el mercado colombiano. ' +
   'Puedes editarlos antes de generar la cotización para ajustarlos a tus proveedores y tarifas reales. ' +
-  'Brivia no fija precios: tú tienes el control final de cada valor.';
+  'KTZ360 no fija precios: tú tienes el control final de cada valor.';
 
 export const DOC_NOTICE =
   'Las cantidades de materiales fueron calculadas automáticamente según parámetros técnicos de referencia para el tipo de trabajo seleccionado. ' +

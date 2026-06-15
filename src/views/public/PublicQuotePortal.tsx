@@ -5,10 +5,11 @@ import { deriveQuote, dueDate, advanceAmount, fmt } from '../../lib/calc';
 import { computeDoc } from '../../lib/engine';
 import { ProposalDocument } from '../../components/documents/ProposalDocument';
 import { getPublicQuote, registerQuoteEvent, registerConsentAndEvent } from '../../services/publicPortal';
+import { APP_NAME } from '../../lib/brand';
 import type { CompanySettings } from '../../lib/types';
 
 const LEGAL_TEXT = (companyName: string) =>
-  `Brivia actúa únicamente como plataforma tecnológica para la generación, gestión y envío de cotizaciones. Los datos personales son administrados por ${companyName}, quien actúa como responsable del tratamiento de los datos personales suministrados por el cliente.`;
+  `${APP_NAME} actúa únicamente como plataforma tecnológica para la generación, gestión y envío de cotizaciones. Los datos personales son administrados por ${companyName}, quien actúa como responsable del tratamiento de los datos personales suministrados por el cliente.`;
 
 type PendingAction = 'accepted' | 'rejected' | 'changes_requested' | null;
 
@@ -63,7 +64,7 @@ export function PublicQuotePortal() {
     );
   }
 
-  const { quote, client, company: companyRow, consent_status } = query.data;
+  const { quote, client, company: companyRow, consent_status, pdf_tier, custom_qr_enabled } = query.data;
   const company: CompanySettings = {
     ...(companyRow as unknown as CompanySettings),
     terms_conditions: Array.isArray(companyRow?.terms_conditions) ? (companyRow!.terms_conditions as unknown as string[]) : [],
@@ -122,7 +123,7 @@ export function PublicQuotePortal() {
   }
 
   return (
-    <div id="brivia-doc-wrap" style={{ minHeight: '100vh', background: '#0F172A', padding: '24px 16px 100px' }}>
+    <div id="ktz-doc-wrap" style={{ minHeight: '100vh', background: '#0F172A', padding: '24px 16px 100px' }}>
       <ProposalDocument
         quoteNumber={quote.quote_number}
         title={quote.title}
@@ -137,7 +138,8 @@ export function PublicQuotePortal() {
         cfg={d.cfg}
         company={company}
         advance={advance}
-        verifyUrl={`${window.location.origin}/p/${token}`}
+        verifyUrl={custom_qr_enabled ? `${window.location.origin}/p/${token}` : null}
+        pdfTier={pdf_tier}
       />
 
       {consent_status === 'accepted' && (

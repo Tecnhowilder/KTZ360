@@ -7,10 +7,13 @@ import { deriveQuote, dueDate, followMessage, openWhats, advanceAmount } from '.
 import { computeDoc } from '../../lib/engine';
 import { getOrCreateQuoteToken, registerQuoteEvent } from '../../services/publicPortal';
 import { ProposalDocument } from '../documents/ProposalDocument';
+import { usePdfTier, useFeatureAccess } from '../../hooks/usePermissions';
 
 export function DocumentOverlay() {
   const { docQuoteId, closeDocument } = useUI();
   const { company } = useWorkspace();
+  const pdfTierQuery = usePdfTier();
+  const qrAccess = useFeatureAccess('custom_qr_enabled');
   const clientsQuery = useClients();
   const rawQuery = useQuotesRaw();
   const [sharing, setSharing] = useState(false);
@@ -43,7 +46,7 @@ export function DocumentOverlay() {
 
   const quoteTitle = quote.title;
   const quoteId = quote.id;
-  const verifyUrl = tokenQuery.data ? `${window.location.origin}/p/${tokenQuery.data}` : null;
+  const verifyUrl = qrAccess.data && tokenQuery.data ? `${window.location.origin}/p/${tokenQuery.data}` : null;
 
   async function shareWa() {
     setSharing(true);
@@ -62,10 +65,15 @@ export function DocumentOverlay() {
   }
 
   return (
-    <div id="brivia-doc-wrap" style={{ position: 'fixed', inset: 0, zIndex: 90, background: '#0F172A', display: 'flex', flexDirection: 'column' }}>
+    <div id="ktz-doc-wrap" style={{ position: 'fixed', inset: 0, zIndex: 90, background: '#0F172A', display: 'flex', flexDirection: 'column' }}>
       <div className="no-print" style={{ background: '#fff', borderBottom: '1px solid #EEF2F7', padding: '12px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
         <div style={{ fontSize: 13, fontWeight: 700, color: '#64748B' }}>{quote.quote_number}</div>
-        <div style={{ display: 'flex', gap: 9 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
+          {qrAccess.data === false && (
+            <span style={{ fontSize: 11, fontWeight: 700, color: '#94A3B8' }}>
+              QR de verificación disponible en <span style={{ color: '#D97706' }}>PRO</span>
+            </span>
+          )}
           <button onClick={shareWa} disabled={sharing} style={{ border: 'none', background: '#22C55E', color: '#fff', fontWeight: 700, fontSize: 13, padding: '9px 15px', borderRadius: 11, cursor: sharing ? 'default' : 'pointer', opacity: sharing ? 0.7 : 1 }}>
             WhatsApp
           </button>
@@ -78,7 +86,7 @@ export function DocumentOverlay() {
         </div>
       </div>
 
-      <div id="brivia-doc-scroll" style={{ flex: 1, overflowY: 'auto', padding: '24px 16px' }}>
+      <div id="ktz-doc-scroll" style={{ flex: 1, overflowY: 'auto', padding: '24px 16px' }}>
         <ProposalDocument
           quoteNumber={quote.quote_number}
           title={quote.title}
@@ -94,6 +102,7 @@ export function DocumentOverlay() {
           company={company}
           advance={advance}
           verifyUrl={verifyUrl}
+          pdfTier={pdfTierQuery.data ?? 'free'}
         />
       </div>
     </div>

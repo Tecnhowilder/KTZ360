@@ -20,16 +20,14 @@ export async function getWorkspaceFeatures(workspaceId: string): Promise<Workspa
   return data;
 }
 
+const PLAN_DISPLAY_NAMES: Record<string, string> = { free: 'Free', pro: 'Pro', premium: 'Premium' };
+
 export async function getCurrentPlanName(workspaceId: string): Promise<string> {
-  const { data, error } = await supabase
-    .from('subscriptions')
-    .select('plan:plans(name)')
-    .eq('workspace_id', workspaceId)
-    .eq('status', 'active')
-    .single();
+  // Fuente de verdad: subscriptions, resuelto vía get_effective_plan_code (RPC).
+  const { data, error } = await supabase.rpc('get_effective_plan_code', { p_workspace_id: workspaceId });
   if (error) throw error;
-  const plan = (data as unknown as { plan: { name: string } | null }).plan;
-  return plan?.name ?? 'Free';
+  const code = data as unknown as string;
+  return PLAN_DISPLAY_NAMES[code] ?? 'Free';
 }
 
 export async function updateWorkspace(workspaceId: string, patch: Partial<Workspace>): Promise<Workspace> {

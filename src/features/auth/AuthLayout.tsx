@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { APP_NAME } from '../../lib/brand';
 
 export function AuthLayout({ title, subtitle, children }: { title: string; subtitle: string; children: ReactNode }) {
   return (
@@ -25,23 +26,7 @@ export function AuthLayout({ title, subtitle, children }: { title: string; subti
         }}
       >
         <div style={{ textAlign: 'center', marginBottom: 28 }}>
-          <div
-            style={{
-              width: 48,
-              height: 48,
-              borderRadius: 14,
-              background: '#2563EB',
-              color: '#fff',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontWeight: 800,
-              fontSize: 20,
-              margin: '0 auto 16px',
-            }}
-          >
-            B
-          </div>
+          <img src="/icons/logo-light.png" alt="KTZ360" style={{ width: 56, height: 56, objectFit: 'contain', margin: '0 auto 16px', display: 'block' }} />
           <h1 style={{ fontSize: 22, fontWeight: 800, color: '#0F172A', marginBottom: 6 }}>{title}</h1>
           <p style={{ fontSize: 14, color: '#64748B' }}>{subtitle}</p>
         </div>

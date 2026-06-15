@@ -46,7 +46,7 @@ export type SubscriptionRow = {
   id: string;
   workspace_id: string;
   plan_id: string;
-  status: 'trialing' | 'active' | 'past_due' | 'canceled';
+  status: 'trial_active' | 'active' | 'past_due' | 'cancelled' | 'expired' | 'suspended' | 'free';
   provider: 'manual' | 'stripe' | 'wompi' | 'mercadopago';
   provider_customer_id: string | null;
   provider_subscription_id: string | null;
@@ -69,11 +69,65 @@ export type WorkspaceFeaturesRow = {
 export type ProfileRow = {
   id: string;
   workspace_id: string;
-  role: 'owner' | 'admin' | 'employee';
+  role: 'owner' | 'admin' | 'employee' | 'super_admin' | 'support_admin';
   full_name: string | null;
   email: string | null;
   avatar_path: string | null;
+  email_verified: boolean;
+  status: 'active' | 'inactive' | 'invited' | 'removed';
   created_at: string;
+  updated_at: string;
+};
+
+export type PlanFeaturesRow = {
+  plan_code: string;
+  ai_enabled: boolean;
+  photo_quote_enabled: boolean;
+  templates_enabled: boolean;
+  branding_enabled: boolean;
+  custom_qr_enabled: boolean;
+  advanced_reports_enabled: boolean;
+  multiuser_enabled: boolean;
+  pdf_tier: 'free' | 'pro';
+  updated_at: string;
+};
+
+export type PlanLimitsRow = {
+  plan_code: string;
+  max_quotes_month: number | null;
+  max_clients: number | null;
+  included_users: number;
+  extra_user_price: number;
+  updated_at: string;
+};
+
+export type SubscriptionUsageRow = {
+  workspace_id: string;
+  period_start: string;
+  period_end: string;
+  quotes_count: number;
+  updated_at: string;
+};
+
+export type CompanyUserRow = {
+  id: string;
+  workspace_id: string;
+  profile_id: string;
+  billable: boolean;
+  created_at: string;
+};
+
+export type SystemConfigurationRow = {
+  key: string;
+  category: string;
+  value: Json;
+  updated_at: string;
+  updated_by: string | null;
+};
+
+export type AdminSettingRow = {
+  key: string;
+  value: Json;
   updated_at: string;
 };
 
@@ -219,6 +273,9 @@ export type CompanySettingsRow = {
   valid_days_default: number;
   terms_conditions: Json;
   white_label_enabled: boolean;
+  color_primary: string;
+  color_secondary: string;
+  color_accent: string;
   created_at: string;
   updated_at: string;
 };
@@ -281,6 +338,31 @@ export type AuditLogRow = {
   entity_id: string | null;
   metadata: Json;
   created_at: string;
+};
+
+// ---------------------------------------------------------------------------
+// Equipo y usuarios — invitaciones y licencias adicionales
+// ---------------------------------------------------------------------------
+
+export type WorkspaceInvitationRow = {
+  id: string;
+  workspace_id: string;
+  email: string;
+  full_name: string | null;
+  role: 'admin' | 'employee';
+  status: 'pending' | 'accepted' | 'revoked' | 'expired';
+  token: string;
+  invited_by: string;
+  created_at: string;
+  expires_at: string;
+  accepted_at: string | null;
+};
+
+export type AdditionalUserLicenseRow = {
+  workspace_id: string;
+  quantity: number;
+  unit_price: number;
+  updated_at: string;
 };
 
 // ---------------------------------------------------------------------------
@@ -488,6 +570,14 @@ export interface Database {
       quote_access_tokens: Table<QuoteAccessTokenRow, 'workspace_id' | 'quote_id'>;
       client_consents: Table<ClientConsentRow, 'workspace_id' | 'client_id' | 'status'>;
       quote_events: Table<QuoteEventRow, 'workspace_id' | 'quote_id' | 'event_type'>;
+      plan_features: Table<PlanFeaturesRow, 'plan_code'>;
+      plan_limits: Table<PlanLimitsRow, 'plan_code'>;
+      subscription_usage: Table<SubscriptionUsageRow, 'workspace_id'>;
+      company_users: Table<CompanyUserRow, 'workspace_id' | 'profile_id'>;
+      system_configuration: Table<SystemConfigurationRow, 'key'>;
+      admin_settings: Table<AdminSettingRow, 'key'>;
+      workspace_invitations: Table<WorkspaceInvitationRow, 'workspace_id' | 'email' | 'role' | 'invited_by'>;
+      additional_user_licenses: Table<AdditionalUserLicenseRow, 'workspace_id'>;
     };
     Views: Record<string, never>;
     Functions: {
@@ -501,6 +591,78 @@ export interface Database {
       };
       register_consent_and_event: {
         Args: { p_token: string; p_status: string; p_event: string; p_ip?: string | null; p_user_agent?: string | null };
+        Returns: undefined;
+      };
+      is_super_admin: {
+        Args: Record<string, never>;
+        Returns: boolean;
+      };
+      is_support_admin: {
+        Args: Record<string, never>;
+        Returns: boolean;
+      };
+      get_effective_plan_code: {
+        Args: { p_workspace_id: string };
+        Returns: string;
+      };
+      check_feature_access: {
+        Args: { p_workspace_id: string; p_feature: string };
+        Returns: boolean;
+      };
+      check_plan_limit: {
+        Args: { p_workspace_id: string; p_limit: string };
+        Returns: Json;
+      };
+      check_subscription_status: {
+        Args: { p_workspace_id: string };
+        Returns: Json;
+      };
+      is_owner: {
+        Args: Record<string, never>;
+        Returns: boolean;
+      };
+      get_team_seats: {
+        Args: { p_workspace_id: string };
+        Returns: Json;
+      };
+      invite_team_member: {
+        Args: { p_workspace_id: string; p_email: string; p_role: string; p_full_name?: string | null };
+        Returns: Json;
+      };
+      revoke_invitation: {
+        Args: { p_invitation_id: string };
+        Returns: undefined;
+      };
+      resend_invitation: {
+        Args: { p_invitation_id: string };
+        Returns: Json;
+      };
+      get_invitation_preview: {
+        Args: { p_token: string };
+        Returns: Json;
+      };
+      accept_invitation: {
+        Args: { p_token: string };
+        Returns: Json;
+      };
+      update_team_member_role: {
+        Args: { p_profile_id: string; p_role: string };
+        Returns: undefined;
+      };
+      set_team_member_status: {
+        Args: { p_profile_id: string; p_status: string; p_reason?: string | null };
+        Returns: undefined;
+      };
+      transfer_ownership: {
+        Args: { p_new_owner_profile_id: string };
+        Returns: undefined;
+      };
+      log_access_denied: {
+        Args: { p_route: string };
+        Returns: undefined;
+      };
+      log_auth_event: {
+        Args: { p_action: string };
         Returns: undefined;
       };
     };
