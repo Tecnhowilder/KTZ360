@@ -20,9 +20,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setLoading(false);
     });
 
-    const { data: subscription } = supabase.auth.onAuthStateChange((_event, newSession) => {
+    const { data: subscription } = supabase.auth.onAuthStateChange((event, newSession) => {
       setSession(newSession);
       setLoading(false);
+
+      if (event === 'SIGNED_IN') {
+        supabase.rpc('log_auth_event', { p_action: 'login' }).then(() => {});
+      }
     });
 
     return () => subscription.subscription.unsubscribe();

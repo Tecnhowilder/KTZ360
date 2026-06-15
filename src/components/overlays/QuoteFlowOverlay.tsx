@@ -1,16 +1,18 @@
 import { useEffect, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useUI } from '../../features/app/UIProvider';
+import { logEvent } from '../../services/audit';
 import { useWorkspace } from '../../features/auth/WorkspaceProvider';
 import { useAuth } from '../../features/auth/AuthProvider';
 import { useClients, useInvalidateClients, useInvalidateQuotes } from '../../hooks/useQuotes';
-import { createQuote, updateQuoteStatus, duplicateQuote, type QuoteInput } from '../../services/quotes';
+import { createQuote, updateQuote, updateQuoteStatus, duplicateQuote, type QuoteInput } from '../../services/quotes';
 import { listTemplates, createTemplate } from '../../services/templates';
 import { listCategories, listServicesByCategory, getServiceWithRules, listPriceOverrides, upsertPriceOverride, searchServices } from '../../services/catalogV2';
 import { getOrCreateQuoteToken, registerQuoteEvent } from '../../services/publicPortal';
 import { getLatestClientConsent } from '../../services/events';
 import { computeServiceLine, computeQuote, groupLineItems, materialGroupKey, type LineItemKind, type ServiceLine, type ServiceWithRules, type TaxMode, type DocDetailLevel } from '../../lib/engine';
 import { fmt, fmtDateY, dueDate, TODAY, serviceLabel, followMessage, openWhats } from '../../lib/calc';
+import { getErrorMessage } from '../../lib/validation';
 import { saveQuoteDraft, loadQuoteDraft, clearQuoteDraft, hasMeaningfulDraft, type QuoteDraft } from '../../lib/draftStorage';
 import { useFeatureAccess } from '../../hooks/usePermissions';
 import { APP_NAME } from '../../lib/brand';
@@ -240,17 +242,64 @@ export function QuoteFlowOverlay() {
       queryClient.invalidateQueries({ queryKey: ['planLimit', workspace.id, 'quotes_month'] });
     },
     onError: (err: unknown) => {
-      const message = err instanceof Error ? err.message : String(err);
+      const message = getErrorMessage(err);
       if (message.includes('plan_limit_exceeded')) {
         closeQuoteFlow();
+        logEvent(workspace.id, user?.id ?? null, 'plan_limit_reached', 'quote', null, { limit: 'quotes_month' });
+        logEvent(workspace.id, user?.id ?? null, 'quotes_limit_reached', 'quote');
+        logEvent(workspace.id, user?.id ?? null, 'upgrade_modal_shown', 'quote');
         openUpgradeModal({
           title: 'Has alcanzado el límite de tu plan',
           message: 'Tu plan FREE permite hasta 10 cotizaciones por mes. Actualiza a PRO por $39.900/mes para crear cotizaciones ilimitadas.',
           targetPlan: 'pro',
           ctaLabel: 'Actualizar a PRO',
+          secondaryLabel: 'Seguir con FREE',
+          bullets: [
+            'Cotizaciones ilimitadas',
+            'Clientes ilimitados',
+            'Plantillas',
+            'Branding profesional',
+            'Edición de cotizaciones',
+            'PDF profesional',
+          ],
         });
       } else {
+        console.error('createQuote error', err);
         showToast('No se pudo crear la cotización');
+      }
+    },
+  });
+
+  const updateQuoteMutation = useMutation({
+    mutationFn: () => updateQuote(quoteFlow.quoteId!, buildQuoteInput(cfg, company.terms_conditions)),
+    onSuccess: (q) => {
+      setCreatedQuoteId(q.id);
+      setCreatedQuoteNumber(q.quote_number);
+      invalidateQuotes();
+    },
+    onError: (err: unknown) => {
+      const message = getErrorMessage(err);
+      if (message.includes('feature_not_available')) {
+        closeQuoteFlow();
+        logEvent(workspace.id, user?.id ?? null, 'quote_edit_blocked', 'quote', quoteFlow.quoteId ?? null);
+        openUpgradeModal({
+          title: 'La edición de cotizaciones está incluida en PRO y PREMIUM',
+          message: 'Actualiza tu plan para poder editar cotizaciones ya creadas.',
+          targetPlan: 'pro',
+          ctaLabel: 'Actualizar a PRO',
+          secondaryLabel: 'Seguir con FREE',
+          bullets: [
+            'Cotizaciones ilimitadas',
+            'Clientes ilimitados',
+            'Plantillas',
+            'Branding profesional',
+            'Edición de cotizaciones',
+            'PDF profesional',
+          ],
+        });
+      } else {
+        console.error('updateQuote error', err);
+        showToast('No se pudo actualizar la cotización');
       }
     },
   });
@@ -304,7 +353,11 @@ export function QuoteFlowOverlay() {
   useEffect(() => {
     if (quoteFlow.open && step === TOTAL_STEPS - 1 && !createdRef.current && !createdQuoteId) {
       createdRef.current = true;
-      createQuoteMutation.mutate();
+      if (quoteFlow.mode === 'edit' && quoteFlow.quoteId) {
+        updateQuoteMutation.mutate();
+      } else {
+        createQuoteMutation.mutate();
+      }
     }
     if (!quoteFlow.open || step !== TOTAL_STEPS - 1) {
       createdRef.current = false;

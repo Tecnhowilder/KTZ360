@@ -5,7 +5,23 @@
       "Bash(curl -sv \"https://jufhoywqixzfaqhhwymp.supabase.co/rest/v1/catalog_categories?select=id&limit=1\" -H \"apikey: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imp1ZmhveXdxaXh6ZmFxaGh3eW1wIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODEyMjU5NDUsImV4cCI6MjA5NjgwMTk0NX0.oWT-gd8eLQHT6CEzaxen4bOknqUq-IskkNHetciUF5c\")",
       "Bash(echo -n \"service_types -> \")",
       "Bash(curl -s --ssl-no-revoke 'https://jufhoywqixzfaqhhwymp.supabase.co/rest/v1/service_types?select=id&limit=1' -H 'apikey: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imp1ZmhveXdxaXh6ZmFxaGh3eW1wIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODEyMjU5NDUsImV4cCI6MjA5NjgwMTk0NX0.oWT-gd8eLQHT6CEzaxen4bOknqUq-IskkNHetciUF5c' -H 'Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imp1ZmhveXdxaXh6ZmFxaGh3eW1wIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODEyMjU5NDUsImV4cCI6MjA5NjgwMTk0NX0.oWT-gd8eLQHT6CEzaxen4bOknqUq-IskkNHetciUF5c' -D - -o /dev/null)",
-      "Bash(npx tsc *)"
+      "Bash(npx tsc *)",
+      "Bash(find node_modules/@supabase/postgrest-js -iname \"*error*\")",
+      "Bash(cat node_modules/@supabase/postgrest-js/dist/cjs/PostgrestError.js)",
+      "Bash(cat node_modules/@supabase/postgrest-js/dist/module/PostgrestError.js)",
+      "Bash(node -e ' *)",
+      "Bash(ls public/img)",
+      "Bash(ls public *)",
+      "Bash(head -n 62 src/index.css)",
+      "Bash(cat src/plans_block.css)",
+      "Bash(tail -n +895 src/index.css)",
+      "Bash(cp /tmp/new_index.css src/index.css)",
+      "Bash(ls public/images)",
+      "Bash(find public *)",
+      "Bash(node -e \"const l=require\\('lucide-react'\\); console.log\\(['ArrowRightCircle','ArrowUpRight','ShieldCheck','Zap','RotateCcw','Headphones','Lock','Check','X'].map\\(n=>n+': '+\\(n in l\\)\\).join\\('\\\\n'\\)\\)\")",
+      "Bash(sed -i '62,665d' src/index.css)",
+      "Bash(sed -n '55,68p' src/index.css)",
+      "Bash(netstat -ano)"
     ]
   }
 }

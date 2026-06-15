@@ -51,7 +51,7 @@ export function KtzIA() {
   const { openQuoteFlow, openUpgradeModal } = useUI();
   const aiAccess = useFeatureAccess('ai_enabled');
   const photoAccess = useFeatureAccess('photo_quote_enabled');
-  const { generate, loading: aiLoading, error: aiError } = useAI();
+  const { generate, loading: aiLoading } = useAI();
   const categoriesQuery = useQuery({ queryKey: ['catalog-categories'], queryFn: listCategories });
   const [mode, setMode] = useState<'text' | 'photo'>('text');
   const [iaText, setIaText] = useState('');

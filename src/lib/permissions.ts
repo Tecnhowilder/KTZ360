@@ -17,7 +17,8 @@ export type PlanFeature =
   | 'branding_enabled'
   | 'custom_qr_enabled'
   | 'advanced_reports_enabled'
-  | 'multiuser_enabled';
+  | 'multiuser_enabled'
+  | 'quote_editing_enabled';
 
 export type PlanLimitKey = 'quotes_month' | 'clients' | 'users';
 

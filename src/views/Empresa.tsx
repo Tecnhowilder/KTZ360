@@ -6,6 +6,7 @@ import { useToast } from '../components/ui/Toast';
 import { useUI } from '../features/app/UIProvider';
 import { useFeatureAccess } from '../hooks/usePermissions';
 import { NumberField } from '../components/ui/NumberField';
+import { isValidPhone } from '../lib/validation';
 import type { CompanySettings, TaxMode } from '../lib/types';
 
 export function Empresa() {
@@ -175,8 +176,12 @@ export function Empresa() {
               style={inputStyle}
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
-              onBlur={() => phone !== (company.phone ?? '') && saveMutation.mutate({ phone })}
+              onBlur={() => {
+                if (phone.trim() && !isValidPhone(phone)) return;
+                if (phone !== (company.phone ?? '')) saveMutation.mutate({ phone });
+              }}
             />
+            {phone.trim() && !isValidPhone(phone) && <div style={{ fontSize: 12, color: '#DC2626', marginTop: 4 }}>Teléfono inválido</div>}
           </div>
         </div>
 

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useUI } from '../../features/app/UIProvider';
+import { logEvent } from '../../services/audit';
 import { useWorkspace } from '../../features/auth/WorkspaceProvider';
 import { useClients, useQuotesRaw, useInvalidateQuotes } from '../../hooks/useQuotes';
 import { updateQuoteStatus, duplicateQuote, deleteQuote } from '../../services/quotes';
@@ -9,9 +10,10 @@ import { getOrCreateQuoteToken, registerQuoteEvent } from '../../services/public
 import { listQuoteEventsForQuote } from '../../services/events';
 import { useAuth } from '../../features/auth/AuthProvider';
 import { deriveQuote, fmt, fmtDate, daysAgo, statusStyle, followMessage, openWhats, serviceLabel } from '../../lib/calc';
+import { getErrorMessage } from '../../lib/validation';
 import { useToast } from '../../components/ui/Toast';
 import { useFeatureAccess } from '../../hooks/usePermissions';
-import type { QuoteStatus } from '../../lib/types';
+import type { QuoteStatus, QConfig } from '../../lib/types';
 import type { QuoteEventType } from '../../lib/database.types';
 
 const STATUS_OPTIONS: QuoteStatus[] = ['Borrador', 'Enviada', 'Aprobada', 'Rechazada'];
@@ -26,9 +28,10 @@ const EVENT_LABELS: Record<QuoteEventType, string> = {
 };
 
 export function QuoteDetailOverlay() {
-  const { detailQuoteId, closeQuoteDetail, openDocument, openUpgradeModal } = useUI();
+  const { detailQuoteId, closeQuoteDetail, openDocument, openUpgradeModal, openQuoteFlow } = useUI();
   const { workspace, company } = useWorkspace();
   const templatesAccess = useFeatureAccess('templates_enabled');
+  const editAccess = useFeatureAccess('quote_editing_enabled');
   const { user } = useAuth();
   const clientsQuery = useClients();
   const rawQuery = useQuotesRaw();
@@ -50,6 +53,33 @@ export function QuoteDetailOverlay() {
       invalidateQuotes();
       showToast('Cotización duplicada');
       closeQuoteDetail();
+    },
+    onError: (err: unknown) => {
+      const message = getErrorMessage(err);
+      if (message.includes('plan_limit_exceeded')) {
+        closeQuoteDetail();
+        logEvent(workspace.id, user?.id ?? null, 'plan_limit_reached', 'quote', null, { limit: 'quotes_month' });
+        logEvent(workspace.id, user?.id ?? null, 'quotes_limit_reached', 'quote');
+        logEvent(workspace.id, user?.id ?? null, 'upgrade_modal_shown', 'quote');
+        openUpgradeModal({
+          title: 'Has alcanzado el límite de tu plan',
+          message: 'Tu plan FREE permite hasta 10 cotizaciones por mes. Actualiza a PRO por $39.900/mes para crear cotizaciones ilimitadas.',
+          targetPlan: 'pro',
+          ctaLabel: 'Actualizar a PRO',
+          secondaryLabel: 'Seguir con FREE',
+          bullets: [
+            'Cotizaciones ilimitadas',
+            'Clientes ilimitados',
+            'Plantillas',
+            'Branding profesional',
+            'Edición de cotizaciones',
+            'PDF profesional',
+          ],
+        });
+      } else {
+        console.error('duplicateQuote error', err);
+        showToast('No se pudo duplicar la cotización');
+      }
     },
   });
 
@@ -250,10 +280,64 @@ export function QuoteDetailOverlay() {
           )}
         </div>
 
-        <div style={{ background: '#fff', borderTop: '1px solid #EEF2F7', padding: '14px 20px calc(14px + env(safe-area-inset-bottom))', display: 'flex', gap: 10 }}>
+        <div style={{ background: '#fff', borderTop: '1px solid #EEF2F7', padding: '14px 20px calc(14px + env(safe-area-inset-bottom))', display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <div style={{ display: 'flex', gap: 10 }}>
+          <button
+            onClick={() => {
+              if (editAccess.data === false) {
+                logEvent(workspace.id, user?.id ?? null, 'quote_edit_blocked', 'quote', quote!.id);
+                openUpgradeModal({
+                  title: 'La edición de cotizaciones está incluida en PRO y PREMIUM',
+                  message: 'Actualiza tu plan para poder editar cotizaciones ya creadas.',
+                  targetPlan: 'pro',
+                  ctaLabel: 'Actualizar a PRO',
+                  secondaryLabel: 'Seguir con FREE',
+                  bullets: [
+                    'Cotizaciones ilimitadas',
+                    'Clientes ilimitados',
+                    'Plantillas',
+                    'Branding profesional',
+                    'Edición de cotizaciones',
+                    'PDF profesional',
+                  ],
+                });
+                return;
+              }
+              const label = serviceLabel(d.cfg.serviceLines);
+              const proj = quote.title.startsWith(label + ' · ') ? quote.title.slice(label.length + 3) : quote.title;
+              const editCfg: Partial<QConfig> = {
+                clientId: quote.client_id,
+                proj,
+                loc: quote.location ?? '',
+                projectType: quote.project_type ?? '',
+                notes: quote.notes ?? '',
+                serviceLines: d.cfg.serviceLines,
+                adminPct: d.cfg.adminPct,
+                imprevistosPct: d.cfg.imprevistosPct,
+                util: d.cfg.util,
+                taxMode: d.cfg.taxMode,
+                taxRate: d.cfg.taxRate,
+                advancePct: d.cfg.advancePct,
+                docDetailLevel: d.cfg.docDetailLevel,
+                includeTechnicalAnnex: d.cfg.includeTechnicalAnnex,
+                validDays: d.cfg.validDays,
+                discount: d.cfg.discount,
+                discountOn: d.cfg.discountOn,
+                transportCost: d.cfg.transportCost,
+                transportEnabled: d.cfg.transportEnabled,
+              };
+              closeQuoteDetail();
+              openQuoteFlow({ mode: 'edit', quoteId: quote.id, step: 4, cfg: editCfg });
+            }}
+            style={{ flex: 1, border: '1.5px solid #E2E8F0', background: '#fff', color: '#475569', fontWeight: 700, fontSize: 13, padding: 13, borderRadius: 13, cursor: 'pointer' }}
+          >
+            Editar{editAccess.data === false ? ' (PRO)' : ''}
+          </button>
           <button onClick={() => duplicateMutation.mutate()} disabled={duplicateMutation.isPending} style={{ flex: 1, border: '1.5px solid #E2E8F0', background: '#fff', color: '#475569', fontWeight: 700, fontSize: 13, padding: 13, borderRadius: 13, cursor: 'pointer' }}>
             Duplicar
           </button>
+          </div>
+          <div style={{ display: 'flex', gap: 10 }}>
           <button
             onClick={() => {
               if (templatesAccess.data === false) {
@@ -275,6 +359,7 @@ export function QuoteDetailOverlay() {
           <button onClick={() => openDocument(quote.id)} style={{ flex: 1.4, border: 'none', background: '#2563EB', color: '#fff', fontWeight: 700, fontSize: 13, padding: 13, borderRadius: 13, cursor: 'pointer' }}>
             Ver propuesta · PDF
           </button>
+          </div>
         </div>
 
         <div style={{ background: '#fff', borderTop: '1px solid #EEF2F7', padding: '0 20px calc(14px + env(safe-area-inset-bottom))' }}>

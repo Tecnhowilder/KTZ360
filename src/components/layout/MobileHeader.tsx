@@ -1,5 +1,6 @@
 import { useWorkspace } from '../../features/auth/WorkspaceProvider';
 import { APP_NAME } from '../../lib/brand';
+import { UserMenu } from './UserMenu';
 
 export function MobileHeader() {
   const { profile } = useWorkspace();
@@ -24,21 +25,23 @@ export function MobileHeader() {
         <img src="/icons/logo-light.png" alt="KTZ360" style={{ width: 36, height: 36, objectFit: 'contain', flexShrink: 0 }} />
         <span style={{ fontWeight: 800, fontSize: 18, letterSpacing: '-.6px' }}>{APP_NAME}</span>
       </div>
-      <div
-        style={{
-          width: 36,
-          height: 36,
-          borderRadius: 11,
-          background: 'linear-gradient(150deg,#2563EB,#1D4ED8)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          color: '#fff',
-          fontWeight: 800,
-        }}
-      >
-        {initial}
-      </div>
+      <UserMenu placement="bottom" align="right">
+        <div
+          style={{
+            width: 36,
+            height: 36,
+            borderRadius: 11,
+            background: 'linear-gradient(150deg,#2563EB,#1D4ED8)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            color: '#fff',
+            fontWeight: 800,
+          }}
+        >
+          {initial}
+        </div>
+      </UserMenu>
     </header>
   );
 }

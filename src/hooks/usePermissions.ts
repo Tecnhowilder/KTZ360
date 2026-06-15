@@ -8,6 +8,7 @@ import {
   type PlanFeature,
   type PlanLimitKey,
 } from '../lib/permissions';
+import { getTeamSeats, listTeamMembers, listPendingInvitations, listInvitationHistory } from '../services/team';
 
 export function usePlanLimit(limit: PlanLimitKey) {
   const { workspace } = useWorkspace();
@@ -38,5 +39,37 @@ export function usePdfTier() {
   return useQuery({
     queryKey: ['pdfTier', workspace.id],
     queryFn: () => getPdfTier(workspace.id),
+  });
+}
+
+export function useTeamSeats() {
+  const { workspace } = useWorkspace();
+  return useQuery({
+    queryKey: ['teamSeats', workspace.id],
+    queryFn: () => getTeamSeats(workspace.id),
+  });
+}
+
+export function useTeamMembers() {
+  const { workspace } = useWorkspace();
+  return useQuery({
+    queryKey: ['teamMembers', workspace.id],
+    queryFn: () => listTeamMembers(workspace.id),
+  });
+}
+
+export function usePendingInvitations() {
+  const { workspace } = useWorkspace();
+  return useQuery({
+    queryKey: ['pendingInvitations', workspace.id],
+    queryFn: () => listPendingInvitations(workspace.id),
+  });
+}
+
+export function useInvitationHistory() {
+  const { workspace } = useWorkspace();
+  return useQuery({
+    queryKey: ['invitationHistory', workspace.id],
+    queryFn: () => listInvitationHistory(workspace.id),
   });
 }

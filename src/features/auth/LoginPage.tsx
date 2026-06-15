@@ -1,12 +1,15 @@
 import { useState, type FormEvent } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { signIn } from '../../services/auth';
+import { supabase } from '../../lib/supabaseClient';
 import { AuthLayout, inputStyle, labelStyle, primaryButtonStyle, errorStyle, linkStyle } from './AuthLayout';
 import { APP_NAME } from '../../lib/brand';
 
 export function LoginPage() {
   const navigate = useNavigate();
-  const [email, setEmail] = useState('');
+  const [searchParams] = useSearchParams();
+  const redirect = searchParams.get('redirect');
+  const [email, setEmail] = useState(searchParams.get('email') ?? '');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -17,9 +20,10 @@ export function LoginPage() {
     setLoading(true);
     try {
       await signIn(email, password);
-      navigate('/app/dashboard', { replace: true });
+      navigate(redirect || '/app/dashboard', { replace: true });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'No se pudo iniciar sesión');
+      supabase.rpc('log_login_failed', { p_email: email }).then(() => {}, () => {});
     } finally {
       setLoading(false);
     }
@@ -62,7 +66,7 @@ export function LoginPage() {
       </form>
       <p style={{ textAlign: 'center', fontSize: 13, color: '#64748B', marginTop: 20 }}>
         ¿No tienes cuenta?{' '}
-        <Link to="/registro" style={linkStyle}>
+        <Link to={`/registro?${searchParams.toString()}`} style={linkStyle}>
           Crea una gratis
         </Link>
       </p>

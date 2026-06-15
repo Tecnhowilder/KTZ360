@@ -6,6 +6,7 @@ import { listMaterials, createMaterial, updateMaterial, type MaterialInput } fro
 import { listCatalogMaterials, listPriceOverrides, upsertPriceOverride, deletePriceOverride } from '../services/catalogV2';
 import { fmt } from '../lib/calc';
 import { useToast } from '../components/ui/Toast';
+import { isValidPrice } from '../lib/validation';
 import type { Material } from '../lib/types';
 
 function CatalogPriceTable() {
@@ -150,9 +151,12 @@ function MaterialModal({ material, onClose }: { material: Material | null; onClo
     },
   });
 
+  const priceError = price.trim() !== '' && !isValidPrice(Number(price)) ? 'Precio inválido' : null;
+  const isValid = !!name.trim() && !!unit.trim() && price.trim() !== '' && !priceError;
+
   function handleSubmit(e: FormEvent) {
     e.preventDefault();
-    if (!name.trim() || !unit.trim()) return;
+    if (!isValid) return;
     mutation.mutate();
   }
 
@@ -181,12 +185,13 @@ function MaterialModal({ material, onClose }: { material: Material | null; onClo
           <div>
             <label style={labelStyle}>Precio</label>
             <input style={inputStyle} required type="number" min={0} step="any" value={price} onChange={(e) => setPrice(e.target.value)} placeholder="0" />
+            {priceError && <div style={{ fontSize: 12, color: '#DC2626', marginTop: 4 }}>{priceError}</div>}
           </div>
           <div style={{ display: 'flex', gap: 10, marginTop: 8 }}>
             <button type="button" onClick={onClose} style={{ flex: 1, border: '1.5px solid #E2E8F0', background: '#fff', color: '#475569', fontWeight: 700, fontSize: 14, padding: 12, borderRadius: 11, cursor: 'pointer' }}>
               Cancelar
             </button>
-            <button type="submit" disabled={mutation.isPending} style={{ flex: 1, border: 'none', background: '#2563EB', color: '#fff', fontWeight: 700, fontSize: 14, padding: 12, borderRadius: 11, cursor: 'pointer', opacity: mutation.isPending ? 0.7 : 1 }}>
+            <button type="submit" disabled={mutation.isPending || !isValid} style={{ flex: 1, border: 'none', background: '#2563EB', color: '#fff', fontWeight: 700, fontSize: 14, padding: 12, borderRadius: 11, cursor: 'pointer', opacity: mutation.isPending || !isValid ? 0.7 : 1 }}>
               {mutation.isPending ? 'Guardando…' : 'Guardar'}
             </button>
           </div>

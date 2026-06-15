@@ -5,12 +5,13 @@ export interface QuoteFlowState {
   open: boolean;
   step: number;
   quoteId: string | null; // si se está editando/duplicando una cotización existente
+  mode: 'create' | 'edit';
   cfg: QConfig;
 }
 
 interface UIContextValue {
   quoteFlow: QuoteFlowState;
-  openQuoteFlow: (opts?: { step?: number; quoteId?: string | null; cfg?: Partial<QConfig> }) => void;
+  openQuoteFlow: (opts?: { step?: number; quoteId?: string | null; mode?: 'create' | 'edit'; cfg?: Partial<QConfig> }) => void;
   closeQuoteFlow: () => void;
   setQuoteFlowStep: (step: number) => void;
   setQuoteCfg: (patch: Partial<QConfig> | ((cfg: QConfig) => QConfig)) => void;
@@ -37,6 +38,8 @@ export interface UpgradeModalInfo {
   message: string;
   targetPlan: 'pro' | 'premium';
   ctaLabel: string;
+  bullets?: string[];
+  secondaryLabel?: string;
 }
 
 const UIContext = createContext<UIContextValue | undefined>(undefined);
@@ -73,6 +76,7 @@ export function UIProvider({ children }: { children: ReactNode }) {
     open: false,
     step: 0,
     quoteId: null,
+    mode: 'create',
     cfg: defaultQConfig(),
   });
   const [detailQuoteId, setDetailQuoteId] = useState<string | null>(null);
@@ -80,11 +84,12 @@ export function UIProvider({ children }: { children: ReactNode }) {
   const [docQuoteId, setDocQuoteId] = useState<string | null>(null);
   const [upgradeModal, setUpgradeModal] = useState<UpgradeModalInfo | null>(null);
 
-  function openQuoteFlow(opts?: { step?: number; quoteId?: string | null; cfg?: Partial<QConfig> }) {
+  function openQuoteFlow(opts?: { step?: number; quoteId?: string | null; mode?: 'create' | 'edit'; cfg?: Partial<QConfig> }) {
     setQuoteFlow({
       open: true,
       step: opts?.step ?? 0,
       quoteId: opts?.quoteId ?? null,
+      mode: opts?.mode ?? 'create',
       cfg: { ...defaultQConfig(), ...(opts?.cfg ?? {}) },
     });
   }

@@ -17,6 +17,11 @@ export async function signIn(email: string, password: string) {
 }
 
 export async function signOut() {
+  try {
+    await supabase.rpc('log_auth_event', { p_action: 'logout' });
+  } catch {
+    // best-effort
+  }
   const { error } = await supabase.auth.signOut();
   if (error) throw error;
 }

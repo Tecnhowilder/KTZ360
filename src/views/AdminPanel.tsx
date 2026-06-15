@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useSearchParams } from 'react-router-dom';
 import { isSuperAdmin } from '../lib/permissions';
 import {
   listWorkspaceSubscriptions,
@@ -9,6 +10,11 @@ import {
   updateSystemConfiguration,
   listAdminSettings,
   updateAdminSetting,
+  getAdminDashboardStats,
+  listPlanFeatures,
+  listPlanLimits,
+  listAllProfiles,
+  listAuditLog,
   type WorkspaceSubscriptionEntry,
 } from '../services/admin';
 import type { SubscriptionRow, SystemConfigurationRow, AdminSettingRow } from '../lib/database.types';
@@ -24,12 +30,26 @@ const cardStyle: React.CSSProperties = { background: '#fff', border: '1px solid 
 const inputStyle: React.CSSProperties = { border: '1.5px solid #E2E8F0', borderRadius: 10, padding: '8px 10px', fontSize: 13, outline: 'none' };
 const labelStyle: React.CSSProperties = { fontSize: 11, fontWeight: 700, color: '#64748B', display: 'block', marginBottom: 4, letterSpacing: '.04em', textTransform: 'uppercase' };
 const buttonStyle: React.CSSProperties = { border: 'none', background: BRAND_COLORS.primary, color: '#fff', fontWeight: 700, fontSize: 12.5, padding: '8px 14px', borderRadius: 9, cursor: 'pointer' };
+const thStyle: React.CSSProperties = { padding: '10px 12px', fontSize: 11, fontWeight: 800, color: '#94A3B8', letterSpacing: '.5px', borderBottom: '1px solid #EEF2F7', textAlign: 'left', whiteSpace: 'nowrap' };
+const tdStyle: React.CSSProperties = { padding: '10px 12px', verticalAlign: 'middle', fontSize: 12.5 };
 
-type Tab = 'subscriptions' | 'system' | 'settings';
+type Tab = 'dashboard' | 'subscriptions' | 'plans' | 'users' | 'workspaces' | 'audit' | 'system' | 'support';
+
+const TAB_LABELS: Record<Tab, string> = {
+  dashboard: 'Dashboard',
+  subscriptions: 'Suscripciones',
+  plans: 'Planes',
+  users: 'Usuarios',
+  workspaces: 'Workspaces',
+  audit: 'Auditoría',
+  system: 'Configuración',
+  support: 'Soporte',
+};
 
 export function AdminPanel() {
   const adminQuery = useQuery({ queryKey: ['isSuperAdmin'], queryFn: isSuperAdmin });
-  const [tab, setTab] = useState<Tab>('subscriptions');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const tab = (searchParams.get('tab') as Tab) ?? 'dashboard';
 
   if (adminQuery.isLoading) return null;
 
@@ -42,36 +62,97 @@ export function AdminPanel() {
     );
   }
 
-  const tabs: { id: Tab; label: string }[] = [
-    { id: 'subscriptions', label: 'Suscripciones' },
-    { id: 'system', label: 'Configuración del sistema' },
-    { id: 'settings', label: 'Ajustes generales' },
-  ];
+  const tabs: Tab[] = ['dashboard', 'subscriptions', 'plans', 'users', 'workspaces', 'audit', 'system', 'support'];
 
   return (
     <div>
       <h1 style={{ fontSize: 22, fontWeight: 800, color: '#0F172A', marginBottom: 4 }}>Panel de administración</h1>
-      <p style={{ fontSize: 13.5, color: '#64748B', marginBottom: 18 }}>Gestión global de suscripciones y configuración de KTZ360.</p>
+      <p style={{ fontSize: 13.5, color: '#64748B', marginBottom: 18 }}>Gestión global de KTZ360.</p>
 
-      <div style={{ display: 'flex', gap: 6, background: '#EEF2F7', padding: 5, borderRadius: 14, marginBottom: 18, maxWidth: 480 }}>
+      <div style={{ display: 'flex', gap: 6, background: '#EEF2F7', padding: 5, borderRadius: 14, marginBottom: 18, flexWrap: 'wrap', maxWidth: 760 }}>
         {tabs.map((t) => (
           <button
-            key={t.id}
-            onClick={() => setTab(t.id)}
+            key={t}
+            onClick={() => setSearchParams({ tab: t })}
             style={{
-              flex: 1, border: 'none', background: tab === t.id ? '#fff' : 'transparent', color: tab === t.id ? '#0F172A' : '#64748B',
-              fontWeight: 700, fontSize: 12.5, padding: 10, borderRadius: 10, cursor: 'pointer',
-              boxShadow: tab === t.id ? '0 2px 6px rgba(15,23,42,.1)' : 'none',
+              border: 'none', background: tab === t ? '#fff' : 'transparent', color: tab === t ? '#0F172A' : '#64748B',
+              fontWeight: 700, fontSize: 12.5, padding: '10px 14px', borderRadius: 10, cursor: 'pointer',
+              boxShadow: tab === t ? '0 2px 6px rgba(15,23,42,.1)' : 'none',
             }}
           >
-            {t.label}
+            {TAB_LABELS[t]}
           </button>
         ))}
       </div>
 
+      {tab === 'dashboard' && <DashboardTab />}
       {tab === 'subscriptions' && <SubscriptionsTab />}
-      {tab === 'system' && <SystemConfigTab />}
-      {tab === 'settings' && <AdminSettingsTab />}
+      {tab === 'plans' && <PlansTab />}
+      {tab === 'users' && <UsersTab />}
+      {tab === 'workspaces' && <WorkspacesTab />}
+      {tab === 'audit' && <AuditTab />}
+      {tab === 'system' && <ConfigTab />}
+      {tab === 'support' && <SupportTab />}
+    </div>
+  );
+}
+
+const PLAN_LABELS: Record<string, string> = { free: 'FREE', pro: 'PRO', premium: 'PREMIUM' };
+
+function DashboardTab() {
+  const statsQuery = useQuery({ queryKey: ['adminDashboardStats'], queryFn: getAdminDashboardStats });
+
+  if (statsQuery.isLoading || !statsQuery.data) return <div style={{ fontSize: 13, color: '#94A3B8' }}>Cargando…</div>;
+
+  const stats = statsQuery.data;
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(180px,1fr))', gap: 14 }}>
+        <KpiCard title="Usuarios totales" value={stats.totalUsers} />
+        <KpiCard title="Usuarios activos" value={stats.activeUsers} />
+        <KpiCard title="Workspaces" value={stats.totalWorkspaces} />
+        <KpiCard title="MRR estimado" value={fmt(stats.mrr)} />
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(260px,1fr))', gap: 14 }}>
+        <div style={cardStyle}>
+          <div style={{ fontWeight: 800, fontSize: 14, marginBottom: 10 }}>Workspaces por plan</div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {Object.entries(stats.planCounts).length === 0 && <div style={{ fontSize: 12.5, color: '#94A3B8' }}>Sin datos.</div>}
+            {Object.entries(stats.planCounts).map(([code, count]) => (
+              <div key={code} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
+                <span style={{ fontWeight: 700 }}>{PLAN_LABELS[code] ?? code}</span>
+                <span>{count}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div style={cardStyle}>
+          <div style={{ fontWeight: 800, fontSize: 14, marginBottom: 10 }}>Suscripciones por estado</div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {Object.entries(stats.statusCounts).length === 0 && <div style={{ fontSize: 12.5, color: '#94A3B8' }}>Sin datos.</div>}
+            {Object.entries(stats.statusCounts).map(([status, count]) => (
+              <div key={status} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
+                <span style={{ fontWeight: 700 }}>{status}</span>
+                <span>{count}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <p style={{ fontSize: 11.5, color: '#94A3B8' }}>Las métricas excluyen el workspace del super administrador.</p>
+    </div>
+  );
+}
+
+function KpiCard({ title, value }: { title: string; value: string | number }) {
+  return (
+    <div style={cardStyle}>
+      <div style={{ fontSize: 11, fontWeight: 700, color: '#94A3B8', letterSpacing: '.05em', textTransform: 'uppercase', marginBottom: 6 }}>{title}</div>
+      <div style={{ fontSize: 24, fontWeight: 800, color: '#0F172A' }}>{value}</div>
     </div>
   );
 }
@@ -112,6 +193,7 @@ function SubscriptionRowEditor({ entry, plans }: { entry: WorkspaceSubscriptionE
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['adminWorkspaceSubscriptions'] });
+      queryClient.invalidateQueries({ queryKey: ['adminDashboardStats'] });
       showToast('Suscripción actualizada');
     },
     onError: () => showToast('No se pudo actualizar la suscripción'),
@@ -164,6 +246,265 @@ function SubscriptionRowEditor({ entry, plans }: { entry: WorkspaceSubscriptionE
       <button onClick={() => mutation.mutate()} disabled={mutation.isPending} style={{ ...buttonStyle, opacity: mutation.isPending ? 0.7 : 1 }}>
         {mutation.isPending ? 'Guardando…' : 'Guardar'}
       </button>
+    </div>
+  );
+}
+
+function PlansTab() {
+  const plansQuery = useQuery({ queryKey: ['adminPlans'], queryFn: listPlans });
+  const featuresQuery = useQuery({ queryKey: ['adminPlanFeatures'], queryFn: listPlanFeatures });
+  const limitsQuery = useQuery({ queryKey: ['adminPlanLimits'], queryFn: listPlanLimits });
+
+  if (!plansQuery.data || !featuresQuery.data || !limitsQuery.data) return null;
+
+  const featuresByCode = new Map(featuresQuery.data.map((f) => [f.plan_code, f]));
+  const limitsByCode = new Map(limitsQuery.data.map((l) => [l.plan_code, l]));
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+      {plansQuery.data.map((plan) => {
+        const features = featuresByCode.get(plan.code);
+        const limits = limitsByCode.get(plan.code);
+        return (
+          <div key={plan.id} style={cardStyle}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 10 }}>
+              <div style={{ fontWeight: 800, fontSize: 15 }}>{plan.name}</div>
+              <div style={{ fontWeight: 800, fontSize: 14, color: BRAND_COLORS.primary }}>{fmt(plan.price)}/mes</div>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(180px,1fr))', gap: 8, fontSize: 12.5 }}>
+              <LimitRow label="Cotizaciones/mes" value={limits?.max_quotes_month ?? '—'} />
+              <LimitRow label="Clientes" value={limits?.max_clients ?? '—'} />
+              <LimitRow label="Usuarios incluidos" value={limits?.included_users ?? '—'} />
+              <LimitRow label="Precio usuario extra" value={limits ? fmt(limits.extra_user_price) : '—'} />
+              <LimitRow label="Créditos IA/mes" value={limits?.ai_credits_monthly ?? '—'} />
+              <LimitRow label="PDF" value={features?.pdf_tier ?? '—'} />
+            </div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 12 }}>
+              {features && Object.entries(features)
+                .filter(([k]) => k.endsWith('_enabled'))
+                .map(([k, v]) => (
+                  <span
+                    key={k}
+                    style={{
+                      fontSize: 11, fontWeight: 700, padding: '4px 10px', borderRadius: 8,
+                      color: v ? '#16A34A' : '#94A3B8', background: v ? '#F0FDF4' : '#F1F5F9',
+                    }}
+                  >
+                    {v ? '✓' : '✕'} {k.replace('_enabled', '').replace(/_/g, ' ')}
+                  </span>
+                ))}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function LimitRow({ label, value }: { label: string; value: string | number }) {
+  return (
+    <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #F1F5F9', paddingBottom: 4 }}>
+      <span style={{ color: '#64748B' }}>{label}</span>
+      <span style={{ fontWeight: 700 }}>{value}</span>
+    </div>
+  );
+}
+
+const ROLE_LABELS: Record<string, string> = {
+  owner: 'Propietario', admin: 'Administrador', employee: 'Empleado', super_admin: 'Super admin', support_admin: 'Soporte',
+};
+
+function UsersTab() {
+  const profilesQuery = useQuery({ queryKey: ['adminAllProfiles'], queryFn: listAllProfiles });
+  const [search, setSearch] = useState('');
+
+  if (!profilesQuery.data) return null;
+
+  const filtered = profilesQuery.data.filter((entry) => {
+    if (!search.trim()) return true;
+    const q = search.trim().toLowerCase();
+    return (entry.profile.full_name ?? '').toLowerCase().includes(q)
+      || (entry.profile.email ?? '').toLowerCase().includes(q)
+      || entry.workspaceName.toLowerCase().includes(q);
+  });
+
+  return (
+    <div>
+      <input
+        value={search}
+        onChange={(e) => setSearch(e.target.value)}
+        placeholder="Buscar por nombre, correo o workspace…"
+        style={{ ...inputStyle, width: '100%', maxWidth: 360, marginBottom: 12, padding: '10px 13px' }}
+      />
+      <div style={{ ...cardStyle, padding: 0, overflow: 'hidden' }}>
+        <div style={{ overflowX: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <thead>
+              <tr style={{ background: '#F8FAFC' }}>
+                <th style={thStyle}>Usuario</th>
+                <th style={thStyle}>Correo</th>
+                <th style={thStyle}>Workspace</th>
+                <th style={thStyle}>Rol</th>
+                <th style={thStyle}>Estado</th>
+                <th style={thStyle}>Desde</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map(({ profile, workspaceName }) => (
+                <tr key={profile.id} style={{ borderTop: '1px solid #F1F5F9' }}>
+                  <td style={tdStyle}>{profile.full_name || '—'}</td>
+                  <td style={tdStyle}>{profile.email || '—'}</td>
+                  <td style={tdStyle}>{workspaceName}</td>
+                  <td style={tdStyle}>{ROLE_LABELS[profile.role] ?? profile.role}</td>
+                  <td style={tdStyle}>{profile.status}</td>
+                  <td style={tdStyle}>{new Date(profile.created_at).toLocaleDateString('es-CO')}</td>
+                </tr>
+              ))}
+              {filtered.length === 0 && (
+                <tr><td colSpan={6} style={{ ...tdStyle, textAlign: 'center', color: '#94A3B8' }}>Sin resultados.</td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function WorkspacesTab() {
+  const entriesQuery = useQuery({ queryKey: ['adminWorkspaceSubscriptions'], queryFn: listWorkspaceSubscriptions });
+
+  if (!entriesQuery.data) return null;
+
+  return (
+    <div style={{ ...cardStyle, padding: 0, overflow: 'hidden' }}>
+      <div style={{ overflowX: 'auto' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+          <thead>
+            <tr style={{ background: '#F8FAFC' }}>
+              <th style={thStyle}>Workspace</th>
+              <th style={thStyle}>Tipo</th>
+              <th style={thStyle}>Estado</th>
+              <th style={thStyle}>Plan</th>
+              <th style={thStyle}>Suscripción</th>
+              <th style={thStyle}>Creado</th>
+            </tr>
+          </thead>
+          <tbody>
+            {entriesQuery.data.map(({ workspace, subscription, plan }) => (
+              <tr key={workspace.id} style={{ borderTop: '1px solid #F1F5F9' }}>
+                <td style={tdStyle}>{workspace.name}</td>
+                <td style={tdStyle}>{workspace.type}</td>
+                <td style={tdStyle}>{workspace.status}</td>
+                <td style={tdStyle}>{plan?.name ?? '—'}</td>
+                <td style={tdStyle}>{subscription?.status ?? '—'}</td>
+                <td style={tdStyle}>{new Date(workspace.created_at).toLocaleDateString('es-CO')}</td>
+              </tr>
+            ))}
+            {entriesQuery.data.length === 0 && (
+              <tr><td colSpan={6} style={{ ...tdStyle, textAlign: 'center', color: '#94A3B8' }}>No hay workspaces registrados.</td></tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+function AuditTab() {
+  const logQuery = useQuery({ queryKey: ['adminAuditLog'], queryFn: () => listAuditLog(200) });
+  const [actionFilter, setActionFilter] = useState('all');
+
+  if (!logQuery.data) return null;
+
+  const actions = Array.from(new Set(logQuery.data.map((r) => r.action))).sort();
+  const filtered = actionFilter === 'all' ? logQuery.data : logQuery.data.filter((r) => r.action === actionFilter);
+
+  return (
+    <div>
+      <select value={actionFilter} onChange={(e) => setActionFilter(e.target.value)} style={{ ...inputStyle, marginBottom: 12 }}>
+        <option value="all">Todas las acciones</option>
+        {actions.map((a) => <option key={a} value={a}>{a}</option>)}
+      </select>
+      <div style={{ ...cardStyle, padding: 0, overflow: 'hidden' }}>
+        <div style={{ overflowX: 'auto', maxHeight: 600 }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <thead>
+              <tr style={{ background: '#F8FAFC' }}>
+                <th style={thStyle}>Fecha</th>
+                <th style={thStyle}>Acción</th>
+                <th style={thStyle}>Entidad</th>
+                <th style={thStyle}>Workspace</th>
+                <th style={thStyle}>Usuario</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map((row) => (
+                <tr key={row.id} style={{ borderTop: '1px solid #F1F5F9' }}>
+                  <td style={tdStyle}>{new Date(row.created_at).toLocaleString('es-CO')}</td>
+                  <td style={tdStyle}><span style={{ fontWeight: 700 }}>{row.action}</span></td>
+                  <td style={tdStyle}>{row.entity_type}{row.entity_id ? ` · ${row.entity_id.slice(0, 8)}` : ''}</td>
+                  <td style={tdStyle}>{row.workspace_id.slice(0, 8)}</td>
+                  <td style={tdStyle}>{row.user_id ? row.user_id.slice(0, 8) : '—'}</td>
+                </tr>
+              ))}
+              {filtered.length === 0 && (
+                <tr><td colSpan={5} style={{ ...tdStyle, textAlign: 'center', color: '#94A3B8' }}>Sin registros.</td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function IntegracionesSection() {
+  const configQuery = useQuery({ queryKey: ['adminSystemConfiguration'], queryFn: listSystemConfiguration });
+
+  if (!configQuery.data) return null;
+
+  function isConfigured(key: string): boolean {
+    const row = configQuery.data!.find((r) => r.key === key);
+    if (!row || typeof row.value !== 'object' || row.value === null || Array.isArray(row.value)) return false;
+    const v = row.value as Record<string, unknown>;
+    return Object.values(v).some((val) => typeof val === 'string' && val.trim() !== '');
+  }
+
+  const integrations = [
+    { key: 'resend', label: 'Resend (correo transaccional)' },
+    { key: 'mercadopago', label: 'MercadoPago (pagos)' },
+  ];
+
+  return (
+    <div style={cardStyle}>
+      <div style={{ fontWeight: 800, fontSize: 14, marginBottom: 10 }}>Integraciones</div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        {integrations.map(({ key, label }) => {
+          const configured = isConfigured(key);
+          return (
+            <div key={key} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 13 }}>
+              <span style={{ fontWeight: 600 }}>{label}</span>
+              <span style={{
+                fontSize: 11, fontWeight: 800, padding: '3px 10px', borderRadius: 8,
+                color: configured ? '#16A34A' : '#94A3B8', background: configured ? '#F0FDF4' : '#F1F5F9',
+              }}>
+                {configured ? 'Configurado' : 'No configurado'}
+              </span>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function ConfigTab() {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+      <IntegracionesSection />
+      <SystemConfigTab />
+      <AdminSettingsTab />
     </div>
   );
 }
@@ -284,6 +625,16 @@ function AdminSettingsTab() {
           </div>
         );
       })}
+    </div>
+  );
+}
+
+function SupportTab() {
+  return (
+    <div style={{ ...cardStyle, textAlign: 'center', padding: 40, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
+      <div style={{ fontSize: 40 }}>🛟</div>
+      <div style={{ fontSize: 16, fontWeight: 800, color: '#0F172A' }}>Próximamente</div>
+      <p style={{ fontSize: 13, color: '#64748B' }}>El módulo de soporte estará disponible en una futura actualización.</p>
     </div>
   );
 }

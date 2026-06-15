@@ -88,6 +88,7 @@ export type PlanFeaturesRow = {
   custom_qr_enabled: boolean;
   advanced_reports_enabled: boolean;
   multiuser_enabled: boolean;
+  quote_editing_enabled: boolean;
   pdf_tier: 'free' | 'pro';
   updated_at: string;
 };
@@ -98,6 +99,7 @@ export type PlanLimitsRow = {
   max_clients: number | null;
   included_users: number;
   extra_user_price: number;
+  ai_credits_monthly: number;
   updated_at: string;
 };
 
@@ -663,6 +665,10 @@ export interface Database {
       };
       log_auth_event: {
         Args: { p_action: string };
+        Returns: undefined;
+      };
+      log_login_failed: {
+        Args: { p_email: string };
         Returns: undefined;
       };
     };

@@ -1,13 +1,16 @@
 import { useState, type FormEvent } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { signUp } from '../../services/auth';
 import { AuthLayout, inputStyle, labelStyle, primaryButtonStyle, errorStyle, linkStyle } from './AuthLayout';
 
 export function RegisterPage() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const redirect = searchParams.get('redirect');
+  const invitedEmail = searchParams.get('email');
   const [fullName, setFullName] = useState('');
   const [companyName, setCompanyName] = useState('');
-  const [email, setEmail] = useState('');
+  const [email, setEmail] = useState(invitedEmail ?? '');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -19,9 +22,9 @@ export function RegisterPage() {
     try {
       const { session } = await signUp(email, password, fullName, companyName || 'Mi negocio');
       if (session) {
-        navigate('/app/dashboard', { replace: true });
+        navigate(redirect || '/app/dashboard', { replace: true });
       } else {
-        navigate('/login', { replace: true });
+        navigate(`/login?${searchParams.toString()}`, { replace: true });
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'No se pudo crear la cuenta');
@@ -61,6 +64,7 @@ export function RegisterPage() {
             style={inputStyle}
             type="email"
             required
+            readOnly={!!invitedEmail}
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             placeholder="tu@correo.com"
@@ -84,7 +88,7 @@ export function RegisterPage() {
       </form>
       <p style={{ textAlign: 'center', fontSize: 13, color: '#64748B', marginTop: 20 }}>
         ¿Ya tienes cuenta?{' '}
-        <Link to="/login" style={linkStyle}>
+        <Link to={`/login?${searchParams.toString()}`} style={linkStyle}>
           Inicia sesión
         </Link>
       </p>

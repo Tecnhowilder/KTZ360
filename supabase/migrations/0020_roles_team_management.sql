@@ -22,6 +22,16 @@ update public.plan_limits set included_users = 5, extra_user_price = 11999
   where plan_code = 'premium';
 
 -- ============================================================================
+-- Ampliar system_configuration.resend con from_email/from_name (idempotente)
+-- ============================================================================
+update public.system_configuration
+  set value = value || jsonb_build_object(
+    'from_email', coalesce(value->>'from_email', ''),
+    'from_name', coalesce(value->>'from_name', '')
+  )
+  where key = 'resend';
+
+-- ============================================================================
 -- 1.2 profiles: estados de usuario + current_workspace_id() filtrado por status
 -- ============================================================================
 alter table public.profiles
@@ -128,80 +138,6 @@ declare
   v_invitation record;
   v_workspace_id uuid;
   v_free_plan_id uuid;
-  v_services jsonb := '[
-    {
-      "key": "pintura", "name": "Pintura", "description": "Interior y exterior", "labor_per_m2": 9000,
-      "materials": [
-        { "name": "Pintura vinilo tipo 1", "unit": "Galón", "yield": 0.11, "price": 68000 },
-        { "name": "Estuco plástico", "unit": "Saco", "yield": 0.05, "price": 28000 },
-        { "name": "Lija y sellador", "unit": "Unidad", "yield": 0.08, "price": 9500 }
-      ]
-    },
-    {
-      "key": "drywall", "name": "Drywall", "description": "Muros y cielos", "labor_per_m2": 14000,
-      "materials": [
-        { "name": "Lámina drywall 1/2\"", "unit": "Lámina", "yield": 0.34, "price": 42000 },
-        { "name": "Perfilería metálica", "unit": "Metro", "yield": 1.2, "price": 6800 },
-        { "name": "Masilla y cinta", "unit": "Kit", "yield": 0.06, "price": 32000 }
-      ]
-    },
-    {
-      "key": "electricidad", "name": "Electricidad", "description": "Instalación", "labor_per_m2": 16000,
-      "materials": [
-        { "name": "Cable #12 AWG", "unit": "Metro", "yield": 1.6, "price": 3200 },
-        { "name": "Tomas y switches", "unit": "Unidad", "yield": 0.12, "price": 8500 },
-        { "name": "Tubería conduit", "unit": "Metro", "yield": 0.9, "price": 4200 }
-      ]
-    },
-    {
-      "key": "plomeria", "name": "Plomería", "description": "Agua y desagüe", "labor_per_m2": 15000,
-      "materials": [
-        { "name": "Tubería PVC presión", "unit": "Metro", "yield": 0.7, "price": 7800 },
-        { "name": "Accesorios y codos", "unit": "Unidad", "yield": 0.4, "price": 4500 }
-      ]
-    },
-    {
-      "key": "pisos", "name": "Pisos", "description": "Cerámica / porcelanato", "labor_per_m2": 22000,
-      "materials": [
-        { "name": "Porcelanato 60x60", "unit": "m²", "yield": 1.07, "price": 48000 },
-        { "name": "Pegante para piso", "unit": "Saco", "yield": 0.2, "price": 26000 },
-        { "name": "Boquilla", "unit": "Kg", "yield": 0.3, "price": 9000 }
-      ]
-    },
-    {
-      "key": "enchape", "name": "Enchape", "description": "Baños y cocinas", "labor_per_m2": 24000,
-      "materials": [
-        { "name": "Cerámica de pared", "unit": "m²", "yield": 1.07, "price": 39000 },
-        { "name": "Pegacor", "unit": "Saco", "yield": 0.22, "price": 27000 }
-      ]
-    },
-    {
-      "key": "remodelacion", "name": "Remodelación", "description": "Integral", "labor_per_m2": 28000,
-      "materials": [
-        { "name": "Demolición y retiro", "unit": "m²", "yield": 1, "price": 12000 },
-        { "name": "Materiales varios", "unit": "Global", "yield": 0.3, "price": 45000 }
-      ]
-    },
-    {
-      "key": "techos", "name": "Techos", "description": "Cubiertas", "labor_per_m2": 19000,
-      "materials": [
-        { "name": "Teja termoacústica", "unit": "Lámina", "yield": 0.5, "price": 58000 },
-        { "name": "Estructura metálica", "unit": "Metro", "yield": 0.8, "price": 18000 }
-      ]
-    },
-    {
-      "key": "mamposteria", "name": "Mampostería", "description": "Muros en ladrillo", "labor_per_m2": 21000,
-      "materials": [
-        { "name": "Ladrillo estructural", "unit": "Unidad", "yield": 12.5, "price": 1600 },
-        { "name": "Mortero", "unit": "Saco", "yield": 0.25, "price": 24000 }
-      ]
-    }
-  ]'::jsonb;
-  v_service jsonb;
-  v_material jsonb;
-  v_sort int;
-  v_service_type_id uuid;
-  v_material_id uuid;
 begin
   -- Caso invitación: si el email coincide con una invitación pendiente y
   -- vigente, vincular directamente al workspace destino y no crear nada más.
@@ -249,38 +185,6 @@ begin
 
   insert into public.subscriptions (workspace_id, plan_id, status)
   values (v_workspace_id, v_free_plan_id, 'active');
-
-  for v_service in select * from jsonb_array_elements(v_services)
-  loop
-    insert into public.service_types (workspace_id, key, name, description, labor_per_m2)
-    values (
-      v_workspace_id,
-      v_service->>'key',
-      v_service->>'name',
-      v_service->>'description',
-      (v_service->>'labor_per_m2')::numeric
-    )
-    returning id into v_service_type_id;
-
-    v_sort := 0;
-    for v_material in select * from jsonb_array_elements(v_service->'materials')
-    loop
-      insert into public.materials (workspace_id, name, unit, category, price)
-      values (
-        v_workspace_id,
-        v_material->>'name',
-        v_material->>'unit',
-        v_service->>'name',
-        (v_material->>'price')::numeric
-      )
-      returning id into v_material_id;
-
-      insert into public.service_materials (service_type_id, material_id, yield_per_m2, sort_order)
-      values (v_service_type_id, v_material_id, (v_material->>'yield')::numeric, v_sort);
-
-      v_sort := v_sort + 1;
-    end loop;
-  end loop;
 
   return new;
 end;

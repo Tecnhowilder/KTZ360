@@ -1,4 +1,4 @@
-import { Outlet } from 'react-router-dom';
+import { Outlet, useLocation } from 'react-router-dom';
 import { useWindowWidth, navModeFor } from '../../hooks/useWindowWidth';
 import { Sidebar } from './Sidebar';
 import { MobileHeader } from './MobileHeader';
@@ -15,6 +15,8 @@ export function AppShell() {
   const showSidebar = navMode !== 'bottom';
   const navBottom = navMode === 'bottom';
   const sidebarW = navMode === 'full' ? 232 : 76;
+  const location = useLocation();
+  const isFullWidthView = location.pathname.startsWith('/app/planes');
 
   const mainLeft = showSidebar ? sidebarW : 0;
   const mainPadTop = navBottom ? 16 : 28;
@@ -28,11 +30,13 @@ export function AppShell() {
       <main
         style={{
           marginLeft: mainLeft,
-          padding: `${mainPadTop}px clamp(14px,3.5vw,36px) ${mainPadBottom}px`,
+          padding: isFullWidthView
+            ? `${mainPadTop}px clamp(8px,1.5vw,20px) ${mainPadBottom}px`
+            : `${mainPadTop}px clamp(14px,3.5vw,36px) ${mainPadBottom}px`,
           minHeight: '100vh',
         }}
       >
-        <div style={{ maxWidth: 1120, margin: '0 auto' }}>
+        <div style={isFullWidthView ? undefined : { maxWidth: 1120, margin: '0 auto' }}>
           <Outlet />
         </div>
       </main>

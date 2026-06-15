@@ -1,5 +1,4 @@
 import type { ReactNode } from 'react';
-import { APP_NAME } from '../../lib/brand';
 
 export function AuthLayout({ title, subtitle, children }: { title: string; subtitle: string; children: ReactNode }) {
   return (

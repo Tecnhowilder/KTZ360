@@ -6,6 +6,8 @@ import { useInvalidateClients } from '../../hooks/useQuotes';
 import { createClient } from '../../services/clients';
 import { useToast } from '../ui/Toast';
 import { useUI } from '../../features/app/UIProvider';
+import { logEvent } from '../../services/audit';
+import { isValidEmail, isValidPhone, getErrorMessage } from '../../lib/validation';
 import type { Client } from '../../lib/types';
 
 export function ClientFormModal({ onClose, onCreated }: { onClose: () => void; onCreated?: (client: Client) => void }) {
@@ -30,24 +32,38 @@ export function ClientFormModal({ onClose, onCreated }: { onClose: () => void; o
       onClose();
     },
     onError: (err: unknown) => {
-      const message = err instanceof Error ? err.message : String(err);
+      const message = getErrorMessage(err);
       if (message.includes('plan_limit_exceeded')) {
         onClose();
+        logEvent(workspace.id, user?.id ?? null, 'plan_limit_reached', 'client', null, { limit: 'clients' });
+        logEvent(workspace.id, user?.id ?? null, 'clients_limit_reached', 'client');
+        logEvent(workspace.id, user?.id ?? null, 'upgrade_modal_shown', 'client');
         openUpgradeModal({
           title: 'Has alcanzado el límite de tu plan',
           message: 'Tu plan FREE permite hasta 20 clientes. Actualiza a PRO por $39.900/mes para registrar clientes ilimitados.',
           targetPlan: 'pro',
           ctaLabel: 'Actualizar a PRO',
+          secondaryLabel: 'Seguir con FREE',
+          bullets: [
+            'FREE: 20 clientes',
+            'PRO: Clientes ilimitados',
+            'PREMIUM: Clientes ilimitados + IA',
+          ],
         });
       } else {
+        console.error('createClient error', err);
         showToast('No se pudo crear el cliente');
       }
     },
   });
 
+  const phoneError = phone.trim() && !isValidPhone(phone) ? 'Teléfono inválido' : null;
+  const emailError = email.trim() && !isValidEmail(email) ? 'Correo inválido' : null;
+  const isValid = !!name.trim() && !phoneError && !emailError;
+
   function handleSubmit(e: FormEvent) {
     e.preventDefault();
-    if (!name.trim()) return;
+    if (!isValid) return;
     mutation.mutate();
   }
 
@@ -70,16 +86,18 @@ export function ClientFormModal({ onClose, onCreated }: { onClose: () => void; o
           <div>
             <label style={labelStyle}>Teléfono</label>
             <input style={inputStyle} value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+57 300 000 0000" />
+            {phoneError && <div style={{ fontSize: 12, color: '#DC2626', marginTop: 4 }}>{phoneError}</div>}
           </div>
           <div>
             <label style={labelStyle}>Correo</label>
             <input style={inputStyle} type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="correo@ejemplo.com" />
+            {emailError && <div style={{ fontSize: 12, color: '#DC2626', marginTop: 4 }}>{emailError}</div>}
           </div>
           <div style={{ display: 'flex', gap: 10, marginTop: 8 }}>
             <button type="button" onClick={onClose} style={{ flex: 1, border: '1.5px solid #E2E8F0', background: '#fff', color: '#475569', fontWeight: 700, fontSize: 14, padding: 12, borderRadius: 11, cursor: 'pointer' }}>
               Cancelar
             </button>
-            <button type="submit" disabled={mutation.isPending} style={{ flex: 1, border: 'none', background: '#2563EB', color: '#fff', fontWeight: 700, fontSize: 14, padding: 12, borderRadius: 11, cursor: 'pointer', opacity: mutation.isPending ? 0.7 : 1 }}>
+            <button type="submit" disabled={mutation.isPending || !isValid} style={{ flex: 1, border: 'none', background: '#2563EB', color: '#fff', fontWeight: 700, fontSize: 14, padding: 12, borderRadius: 11, cursor: 'pointer', opacity: mutation.isPending || !isValid ? 0.7 : 1 }}>
               {mutation.isPending ? 'Guardando…' : 'Guardar'}
             </button>
           </div>
