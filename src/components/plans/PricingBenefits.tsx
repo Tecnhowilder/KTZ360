@@ -18,3 +18,24 @@ export function PricingBenefits({ items, twoCol }: { items: PricingBenefitItem[]
     </div>
   );
 }
+
+export function PricingFeaturesGrid({ included, excluded }: { included: string[]; excluded: string[] }) {
+  return (
+    <div className="features-grid">
+      <ul className="pricing-benefits-list">
+        {included.map((label) => (
+          <li key={label} className="pricing-benefit-item">
+            {label}
+          </li>
+        ))}
+      </ul>
+      <ul className="pricing-benefits-list">
+        {excluded.map((label) => (
+          <li key={label} className="pricing-benefit-item pricing-benefit-item--missing">
+            {label}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}

@@ -18,7 +18,7 @@ export function BillingToggle({ value, onChange }: { value: BillingCycle; onChan
           onClick={() => onChange('yearly')}
         >
           <span className="billing-toggle-title">Anual</span>
-          <span className="billing-toggle-note">Paga 12 meses y obtén 2 meses gratis</span>
+          <span className="billing-toggle-note">Paga 12 meses, 2 gratis</span>
           <span className="billing-toggle-badge">Ahorra $120.000/año</span>
         </button>
       </div>

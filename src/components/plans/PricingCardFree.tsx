@@ -1,19 +1,15 @@
-import { PricingBenefits, type PricingBenefitItem } from './PricingBenefits';
+import { PricingFeaturesGrid } from './PricingBenefits';
 
-const ITEMS: PricingBenefitItem[] = [
-  { label: '10 cotizaciones por mes', included: true },
-  { label: '20 clientes', included: true },
-  { label: 'PDF básico KTZ360', included: true },
-  { label: 'Portal público de cotización', included: true },
-  { label: 'Historial de cotizaciones', included: true },
-  { label: 'Compartir por WhatsApp', included: true },
-  { label: 'Plantillas', included: false },
-  { label: 'Branding corporativo', included: false },
-  { label: 'Edición de cotizaciones', included: false },
-  { label: 'Reportes', included: false },
-  { label: 'Multiusuario', included: false },
-  { label: 'KTZ360 IA', included: false },
+const INCLUDED = [
+  '10 cotizaciones por mes',
+  '20 clientes',
+  'PDF básico KTZ360',
+  'Portal público de cotización',
+  'Historial de cotizaciones',
+  'Compartir por WhatsApp',
 ];
+
+const EXCLUDED = ['Plantillas', 'Branding corporativo', 'Edición de cotizaciones', 'Reportes', 'Multiusuario', 'KTZ360 IA'];
 
 export function PricingCardFree({ isCurrent }: { isCurrent: boolean }) {
   return (
@@ -32,7 +28,7 @@ export function PricingCardFree({ isCurrent }: { isCurrent: boolean }) {
           <span className="pricing-price-annual">Para siempre</span>
         </div>
 
-        <PricingBenefits items={ITEMS} />
+        <PricingFeaturesGrid included={INCLUDED} excluded={EXCLUDED} />
 
         <div className="pricing-card-actions">
           <button type="button" className="pricing-button pricing-button--disabled" disabled>

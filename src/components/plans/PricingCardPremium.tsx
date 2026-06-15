@@ -8,7 +8,6 @@ const ITEMS: PricingBenefitItem[] = [
   { label: 'Cotización desde fotografía', included: true },
   { label: 'Hasta 100 créditos IA al mes', included: true },
   { label: 'Reportes avanzados', included: true },
-  { label: 'Embudo comercial', included: true },
   { label: 'Dashboard avanzado', included: true },
   { label: 'Multiusuario (roles y permisos)', included: true },
   { label: '5 usuarios incluidos', included: true },
