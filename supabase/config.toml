@@ -1,0 +1,13 @@
+project_id = "jufhoywqixzfaqhhwymp"
+
+[functions.ai-proxy]
+verify_jwt = true
+
+[functions.send-email]
+verify_jwt = true
+
+[functions.create-checkout]
+verify_jwt = true
+
+[functions.mp-webhook]
+verify_jwt = false

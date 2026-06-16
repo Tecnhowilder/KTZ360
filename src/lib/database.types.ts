@@ -50,11 +50,27 @@ export type SubscriptionRow = {
   provider: 'manual' | 'stripe' | 'wompi' | 'mercadopago';
   provider_customer_id: string | null;
   provider_subscription_id: string | null;
+  billing_cycle: 'monthly' | 'annual';
   current_period_start: string;
   current_period_end: string | null;
   cancel_at_period_end: boolean;
   created_at: string;
   updated_at: string;
+};
+
+export type PaymentEventRow = {
+  id: string;
+  payment_id: string;
+  workspace_id: string | null;
+  user_id: string | null;
+  plan_code: string | null;
+  billing_cycle: string | null;
+  status: string;
+  amount: number | null;
+  currency_code: string | null;
+  event_type: string;
+  payload: Json;
+  created_at: string;
 };
 
 export type WorkspaceFeaturesRow = {
@@ -559,6 +575,7 @@ export interface Database {
       attachments: Table<AttachmentRow, 'workspace_id' | 'entity_type' | 'entity_id' | 'file_name' | 'file_path'>;
       ai_usage: Table<AiUsageRow, 'workspace_id' | 'feature'>;
       audit_log: Table<AuditLogRow, 'workspace_id' | 'action' | 'entity_type'>;
+      payment_events: Table<PaymentEventRow, 'payment_id' | 'status' | 'event_type'>;
       catalog_categories: Table<CatalogCategoryRow, 'key' | 'name'>;
       catalog_services: Table<CatalogServiceRow, 'category_id' | 'key' | 'name' | 'unit_basis'>;
       catalog_variants: Table<CatalogVariantRow, 'service_id' | 'key' | 'name'>;

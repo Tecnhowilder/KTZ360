@@ -1,0 +1,92 @@
+/* ============================================================
+   KTZ360 — Páginas legales (Términos / Privacidad)
+   ============================================================ */
+
+.legal-page {
+  min-height: 100vh;
+  background: #f8fafc;
+}
+
+.legal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20px 32px;
+  border-bottom: 1px solid #e2e8f0;
+  background: #ffffff;
+}
+
+.legal-logo {
+  font-size: 18px;
+  font-weight: 800;
+  color: #0f172a;
+  text-decoration: none;
+}
+
+.legal-back-link {
+  font-size: 13px;
+  font-weight: 600;
+  color: #2563eb;
+  text-decoration: none;
+}
+
+.legal-back-link:hover {
+  text-decoration: underline;
+}
+
+.legal-content {
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 40px 24px 80px;
+  color: #334155;
+}
+
+.legal-title {
+  font-size: clamp(1.6rem, 3vw, 2.2rem);
+  font-weight: 800;
+  color: #0f172a;
+  margin-bottom: 4px;
+}
+
+.legal-updated {
+  font-size: 13px;
+  color: #94a3b8;
+  margin-bottom: 32px;
+}
+
+.legal-section {
+  margin-bottom: 28px;
+}
+
+.legal-section h2 {
+  font-size: 18px;
+  font-weight: 700;
+  color: #0f172a;
+  margin-bottom: 8px;
+}
+
+.legal-section p,
+.legal-section li {
+  font-size: 14px;
+  line-height: 1.6;
+  color: #475569;
+}
+
+.legal-section ul {
+  padding-left: 20px;
+  margin-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.legal-section a {
+  color: #2563eb;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.legal-section a:hover {
+  text-decoration: underline;
+  opacity: 0.9;
+}

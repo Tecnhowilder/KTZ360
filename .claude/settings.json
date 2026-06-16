@@ -21,7 +21,9 @@
       "Bash(node -e \"const l=require\\('lucide-react'\\); console.log\\(['ArrowRightCircle','ArrowUpRight','ShieldCheck','Zap','RotateCcw','Headphones','Lock','Check','X'].map\\(n=>n+': '+\\(n in l\\)\\).join\\('\\\\n'\\)\\)\")",
       "Bash(sed -i '62,665d' src/index.css)",
       "Bash(sed -n '55,68p' src/index.css)",
-      "Bash(netstat -ano)"
+      "Bash(netstat -ano)",
+      "Bash(npx supabase *)",
+      "Bash(curl -s -o /tmp/mp_test.json -w '%{http_code}' -X POST https://api.mercadopago.com/checkout/preferences -H 'Authorization: Bearer APP_USR-5711354128820244-061515-4f3ebc5a16da3148bbff8baee3a025c9-3474234217' -H 'Content-Type: application/json' -d '{\"items\":[{\"title\":\"KTZ360 PRO Test\",\"quantity\":1,\"unit_price\":39900,\"currency_id\":\"COP\"}],\"back_urls\":{\"success\":\"http://localhost:5174/app/billing/success\",\"pending\":\"http://localhost:5174/app/billing/pending\",\"failure\":\"http://localhost:5174/app/billing/failure\"},\"auto_return\":\"approved\"}')"
     ]
   }
 }

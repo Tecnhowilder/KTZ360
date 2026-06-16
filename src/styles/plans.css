@@ -103,6 +103,7 @@
 }
 
 .billing-toggle {
+  position: relative;
   display: flex;
   align-items: center;
   height: 64px;
@@ -112,6 +113,31 @@
   border-radius: 20px;
   padding: 6px;
   box-shadow: 0 10px 25px rgba(37, 99, 235, 0.06);
+}
+
+.billing-toggle::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(90deg, transparent, rgba(37, 99, 235, 0.55), transparent);
+  background-size: 60% 100%;
+  background-repeat: no-repeat;
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+  animation: borderSweep 5s linear infinite;
+}
+
+@keyframes borderSweep {
+  0% {
+    background-position: -80% 0;
+  }
+  100% {
+    background-position: 180% 0;
+  }
 }
 
 .billing-toggle-option {
@@ -256,7 +282,7 @@
   grid-template-columns: 1fr;
   gap: 16px;
   align-items: stretch;
-  margin-top: 12px;
+  margin-top: 28px;
   margin-bottom: 6px;
 }
 
@@ -792,6 +818,17 @@
   color: #94a3b8;
   font-size: 12px;
   text-align: center;
+}
+
+.pricing-terms-link {
+  color: #2563eb;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.pricing-terms-link:hover {
+  text-decoration: underline;
+  opacity: 0.9;
 }
 
 /* ---------- Fit-screen desktop ---------- */

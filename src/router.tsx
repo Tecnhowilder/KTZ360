@@ -19,6 +19,11 @@ import { AdminPanel } from './views/AdminPanel';
 import { SimpleEmpty } from './views/SimpleEmpty';
 import { PublicQuotePortal } from './views/public/PublicQuotePortal';
 import { AcceptInvite } from './views/public/AcceptInvite';
+import { Terms } from './views/public/Terms';
+import { PrivacyPolicy } from './views/public/PrivacyPolicy';
+import { BillingSuccess } from './views/billing/BillingSuccess';
+import { BillingPending } from './views/billing/BillingPending';
+import { BillingFailure } from './views/billing/BillingFailure';
 import { Team } from './views/Team';
 
 export const router = createBrowserRouter([
@@ -28,6 +33,8 @@ export const router = createBrowserRouter([
   { path: '/recuperar-contrasena', element: <ForgotPasswordPage /> },
   { path: '/p/:token', element: <PublicQuotePortal /> },
   { path: '/invite/:token', element: <AcceptInvite /> },
+  { path: '/terminos', element: <Terms /> },
+  { path: '/politica-privacidad', element: <PrivacyPolicy /> },
   {
     path: '/app',
     element: (
@@ -46,6 +53,9 @@ export const router = createBrowserRouter([
       { path: 'ia', element: <KtzIA /> },
       { path: 'empresa', element: <RequireOwner><Empresa /></RequireOwner> },
       { path: 'planes', element: <RequireOwner><Planes /></RequireOwner> },
+      { path: 'billing/success', element: <RequireOwner><BillingSuccess /></RequireOwner> },
+      { path: 'billing/pending', element: <RequireOwner><BillingPending /></RequireOwner> },
+      { path: 'billing/failure', element: <RequireOwner><BillingFailure /></RequireOwner> },
       { path: 'team', element: <RequireOwner><Team /></RequireOwner> },
       { path: 'admin', element: <RequireOwner><AdminPanel /></RequireOwner> },
       { path: 'proyectos', element: <SimpleEmpty variant="proyectos" /> },

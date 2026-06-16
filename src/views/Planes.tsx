@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { ShieldCheck } from 'lucide-react';
 import { useSubscriptionStatus } from '../hooks/usePermissions';
 import { useAuth } from '../features/auth/AuthProvider';
@@ -22,8 +23,11 @@ export function Planes() {
 
   async function handleUpgrade(planCode: 'pro' | 'premium') {
     const cycle = billing === 'yearly' ? 'annual' : 'monthly';
-    await startSubscriptionCheckout(workspace.id, user?.id ?? null, planCode, cycle);
-    showToast('Pagos con Mercado Pago próximamente. Te avisaremos cuando esté disponible.');
+    try {
+      await startSubscriptionCheckout(workspace.id, user?.id ?? null, planCode, cycle);
+    } catch {
+      showToast('No se pudo iniciar el pago. Intenta nuevamente en unos minutos.');
+    }
   }
 
   return (
@@ -56,7 +60,17 @@ export function Planes() {
 
         <PricingFooter />
 
-        <p className="pricing-terms">Al actualizar tu plan aceptas nuestros Términos de servicio y Política de privacidad.</p>
+        <p className="pricing-terms">
+          Al actualizar tu plan aceptas nuestros{' '}
+          <Link to="/terminos" className="pricing-terms-link">
+            Términos de servicio
+          </Link>{' '}
+          y{' '}
+          <Link to="/politica-privacidad" className="pricing-terms-link">
+            Política de privacidad
+          </Link>
+          .
+        </p>
       </div>
     </div>
   );
