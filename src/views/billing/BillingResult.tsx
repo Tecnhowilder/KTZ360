@@ -36,6 +36,7 @@ export function BillingResult({ status }: BillingResultProps) {
 
   useEffect(() => {
     queryClient.invalidateQueries({ queryKey: ['subscriptionStatus', workspace.id] });
+    queryClient.invalidateQueries({ queryKey: ['planName', workspace.id] });
   }, [queryClient, workspace.id]);
 
   return (

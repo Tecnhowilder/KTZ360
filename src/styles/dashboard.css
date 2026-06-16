@@ -1,0 +1,44 @@
+/* ── Dashboard layout responsive ─────────────────────────────────────────── */
+.dash-root { display: flex; flex-direction: column; gap: 10px; }
+
+.dash-kpi   { display: grid; grid-template-columns: 1.8fr 1fr 1fr 1fr; gap: 10px; }
+.dash-main  { display: grid; grid-template-columns: 2fr 1.5fr 1.5fr; gap: 10px; }
+.dash-bottom{ display: grid; grid-template-columns: 1fr 280px; gap: 10px; }
+
+/* ── PRO Dashboard — 3-row compact layout ─────────────────────────────────── */
+.dash-pro-kpi  { display: grid; grid-template-columns: 1.6fr 1fr 1fr 1fr 1fr; gap: 8px; }
+.dash-pro-main { display: grid; grid-template-columns: 1.1fr 1fr; gap: 8px; align-items: start; }
+.dash-pro-bot  { display: grid; grid-template-columns: 1.2fr 1.05fr 0.85fr; gap: 8px; align-items: start; }
+
+/* ── Tablet 1100px ───────────────────────────────────────────────────────── */
+@media (max-width: 1100px) {
+  .dash-main { grid-template-columns: 1fr 1fr; }
+  .dash-main-right { grid-column: span 2; flex-direction: row !important; }
+  .dash-pro-kpi { grid-template-columns: 1.6fr 1fr 1fr; }
+  .dash-pro-bot { grid-template-columns: 1fr 1fr; }
+}
+
+/* ── Tablet 900px ────────────────────────────────────────────────────────── */
+@media (max-width: 900px) {
+  .dash-pro-kpi  { grid-template-columns: 1fr 1fr 1fr; }
+  .dash-pro-main { grid-template-columns: 1fr; }
+  .dash-pro-bot  { grid-template-columns: 1fr 1fr; }
+}
+
+/* ── Mobile < 768px ──────────────────────────────────────────────────────── */
+@media (max-width: 767px) {
+  /* FREE */
+  .dash-kpi  { grid-template-columns: 1fr 1fr; gap: 8px; }
+  .dash-kpi-main { grid-column: span 2; }
+  .dash-main  { grid-template-columns: 1fr; gap: 8px; }
+  .dash-main-right { flex-direction: column !important; }
+  .dash-bottom { grid-template-columns: 1fr; }
+  .dash-plan-card { display: none !important; }
+  .dash-actions-btns { flex-wrap: wrap !important; }
+
+  /* PRO */
+  .dash-pro-kpi  { grid-template-columns: 1fr 1fr; gap: 8px; }
+  .dash-pro-kpi > div:first-child { grid-column: 1 / -1; }
+  .dash-pro-main { grid-template-columns: 1fr; }
+  .dash-pro-bot  { grid-template-columns: 1fr; }
+}

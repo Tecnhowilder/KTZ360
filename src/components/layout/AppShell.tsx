@@ -1,7 +1,9 @@
+import { useState } from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
 import { useWindowWidth, navModeFor } from '../../hooks/useWindowWidth';
 import { Sidebar } from './Sidebar';
 import { MobileHeader } from './MobileHeader';
+import { MobileDrawer } from './MobileDrawer';
 import { BottomNav } from './BottomNav';
 import { QuoteFlowOverlay } from '../overlays/QuoteFlowOverlay';
 import { QuoteDetailOverlay } from '../overlays/QuoteDetailOverlay';
@@ -18,6 +20,8 @@ export function AppShell() {
   const location = useLocation();
   const isFullWidthView = location.pathname.startsWith('/app/planes');
 
+  const [drawerOpen, setDrawerOpen] = useState(false);
+
   const mainLeft = showSidebar ? sidebarW : 0;
   const mainPadTop = navBottom ? 16 : 28;
   const mainPadBottom = navBottom ? 96 : 48;
@@ -25,7 +29,13 @@ export function AppShell() {
   return (
     <div style={{ minHeight: '100vh', background: '#F8FAFC' }}>
       {showSidebar && <Sidebar width={sidebarW} rail={navMode === 'rail'} />}
-      {navBottom && <MobileHeader />}
+
+      {navBottom && (
+        <>
+          <MobileHeader onMenuOpen={() => setDrawerOpen(true)} />
+          <MobileDrawer open={drawerOpen} onClose={() => setDrawerOpen(false)} />
+        </>
+      )}
 
       <main
         style={{

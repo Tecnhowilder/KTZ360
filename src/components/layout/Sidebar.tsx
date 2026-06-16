@@ -5,11 +5,12 @@ import { useWorkspace } from '../../features/auth/WorkspaceProvider';
 import { useUI, defaultQConfig } from '../../features/app/UIProvider';
 import { isSuperAdmin } from '../../lib/permissions';
 import { APP_NAME } from '../../lib/brand';
+import { getThemeByPlan } from '../../lib/planTheme';
 import { UserMenu } from './UserMenu';
 
 interface SidebarProps {
   width: number;
-  rail: boolean; // true = solo iconos centrados, false = full con labels
+  rail: boolean;
 }
 
 const SUPER_ADMIN_NAV: { id: string; label: string }[] = [
@@ -23,12 +24,16 @@ const SUPER_ADMIN_NAV: { id: string; label: string }[] = [
   { id: 'support', label: 'Soporte' },
 ];
 
+const TRANSITION = 'background 0.5s ease, box-shadow 0.4s ease, color 0.3s ease, border-color 0.3s ease';
+
 export function Sidebar({ width, rail }: SidebarProps) {
   const navigate = useNavigate();
   const location = useLocation();
   const { profile, planName, company } = useWorkspace();
   const { openQuoteFlow } = useUI();
   const adminQuery = useQuery({ queryKey: ['isSuperAdmin'], queryFn: isSuperAdmin });
+
+  const theme = getThemeByPlan(planName);
 
   const activeView = location.pathname.split('/')[2] as NavId | undefined;
   const activeTab = new URLSearchParams(location.search).get('tab') ?? 'dashboard';
@@ -37,7 +42,6 @@ export function Sidebar({ width, rail }: SidebarProps) {
   const profileDisplay = rail ? 'none' : 'flex';
 
   const isSuperAdminUser = profile.role === 'super_admin';
-
   const canManage = profile.role === 'owner' || !!adminQuery.data;
   const navItems = NAV_ITEMS
     .filter((it) => !['empresa', 'planes', 'team'].includes(it.id) || canManage)
@@ -53,13 +57,16 @@ export function Sidebar({ width, rail }: SidebarProps) {
         left: 0,
         bottom: 0,
         width,
-        background: '#0F172A',
+        background: theme.sidebarBg,
+        boxShadow: theme.sidebarShadow,
         display: 'flex',
         flexDirection: 'column',
         padding: '18px 14px',
         zIndex: 40,
+        transition: TRANSITION,
       }}
     >
+      {/* Logo */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 11, padding: '6px 6px 18px', justifyContent: navJustify }}>
         {!rail && (
           <img src="/icons/logo-dark.png" alt="KTZ360" style={{ width: 40, height: 40, objectFit: 'contain', flexShrink: 0 }} />
@@ -72,6 +79,7 @@ export function Sidebar({ width, rail }: SidebarProps) {
         </span>
       </div>
 
+      {/* Nav items */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 3, marginTop: 6, flex: 1, overflowY: 'auto' }}>
         {isSuperAdminUser
           ? SUPER_ADMIN_NAV.map((it) => {
@@ -86,7 +94,7 @@ export function Sidebar({ width, rail }: SidebarProps) {
                     gap: 13,
                     width: '100%',
                     border: 'none',
-                    background: active ? 'rgba(59,130,246,.16)' : 'transparent',
+                    background: active ? theme.activeNavBg : 'transparent',
                     color: active ? '#fff' : '#94A3B8',
                     padding: '11px 12px',
                     borderRadius: 11,
@@ -95,6 +103,7 @@ export function Sidebar({ width, rail }: SidebarProps) {
                     fontSize: 14,
                     textAlign: 'left',
                     justifyContent: navJustify,
+                    transition: TRANSITION,
                   }}
                 >
                   <span style={{ width: 21, height: 21, flexShrink: 0, display: 'flex' }}>
@@ -105,55 +114,58 @@ export function Sidebar({ width, rail }: SidebarProps) {
               );
             })
           : navItems.map((it) => {
-          const active = activeView === it.id;
-          return (
-            <button
-              key={it.id}
-              onClick={() => navigate(`/app/${it.id}`)}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 13,
-                width: '100%',
-                border: 'none',
-                background: active ? 'rgba(59,130,246,.16)' : 'transparent',
-                color: active ? '#fff' : '#94A3B8',
-                padding: '11px 12px',
-                borderRadius: 11,
-                cursor: 'pointer',
-                fontWeight: 600,
-                fontSize: 14,
-                textAlign: 'left',
-                justifyContent: navJustify,
-                position: 'relative',
-              }}
-            >
-              <span style={{ width: 21, height: 21, flexShrink: 0, display: 'flex' }}>
-                <Icon path={NAV_ICONS[it.id]} />
-              </span>
-              <span style={{ display: labelDisplay, whiteSpace: 'nowrap' }}>{it.label}</span>
-              {it.badge && (
-                <span
+              const active = activeView === it.id;
+              return (
+                <button
+                  key={it.id}
+                  onClick={() => navigate(`/app/${it.id}`)}
                   style={{
-                    display: labelDisplay,
-                    marginLeft: 'auto',
-                    fontSize: 9,
-                    fontWeight: 800,
-                    background: '#22C55E',
-                    color: '#fff',
-                    padding: '2px 6px',
-                    borderRadius: 6,
-                    letterSpacing: '.5px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 13,
+                    width: '100%',
+                    border: 'none',
+                    background: active ? theme.activeNavBg : 'transparent',
+                    color: active ? '#fff' : '#94A3B8',
+                    padding: '11px 12px',
+                    borderRadius: 11,
+                    cursor: 'pointer',
+                    fontWeight: 600,
+                    fontSize: 14,
+                    textAlign: 'left',
+                    justifyContent: navJustify,
+                    position: 'relative',
+                    transition: TRANSITION,
                   }}
                 >
-                  PRO
-                </span>
-              )}
-            </button>
-          );
-        })}
+                  <span style={{ width: 21, height: 21, flexShrink: 0, display: 'flex' }}>
+                    <Icon path={NAV_ICONS[it.id]} />
+                  </span>
+                  <span style={{ display: labelDisplay, whiteSpace: 'nowrap' }}>{it.label}</span>
+                  {it.badge && (
+                    <span
+                      style={{
+                        display: labelDisplay,
+                        marginLeft: 'auto',
+                        fontSize: 9,
+                        fontWeight: 800,
+                        background: theme.badgeBg,
+                        color: theme.badgeColor,
+                        padding: '2px 6px',
+                        borderRadius: 6,
+                        letterSpacing: '.5px',
+                        transition: TRANSITION,
+                      }}
+                    >
+                      PRO
+                    </span>
+                  )}
+                </button>
+              );
+            })}
       </div>
 
+      {/* CTA / Admin link */}
       {isSuperAdminUser ? (
         <button
           onClick={() => navigate('/app/dashboard')}
@@ -182,7 +194,7 @@ export function Sidebar({ width, rail }: SidebarProps) {
           style={{
             marginTop: 10,
             border: 'none',
-            background: '#2563EB',
+            background: theme.ctaBg,
             color: '#fff',
             fontWeight: 700,
             fontSize: 14,
@@ -193,7 +205,8 @@ export function Sidebar({ width, rail }: SidebarProps) {
             alignItems: 'center',
             gap: 9,
             justifyContent: 'center',
-            boxShadow: '0 8px 18px -8px rgba(37,99,235,.7)',
+            boxShadow: theme.ctaShadow,
+            transition: TRANSITION,
           }}
         >
           <span style={{ fontSize: 18, lineHeight: 1 }}>+</span>
@@ -201,6 +214,7 @@ export function Sidebar({ width, rail }: SidebarProps) {
         </button>
       )}
 
+      {/* User profile */}
       <UserMenu placement="top">
         <div
           style={{
@@ -218,13 +232,14 @@ export function Sidebar({ width, rail }: SidebarProps) {
               width: 34,
               height: 34,
               borderRadius: 10,
-              background: 'linear-gradient(150deg,#2563EB,#1D4ED8)',
+              background: theme.avatarBg,
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
               color: '#fff',
               fontWeight: 800,
               flexShrink: 0,
+              transition: TRANSITION,
             }}
           >
             {initial}
