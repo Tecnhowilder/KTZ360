@@ -3,10 +3,12 @@ import { useParams, useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { deriveQuote, dueDate, advanceAmount, fmt } from '../../lib/calc';
 import { computeDoc } from '../../lib/engine';
-import { ProposalDocument } from '../../components/documents/ProposalDocument';
+import { ProposalDocument, type UniversalItem, type UniversalLaborItem, type UniversalTotals } from '../../components/documents/ProposalDocument';
 import { getPublicQuote, registerQuoteEvent, registerConsentAndEvent } from '../../services/publicPortal';
+import { trackQuoteView } from '../../services/quoteViews';
 import { APP_NAME } from '../../lib/brand';
 import type { CompanySettings } from '../../lib/types';
+import type { QuoteSnapshot } from '../../lib/itemEngine';
 
 const LEGAL_TEXT = (companyName: string) =>
   `${APP_NAME} actúa únicamente como plataforma tecnológica para la generación, gestión y envío de cotizaciones. Los datos personales son administrados por ${companyName}, quien actúa como responsable del tratamiento de los datos personales suministrados por el cliente.`;
@@ -33,6 +35,7 @@ export function PublicQuotePortal() {
     if (query.data && token && !openedRef.current) {
       openedRef.current = true;
       registerQuoteEvent(token, 'proposal_opened').catch(() => {});
+      trackQuoteView(query.data.quote.id).catch(() => {});
     }
   }, [query.data, token]);
 
@@ -83,7 +86,66 @@ export function PublicQuotePortal() {
     transportEnabled: d.cfg.transportEnabled,
   }, d.cfg.docDetailLevel);
   const due = dueDate(new Date(quote.created_at), d.cfg.validDays);
-  const advance = advanceAmount(doc.total, d.cfg.advancePct);
+
+  // Leer items desde snapshot_items (cotizaciones V2)
+  const snapshot = (quote as any).snapshot_items as QuoteSnapshot | undefined;
+
+  let universalItems: UniversalItem[] | undefined;
+  let universalLaborItems: UniversalLaborItem[] | undefined;
+  let universalTotals: UniversalTotals | undefined;
+
+  if (snapshot?.items?.length) {
+    if (snapshot.labor_items?.length) {
+      universalLaborItems = snapshot.labor_items.map((it, idx) => ({
+        id: String(idx),
+        item_name: it.item_name,
+        description: it.description ?? null,
+        quantity: it.quantity,
+        unit: it.unit,
+        unit_price: it.unit_price,
+        subtotal: it.subtotal,
+      }));
+    }
+    universalItems = snapshot.items.map((it, idx) => ({
+      id: String(idx),
+      item_name: it.item_name,
+      description: it.description ?? null,
+      quantity: it.quantity,
+      unit: it.unit,
+      unit_price: it.unit_price,
+      subtotal: it.subtotal,
+    }));
+    universalTotals = {
+      subtotal: snapshot.totals.subtotal,
+      discount: snapshot.totals.discount,
+      tax: snapshot.totals.tax,
+      overhead: snapshot.totals.overhead ?? 0,
+      total: snapshot.totals.total,
+      advance: snapshot.totals.advance,
+      balance: snapshot.totals.balance,
+      labor_total: snapshot.totals.labor_total ?? 0,
+      transport_cost: snapshot.totals.transport_cost ?? 0,
+      tax_rate: snapshot.config?.tax_rate,
+      discount_pct: snapshot.config?.discount_pct,
+    };
+  } else {
+    // Fallback: leer de calc_snapshot (para cotizaciones sin snapshot_items)
+    const cs = (quote as any).calc_snapshot;
+    if (cs?.total > 0) {
+      universalTotals = {
+        subtotal: cs.subtotal ?? 0,
+        discount: cs.discount ?? 0,
+        tax: cs.tax ?? 0,
+        overhead: 0,
+        total: cs.total ?? 0,
+        advance: cs.advance ?? 0,
+        balance: cs.balance ?? 0,
+      };
+    }
+  }
+
+  const totalForAdvance = universalTotals?.total ?? doc.total;
+  const advance = advanceAmount(totalForAdvance, d.cfg.advancePct);
 
   const eventMap: Record<Exclude<PendingAction, null>, 'proposal_accepted' | 'proposal_rejected' | 'proposal_changes_requested'> = {
     accepted: 'proposal_accepted',
@@ -140,6 +202,11 @@ export function PublicQuotePortal() {
         advance={advance}
         verifyUrl={custom_qr_enabled ? `${window.location.origin}/p/${token}` : null}
         pdfTier={pdf_tier}
+        universalItems={universalItems}
+        universalLaborItems={universalLaborItems}
+        universalTotals={universalTotals}
+        termsConditions={Array.isArray(quote.terms_conditions) ? (quote.terms_conditions as unknown as string[]) : undefined}
+        status={quote.status}
       />
 
       {consent_status === 'accepted' && (

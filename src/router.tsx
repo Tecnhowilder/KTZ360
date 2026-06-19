@@ -8,6 +8,10 @@ import { AppIndexRedirect } from './features/auth/AppIndexRedirect';
 import { AppShell } from './components/layout/AppShell';
 import { Dashboard } from './views/Dashboard';
 import { Cotizaciones } from './views/Cotizaciones';
+import { QuoteNewPage } from './views/QuoteNewPage';
+import { QuoteDetailPage } from './views/QuoteDetailPage';
+import { EditQuotePage } from './views/EditQuotePage';
+import { CatalogPage } from './views/CatalogPage';
 import { Clientes } from './views/Clientes';
 import { Materiales } from './views/Materiales';
 import { Plantillas } from './views/Plantillas';
@@ -46,6 +50,10 @@ export const router = createBrowserRouter([
       { index: true, element: <AppIndexRedirect /> },
       { path: 'dashboard', element: <Dashboard /> },
       { path: 'cotizaciones', element: <Cotizaciones /> },
+      { path: 'cotizaciones/nueva', element: <QuoteNewPage /> },
+      { path: 'cotizaciones/:id', element: <QuoteDetailPage /> },
+      { path: 'cotizaciones/:id/editar', element: <EditQuotePage /> },
+      { path: 'catalogo', element: <CatalogPage /> },
       { path: 'clientes', element: <Clientes /> },
       { path: 'plantillas', element: <Plantillas /> },
       { path: 'materiales', element: <Materiales /> },

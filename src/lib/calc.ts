@@ -1,6 +1,7 @@
 import { MONTHS, MONTHS_LONG } from './data';
 import { computeQuote, type ServiceLine } from './engine';
 import type { Quote, DerivedQuote, QuoteStatus, ChartPoint, Client, TaxMode, DocDetailLevel } from './types';
+export { formatCurrencyCOP, formatCurrencyCOPCompact } from './currency';
 
 export function TODAY(): Date {
   return new Date();
@@ -33,10 +34,10 @@ export function fmt(n: number): string {
   return '$ ' + Math.round(n).toLocaleString('es-CO');
 }
 
+/** @deprecated Usar formatCurrencyCOP() — nunca abreviar montos en KTZ360 */
 export function fmtM(n: number): string {
-  if (n >= 1e6) return '$' + (n / 1e6).toFixed(1) + 'M';
-  if (n >= 1e3) return '$' + Math.round(n / 1e3) + 'k';
-  return '$' + n;
+  // Redirigido a formatCurrencyCOP: muestra valor completo (ej. $ 1.741.927)
+  return '$ ' + Math.round(n).toLocaleString('es-CO');
 }
 
 /** Nombres de los servicios incluidos en una cotización, para mostrar en listados. */
@@ -122,8 +123,16 @@ export function statusStyle(s: QuoteStatus | string): StatusStyle {
 
 export function followMessage(clientName: string, proj: string, total: number, companyName: string, portalUrl?: string): string {
   const first = (clientName || 'Hola').split(' ')[0];
-  let msg = 'Hola ' + first + ', un gusto saludarte. Te comparto la propuesta para "' + proj + '" por un valor de ' + fmt(total) + '. Quedo muy atento a tus comentarios o dudas. — ' + companyName;
-  if (portalUrl) msg += '\n\n' + portalUrl;
+  const valorFmt = '$ ' + Math.round(total).toLocaleString('es-CO');
+  let msg = [
+    `Hola ${first} 👋`,
+    '',
+    `Preparé una propuesta personalizada para *${proj}*.`,
+    '',
+    `Valor estimado: *${valorFmt}*`,
+  ].join('\n');
+  if (portalUrl) msg += `\n\nPuedes revisar todos los detalles aquí:\n${portalUrl}`;
+  msg += `\n\nQuedo atento a cualquier ajuste. Saludos,\n${companyName}`;
   return msg;
 }
 

@@ -1,3 +1,27 @@
+/* ── Mobile Dashboard ────────────────────────────────────────────────────── */
+.mob-dashboard {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding-bottom: calc(8px + env(safe-area-inset-bottom, 0px));
+}
+
+/* Carrusel KPI horizontal con scroll-snap nativo */
+.mob-kpi-carousel {
+  display: flex;
+  gap: 10px;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  padding-bottom: 4px; /* espacio para sombras */
+}
+.mob-kpi-carousel::-webkit-scrollbar { display: none; }
+.mob-kpi-carousel > * {
+  scroll-snap-align: start;
+  flex-shrink: 0;
+}
+
 /* ── Dashboard layout responsive ─────────────────────────────────────────── */
 .dash-root { display: flex; flex-direction: column; gap: 10px; }
 

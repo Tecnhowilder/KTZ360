@@ -1,45 +1,45 @@
 import { useState } from 'react';
-import { Icon, COPY_ICON_PATH } from '../lib/icons';
-import { useWorkspace } from '../features/auth/WorkspaceProvider';
-import { useUI, defaultQConfig } from '../features/app/UIProvider';
+import { useNavigate } from 'react-router-dom';
+import { Search, Plus } from 'lucide-react';
+import { useUI } from '../features/app/UIProvider';
 import { useDerivedQuotes } from '../hooks/useQuotes';
-import { fmtM, statusStyle } from '../lib/calc';
-import type { DerivedQuote, QuoteStatus } from '../lib/types';
+import { QuoteCard } from '../components/quotes/QuoteCard';
+import { EmptyQuotes } from '../components/quotes/EmptyQuotes';
+import { fmtM } from '../lib/calc';
+import type { DerivedQuote } from '../lib/types';
 
-const STATUS_FILTERS: { key: string; label: string }[] = [
-  { key: 'todas', label: 'Todas' },
+const STATUS_FILTERS = [
+  { key: 'todas',    label: 'Todas' },
   { key: 'borrador', label: 'Borradores' },
-  { key: 'enviada', label: 'Enviadas' },
+  { key: 'enviada',  label: 'Enviadas' },
   { key: 'aprobada', label: 'Aprobadas' },
-  { key: 'rechazada', label: 'Rechazadas' },
-  { key: 'vencida', label: 'Vencidas' },
+  { key: 'rechazada',label: 'Rechazadas' },
+  { key: 'vencida',  label: 'Vencidas' },
 ];
 
 export function Cotizaciones() {
-  const { company } = useWorkspace();
-  const { openQuoteFlow, openQuoteDetail } = useUI();
+  const navigate = useNavigate();
+  const { openQuoteFlow } = useUI();
   const { quotes, isLoading } = useDerivedQuotes();
+  const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('todas');
 
-  if (isLoading) return null;
+  const filtered = quotes.filter(q => {
+    const matchStatus = statusFilter === 'todas' || q.status.toLowerCase() === statusFilter;
+    const matchSearch = !search || q.title.toLowerCase().includes(search.toLowerCase()) || q.clientName.toLowerCase().includes(search.toLowerCase());
+    return matchStatus && matchSearch;
+  });
 
-  const cnt = (st: QuoteStatus) => quotes.filter((q) => q.status === st).length;
   const totalQuoted = quotes.reduce((a, q) => a + q.calc.total, 0);
-  const approvedCount = cnt('Aprobada');
-  const sentCount = cnt('Enviada');
-  const closedCount = approvedCount + cnt('Rechazada');
-  const closeRate = closedCount ? Math.round((approvedCount / closedCount) * 100) : 0;
+  const approved = quotes.filter(q => q.status === 'Aprobada').length;
 
-  const filteredQuotes = quotes.filter((q) => statusFilter === 'todas' || q.status.toLowerCase() === statusFilter);
-
-  function duplicate(e: React.MouseEvent, q: DerivedQuote) {
-    e.stopPropagation();
+  function duplicate(q: DerivedQuote) {
     openQuoteFlow({
       step: 4,
       cfg: {
         clientId: q.client_id,
         proj: q.title + ' (copia)',
-        loc: q.location || '',
+        loc: (q as any).location || '',
         serviceLines: q.cfg.serviceLines,
         adminPct: q.cfg.adminPct,
         imprevistosPct: q.cfg.imprevistosPct,
@@ -59,98 +59,125 @@ export function Cotizaciones() {
   }
 
   return (
-    <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 14, marginBottom: 18 }}>
-        <h1 style={{ fontSize: 'clamp(22px,4vw,30px)', fontWeight: 800, letterSpacing: '-1px' }}>Cotizaciones</h1>
-        <button
-          onClick={() => openQuoteFlow({ cfg: defaultQConfig(company) })}
-          style={{ border: 'none', background: '#2563EB', color: '#fff', fontWeight: 700, fontSize: 14, padding: '11px 17px', borderRadius: 12, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 7 }}
-        >
-          <span style={{ fontSize: 17 }}>+</span> Nueva
-        </button>
-      </div>
-
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(150px,1fr))', gap: 12, marginBottom: 16 }}>
-        <div style={{ background: '#fff', border: '1px solid #E2E8F0', borderRadius: 15, padding: 15 }}>
-          <div style={{ fontSize: 11.5, color: '#64748B' }}>Total cotizado</div>
-          <div style={{ fontSize: 22, fontWeight: 800, fontVariantNumeric: 'tabular-nums' }}>{fmtM(totalQuoted)}</div>
-        </div>
-        <div style={{ background: '#fff', border: '1px solid #E2E8F0', borderRadius: 15, padding: 15 }}>
-          <div style={{ fontSize: 11.5, color: '#64748B' }}>Aprobadas</div>
-          <div style={{ fontSize: 22, fontWeight: 800, color: '#22C55E' }}>{approvedCount}</div>
-        </div>
-        <div style={{ background: '#fff', border: '1px solid #E2E8F0', borderRadius: 15, padding: 15 }}>
-          <div style={{ fontSize: 11.5, color: '#64748B' }}>Por seguir</div>
-          <div style={{ fontSize: 22, fontWeight: 800, color: '#F59E0B' }}>{sentCount}</div>
-        </div>
-        <div style={{ background: '#fff', border: '1px solid #E2E8F0', borderRadius: 15, padding: 15 }}>
-          <div style={{ fontSize: 11.5, color: '#64748B' }}>Tasa de cierre</div>
-          <div style={{ fontSize: 22, fontWeight: 800, color: '#2563EB' }}>{closeRate}%</div>
-        </div>
-      </div>
-
-      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 14 }}>
-        {STATUS_FILTERS.map((f) => {
-          const active = statusFilter === f.key;
-          return (
-            <button
-              key={f.key}
-              onClick={() => setStatusFilter(f.key)}
-              style={{
-                border: `1px solid ${active ? '#2563EB' : '#E2E8F0'}`,
-                background: active ? '#2563EB' : '#fff',
-                color: active ? '#fff' : '#475569',
-                fontWeight: 600,
-                fontSize: 13,
-                padding: '8px 15px',
-                borderRadius: 99,
-                cursor: 'pointer',
-              }}
-            >
-              {f.label}
-            </button>
-          );
-        })}
-      </div>
-
-      <div style={{ background: '#fff', border: '1px solid #E2E8F0', borderRadius: 18, overflow: 'hidden' }}>
-        {filteredQuotes.map((q) => {
-          const st = statusStyle(q.status);
-          return (
-            <div
-              key={q.id}
-              onClick={() => openQuoteDetail(q.id)}
-              style={{ display: 'flex', alignItems: 'center', gap: 13, padding: '14px 16px', borderBottom: '1px solid #F1F5F9', cursor: 'pointer' }}
-            >
-              <div style={{ width: 42, height: 42, borderRadius: 12, background: '#EEF2FF', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#2563EB', fontWeight: 800, flexShrink: 0 }}>
-                {q.initial}
+    <div style={{ background: '#F8FAFC', minHeight: '100vh' }}>
+      {/* Header */}
+      <div style={{
+        background: '#fff',
+        padding: '20px 16px 0',
+        borderBottom: '1px solid #F1F5F9',
+        position: 'sticky', top: 0, zIndex: 10,
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+          <div>
+            <h1 style={{ fontSize: 22, fontWeight: 800, color: '#0F172A', margin: 0, letterSpacing: '-.5px' }}>
+              Cotizaciones
+            </h1>
+            {!isLoading && quotes.length > 0 && (
+              <div style={{ fontSize: 12.5, color: '#64748B', marginTop: 2 }}>
+                {fmtM(totalQuoted)} · {approved} aprobadas
               </div>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 14, fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{q.title}</div>
-                <div style={{ fontSize: 12, color: '#64748B', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                  {q.clientName} · {q.dateLabel}
-                </div>
-              </div>
-              <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                <div style={{ fontSize: 14, fontWeight: 800, fontVariantNumeric: 'tabular-nums' }}>{fmtM(q.calc.total)}</div>
-                <span style={{ fontSize: 9.5, fontWeight: 700, color: st.c, background: st.b, padding: '2px 7px', borderRadius: 6 }}>{q.status}</span>
-              </div>
+            )}
+          </div>
+          {/* Desktop new button */}
+          <button
+            onClick={() => navigate('/app/cotizaciones/nueva')}
+            style={{
+              display: 'none',
+              border: 'none', background: '#2563EB', color: '#fff',
+              fontWeight: 700, fontSize: 14, padding: '10px 18px',
+              borderRadius: 12, cursor: 'pointer', alignItems: 'center', gap: 6,
+            }}
+            className="desktop-new-btn"
+          >
+            <Plus size={16} /> Nueva
+          </button>
+        </div>
+
+        {/* Buscador */}
+        <div style={{ position: 'relative', marginBottom: 12 }}>
+          <Search size={16} color="#94A3B8" style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)' }} />
+          <input
+            type="search"
+            placeholder="Buscar cotización o cliente..."
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            style={{
+              width: '100%', height: 42, border: '1px solid #E2E8F0',
+              borderRadius: 12, paddingLeft: 36, paddingRight: 12,
+              fontSize: 14.5, outline: 'none', background: '#F8FAFC',
+              color: '#0F172A', boxSizing: 'border-box',
+            }}
+          />
+        </div>
+
+        {/* Filtros de estado — scroll horizontal */}
+        <div style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 12, scrollbarWidth: 'none' }}>
+          {STATUS_FILTERS.map(f => {
+            const active = statusFilter === f.key;
+            return (
               <button
-                onClick={(e) => duplicate(e, q)}
-                title="Duplicar"
-                style={{ width: 34, height: 34, borderRadius: 9, border: '1px solid #E2E8F0', background: '#fff', color: '#64748B', cursor: 'pointer', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                key={f.key}
+                onClick={() => setStatusFilter(f.key)}
+                style={{
+                  flexShrink: 0, border: 'none', cursor: 'pointer',
+                  background: active ? '#2563EB' : '#F1F5F9',
+                  color: active ? '#fff' : '#475569',
+                  fontWeight: active ? 700 : 500,
+                  fontSize: 13, padding: '7px 14px', borderRadius: 99,
+                  transition: 'all .15s',
+                }}
               >
-                <span style={{ width: 17, height: 17, display: 'flex' }}>
-                  <Icon path={COPY_ICON_PATH} />
-                </span>
+                {f.label}
               </button>
-            </div>
-          );
-        })}
-        {filteredQuotes.length === 0 && (
-          <div style={{ padding: '32px 16px', textAlign: 'center', fontSize: 13, color: '#94A3B8' }}>No hay cotizaciones en esta categoría.</div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Lista */}
+      <div style={{ background: '#fff', marginTop: 8, borderRadius: 0 }}>
+        {isLoading ? (
+          <div style={{ padding: '40px 16px', textAlign: 'center', color: '#94A3B8' }}>Cargando...</div>
+        ) : filtered.length === 0 ? (
+          <EmptyQuotes
+            onNew={() => navigate('/app/cotizaciones/nueva')}
+            hasFilters={statusFilter !== 'todas' || search.length > 0}
+          />
+        ) : (
+          filtered.map(q => (
+            <QuoteCard
+              key={q.id}
+              quote={q}
+              onOpen={() => navigate(`/app/cotizaciones/${q.id}`)}
+              onDuplicate={() => duplicate(q)}
+            />
+          ))
         )}
       </div>
+
+      {/* FAB — solo mobile */}
+      <button
+        onClick={() => navigate('/app/cotizaciones/nueva')}
+        style={{
+          position: 'fixed', bottom: 'calc(76px + env(safe-area-inset-bottom))',
+          right: 16, zIndex: 30,
+          width: 56, height: 56, borderRadius: '50%',
+          background: '#2563EB', border: 'none', color: '#fff',
+          cursor: 'pointer',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          boxShadow: '0 4px 20px rgba(37,99,235,.45)',
+        }}
+        className="mobile-fab"
+      >
+        <Plus size={24} strokeWidth={2.5} />
+      </button>
+
+      <style>{`
+        @media (min-width: 768px) {
+          .mobile-fab { display: none !important; }
+          .desktop-new-btn { display: flex !important; }
+        }
+      `}</style>
     </div>
   );
 }

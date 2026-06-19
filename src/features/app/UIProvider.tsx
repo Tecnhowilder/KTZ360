@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, type ReactNode } from 'react';
+import { createContext, useContext, useRef, useState, type ReactNode } from 'react';
 import type { CompanySettings, QConfig } from '../../lib/types';
 
 export interface QuoteFlowState {
@@ -15,6 +15,8 @@ interface UIContextValue {
   closeQuoteFlow: () => void;
   setQuoteFlowStep: (step: number) => void;
   setQuoteCfg: (patch: Partial<QConfig> | ((cfg: QConfig) => QConfig)) => void;
+  // Bridge de navegación: AppShell registra useNavigate desde dentro del Router
+  _registerNavigate: (fn: (path: string) => void) => void;
 
   detailQuoteId: string | null;
   openQuoteDetail: (id: string) => void;
@@ -72,6 +74,8 @@ export function defaultQConfig(company?: Pick<CompanySettings, 'tax_mode' | 'tax
 }
 
 export function UIProvider({ children }: { children: ReactNode }) {
+  const navigateRef = useRef<((path: string) => void) | null>(null);
+
   const [quoteFlow, setQuoteFlow] = useState<QuoteFlowState>({
     open: false,
     step: 0,
@@ -85,6 +89,12 @@ export function UIProvider({ children }: { children: ReactNode }) {
   const [upgradeModal, setUpgradeModal] = useState<UpgradeModalInfo | null>(null);
 
   function openQuoteFlow(opts?: { step?: number; quoteId?: string | null; mode?: 'create' | 'edit'; cfg?: Partial<QConfig> }) {
+    // Si el bridge de navegación está disponible, usar la nueva página
+    if (navigateRef.current) {
+      navigateRef.current('/app/cotizaciones/nueva');
+      return;
+    }
+    // Fallback: overlay legacy (mientras exista QuoteFlowOverlay)
     setQuoteFlow({
       open: true,
       step: opts?.step ?? 0,
@@ -114,8 +124,12 @@ export function UIProvider({ children }: { children: ReactNode }) {
         closeQuoteFlow,
         setQuoteFlowStep,
         setQuoteCfg,
+        _registerNavigate: (fn) => { navigateRef.current = fn; },
         detailQuoteId,
-        openQuoteDetail: setDetailQuoteId,
+        openQuoteDetail: (id: string) => {
+          if (navigateRef.current) { navigateRef.current(`/app/cotizaciones/${id}`); return; }
+          setDetailQuoteId(id);
+        },
         closeQuoteDetail: () => setDetailQuoteId(null),
         detailClientId,
         openClientDetail: setDetailClientId,

@@ -3,8 +3,8 @@ import {
   Search, Bell, Plus, FileText, UserPlus, LayoutTemplate,
   Wallet, BarChart2, ChevronRight, MessageCircle,
   TrendingUp, CheckCircle2, Clock, Lock, Crown,
-  AlertTriangle, Calendar, Users, Zap, Phone,
-  ArrowRight, HelpCircle, Calculator, Download,
+  AlertTriangle, Calendar, Zap,
+  ArrowRight, Calculator,
 } from 'lucide-react';
 import { useWorkspace } from '../features/auth/WorkspaceProvider';
 import { useUI, defaultQConfig } from '../features/app/UIProvider';
@@ -13,6 +13,8 @@ import { usePlanLimit } from '../hooks/usePermissions';
 import { getThemeByPlan } from '../lib/planTheme';
 import { fmtM, fmt, statusStyle, daysAgo, TODAY, followMessage, openWhats } from '../lib/calc';
 import { MONTHS_LONG } from '../lib/data';
+import { useWindowWidth, navModeFor } from '../hooks/useWindowWidth';
+import { MobileDashboard } from '../components/dashboard/MobileDashboard';
 import type { DerivedQuote } from '../lib/types';
 import type { ServiceLine } from '../lib/types';
 import '../styles/dashboard.css';
@@ -144,8 +146,6 @@ const CARD: React.CSSProperties = {
   padding: 14,
   boxShadow: '0 1px 6px rgba(0,0,0,.055)',
 };
-const CARD_SM: React.CSSProperties = { ...CARD, padding: 12 };
-
 const DONUT_COLORS: Record<string, string> = {
   Borrador: '#2563EB', Enviada: '#7C3AED', Aprobada: '#22C55E', Rechazada: '#EF4444', Vencida: '#F59E0B',
 };
@@ -558,7 +558,7 @@ function FreeDashboard({ quotes, company, openQuoteFlow, openQuoteDetail, openUp
 }
 
 // ─── PRO Dashboard — 3 filas, cabe en 1366×768 ───────────────────────────────
-function ProDashboard({ quotes, company, openQuoteFlow, openQuoteDetail, navigate, theme }: any) {
+function ProDashboard({ quotes, company, openQuoteFlow, openQuoteDetail, navigate }: any) {
   const now  = TODAY();
   const prev = new Date(now.getFullYear(), now.getMonth() - 1, 1);
   const inM  = (q: DerivedQuote, d: Date) => {
@@ -847,7 +847,7 @@ function ProDashboard({ quotes, company, openQuoteFlow, openQuoteDetail, navigat
 }
 
 // ─── PREMIUM Dashboard ────────────────────────────────────────────────────────
-function PremiumDashboard({ quotes, company, openQuoteFlow, openQuoteDetail, navigate, theme }: any) {
+function PremiumDashboard({ quotes, company, openQuoteFlow, openQuoteDetail, navigate }: any) {
   const now  = TODAY();
   const prev = new Date(now.getFullYear(), now.getMonth() - 1, 1);
   const inM  = (q: DerivedQuote, d: Date) => { const c = new Date(q.created_at); return c.getFullYear() === d.getFullYear() && c.getMonth() === d.getMonth(); };
@@ -1051,7 +1051,7 @@ function PremiumDashboard({ quotes, company, openQuoteFlow, openQuoteDetail, nav
       {/* Row 4 */}
       <div style={{ display: 'grid', gridTemplateColumns: '1.3fr 1.3fr 1.4fr', gap: 12 }}>
         <div style={CARD}>
-          <h3 style={{ fontSize: 14, fontWeight: 700, margin: '0 0 12px' }}>Servicios más cotizados</h3>
+          <h3 style={{ fontSize: 14, fontWeight: 700, margin: '0 0 12px' }}>Ítems más cotizados</h3>
           <ServiceBars quotes={quotes}/>
         </div>
         <div style={{ ...CARD, display: 'flex', flexDirection: 'column' }}>
@@ -1110,8 +1110,15 @@ export function Dashboard() {
   const { quotes, isLoading } = useDerivedQuotes();
   const limitQuery = usePlanLimit('quotes_month');
   const theme      = getThemeByPlan(planName);
+  const width      = useWindowWidth();
+  const navMode    = navModeFor(width);
 
   if (isLoading) return null;
+
+  // Mobile: delegar completamente a MobileDashboard (zero impact en desktop)
+  if (navMode === 'bottom') {
+    return <MobileDashboard/>;
+  }
 
   const plan      = planName.toLowerCase();
   const firstName = (profile.full_name || '').split(' ')[0] || 'Usuario';

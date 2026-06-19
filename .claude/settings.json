@@ -23,7 +23,22 @@
       "Bash(sed -n '55,68p' src/index.css)",
       "Bash(netstat -ano)",
       "Bash(npx supabase *)",
-      "Bash(curl -s -o /tmp/mp_test.json -w '%{http_code}' -X POST https://api.mercadopago.com/checkout/preferences -H 'Authorization: Bearer APP_USR-5711354128820244-061515-4f3ebc5a16da3148bbff8baee3a025c9-3474234217' -H 'Content-Type: application/json' -d '{\"items\":[{\"title\":\"KTZ360 PRO Test\",\"quantity\":1,\"unit_price\":39900,\"currency_id\":\"COP\"}],\"back_urls\":{\"success\":\"http://localhost:5174/app/billing/success\",\"pending\":\"http://localhost:5174/app/billing/pending\",\"failure\":\"http://localhost:5174/app/billing/failure\"},\"auto_return\":\"approved\"}')"
+      "Bash(curl -s -o /tmp/mp_test.json -w '%{http_code}' -X POST https://api.mercadopago.com/checkout/preferences -H 'Authorization: Bearer APP_USR-5711354128820244-061515-4f3ebc5a16da3148bbff8baee3a025c9-3474234217' -H 'Content-Type: application/json' -d '{\"items\":[{\"title\":\"KTZ360 PRO Test\",\"quantity\":1,\"unit_price\":39900,\"currency_id\":\"COP\"}],\"back_urls\":{\"success\":\"http://localhost:5174/app/billing/success\",\"pending\":\"http://localhost:5174/app/billing/pending\",\"failure\":\"http://localhost:5174/app/billing/failure\"},\"auto_return\":\"approved\"}')",
+      "Bash(python -c \"import sys,json; pkg=json.load\\(sys.stdin\\); deps={**pkg.get\\('dependencies',{}\\), **pkg.get\\('devDependencies',{}\\)}; [print\\(k\\) for k in deps if 'dnd' in k.lower\\(\\) or 'drag' in k.lower\\(\\) or 'sortable' in k.lower\\(\\)]\")",
+      "Bash(node -e \"const rgl = require\\('react-grid-layout'\\); console.log\\(Object.keys\\(rgl\\)\\)\")",
+      "Bash(python -c \"import sys,json; p=json.load\\(sys.stdin\\); print\\(p.get\\('types',''\\), p.get\\('typings',''\\)\\)\")",
+      "Bash(node -e \"const rc = require\\('react-countup'\\); console.log\\('default:', typeof rc.default\\); console.log\\('keys:', Object.keys\\(rc\\).join\\(', '\\)\\)\")",
+      "Bash(python -c \"import json; p=json.load\\(open\\('node_modules/react-countup/package.json'\\)\\); print\\('version:', p.get\\('version'\\)\\); print\\('main:', p.get\\('main'\\)\\); print\\('module:', p.get\\('module'\\)\\)\")",
+      "Bash(git clean *)",
+      "Bash(git restore *)",
+      "Bash(python -c \"import json,sys; d=json.load\\(sys.stdin\\); deps={**d.get\\('dependencies',{}\\),**d.get\\('devDependencies',{}\\)}; needed=['recharts','@tanstack/react-table','framer-motion','react-grid-layout','react-countup','react-hook-form','zod','date-fns']; [print\\(f'{p}: {deps.get\\(p,\\\\\"NOT INSTALLED\\\\\"\\)}'\\) for p in needed]\")",
+      "Bash(python -c \"import json,sys; d=json.load\\(sys.stdin\\); deps={**d.get\\('dependencies',{}\\),**d.get\\('devDependencies',{}\\)}; [print\\(f'{k}: {v}'\\) for k,v in sorted\\(deps.items\\(\\)\\)]\")",
+      "Bash(dir \"c:/Users/karni/brivia-app/src/hooks/\")",
+      "Bash(node -e \"const pkg=require\\('./node_modules/recharts/package.json'\\);console.log\\('recharts',pkg.version\\)\")",
+      "Bash(node -e \"const pkg=require\\('./node_modules/@tanstack/react-table/package.json'\\);console.log\\('react-table',pkg.version\\)\")",
+      "Bash(node -e \"const pkg=require\\('./node_modules/date-fns/package.json'\\);console.log\\('date-fns',pkg.version\\)\")",
+      "Bash(node -e \"const pkg=require\\('./package.json'\\);console.log\\(JSON.stringify\\(pkg.dependencies,null,2\\)\\)\")",
+      "Bash(node -e \"require\\('c:/Users/karni/brivia-app/node_modules/recharts/package.json'\\)\")"
     ]
   }
 }

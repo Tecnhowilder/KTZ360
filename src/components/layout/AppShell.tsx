@@ -1,17 +1,21 @@
-import { useState } from 'react';
-import { Outlet, useLocation } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { Outlet, useLocation, useNavigate } from 'react-router-dom';
+import { useUI } from '../../features/app/UIProvider';
 import { useWindowWidth, navModeFor } from '../../hooks/useWindowWidth';
 import { Sidebar } from './Sidebar';
 import { MobileHeader } from './MobileHeader';
 import { MobileDrawer } from './MobileDrawer';
-import { BottomNav } from './BottomNav';
-import { QuoteFlowOverlay } from '../overlays/QuoteFlowOverlay';
-import { QuoteDetailOverlay } from '../overlays/QuoteDetailOverlay';
+import { MobileBottomNav } from './MobileBottomNav';
 import { ClientDetailOverlay } from '../overlays/ClientDetailOverlay';
 import { DocumentOverlay } from '../overlays/DocumentOverlay';
 import { UpgradeModal } from '../upgrade/UpgradeModal';
 
 export function AppShell() {
+  const navigate = useNavigate();
+  const { _registerNavigate } = useUI();
+
+  useEffect(() => { _registerNavigate(navigate); }, [navigate]);
+
   const width = useWindowWidth();
   const navMode = navModeFor(width);
   const showSidebar = navMode !== 'bottom';
@@ -20,17 +24,24 @@ export function AppShell() {
   const location = useLocation();
   const isFullWidthView = location.pathname.startsWith('/app/planes');
 
+  // Rutas full-screen (sin header mobile, pero SÍ con bottom nav)
+  const isInnerFlow = location.pathname.startsWith('/app/cotizaciones/nueva')
+    || location.pathname.match(/^\/app\/cotizaciones\/.+/) !== null;
+
   const [drawerOpen, setDrawerOpen] = useState(false);
 
   const mainLeft = showSidebar ? sidebarW : 0;
-  const mainPadTop = navBottom ? 16 : 28;
-  const mainPadBottom = navBottom ? 96 : 48;
+  // En inner flows: sin padding top (la página maneja su propio header)
+  // Siempre con paddingBottom para bottom nav
+  const mainPadTop = navBottom ? (isInnerFlow ? 0 : 64) : 28;
+  const mainPadBottom = navBottom ? 88 : 48; // siempre 88px en mobile
 
   return (
     <div style={{ minHeight: '100vh', background: '#F8FAFC' }}>
       {showSidebar && <Sidebar width={sidebarW} rail={navMode === 'rail'} />}
 
-      {navBottom && (
+      {/* Header mobile solo en vistas principales (no en flujos internos) */}
+      {navBottom && !isInnerFlow && (
         <>
           <MobileHeader onMenuOpen={() => setDrawerOpen(true)} />
           <MobileDrawer open={drawerOpen} onClose={() => setDrawerOpen(false)} />
@@ -40,21 +51,22 @@ export function AppShell() {
       <main
         style={{
           marginLeft: mainLeft,
-          padding: isFullWidthView
-            ? `${mainPadTop}px clamp(8px,1.5vw,20px) ${mainPadBottom}px`
-            : `${mainPadTop}px clamp(14px,3.5vw,36px) ${mainPadBottom}px`,
+          padding: isInnerFlow
+            ? `0 0 ${mainPadBottom}px` // inner: sin lateral, solo bottom
+            : isFullWidthView
+              ? `${mainPadTop}px clamp(8px,1.5vw,20px) ${mainPadBottom}px`
+              : `${mainPadTop}px clamp(14px,3.5vw,36px) ${mainPadBottom}px`,
           minHeight: '100vh',
         }}
       >
-        <div style={isFullWidthView ? undefined : { maxWidth: 1120, margin: '0 auto' }}>
+        <div style={isFullWidthView || isInnerFlow ? undefined : { maxWidth: 1120, margin: '0 auto' }}>
           <Outlet />
         </div>
       </main>
 
-      {navBottom && <BottomNav />}
+      {/* MobileBottomNav SIEMPRE visible en mobile (en todas las rutas) */}
+      {navBottom && <MobileBottomNav />}
 
-      <QuoteFlowOverlay />
-      <QuoteDetailOverlay />
       <ClientDetailOverlay />
       <DocumentOverlay />
       <UpgradeModal />
