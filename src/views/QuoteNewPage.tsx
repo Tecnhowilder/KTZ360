@@ -23,7 +23,7 @@ const STEP_LABELS = ['Cliente y proyecto', 'Ítems', 'Costos y totales', 'Vista 
 
 export function QuoteNewPage() {
   const navigate = useNavigate();
-  const { workspace } = useWorkspace();
+  const { workspace, company } = useWorkspace();
   const { user } = useAuth();
   const { showToast } = useToast();
 
@@ -89,6 +89,7 @@ export function QuoteNewPage() {
         valid_days: costConfig.valid_days,
         items,
         laborItems,
+        termsConditions: Array.isArray(company?.terms_conditions) ? (company.terms_conditions as unknown as string[]) : [],
         costConfig,
       });
       clearDraft(workspace.id);
@@ -195,6 +196,7 @@ export function QuoteNewPage() {
                       items={items} laborItems={laborItems}
                       config={costConfig}
                       clientName={clientData.clientName}
+                      clientEmail={clientData.clientEmail}
                       quoteName={quoteName}
                       onChangeQuoteName={setQuoteName}
                       onSave={handleSave}

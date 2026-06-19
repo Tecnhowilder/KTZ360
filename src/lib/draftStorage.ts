@@ -8,7 +8,8 @@ export interface QuoteDraft {
   savedAt: string;
 }
 
-const KEY_PREFIX = 'ktz360_quote_draft_';
+const KEY_PREFIX     = 'shelwi_quote_draft_';
+const LEGACY_PREFIX  = 'ktz360_quote_draft_';
 
 export function saveQuoteDraft(workspaceId: string, draft: QuoteDraft) {
   try {
@@ -20,9 +21,15 @@ export function saveQuoteDraft(workspaceId: string, draft: QuoteDraft) {
 
 export function loadQuoteDraft(workspaceId: string): QuoteDraft | null {
   try {
-    const raw = localStorage.getItem(KEY_PREFIX + workspaceId);
+    // Intentar clave nueva; si no existe, migrar desde clave legacy
+    const raw = localStorage.getItem(KEY_PREFIX + workspaceId)
+      ?? localStorage.getItem(LEGACY_PREFIX + workspaceId);
     if (!raw) return null;
-    return JSON.parse(raw) as QuoteDraft;
+    const draft = JSON.parse(raw) as QuoteDraft;
+    // Migrar silenciosamente a la clave nueva
+    localStorage.setItem(KEY_PREFIX + workspaceId, raw);
+    localStorage.removeItem(LEGACY_PREFIX + workspaceId);
+    return draft;
   } catch {
     return null;
   }
@@ -31,6 +38,7 @@ export function loadQuoteDraft(workspaceId: string): QuoteDraft | null {
 export function clearQuoteDraft(workspaceId: string) {
   try {
     localStorage.removeItem(KEY_PREFIX + workspaceId);
+    localStorage.removeItem(LEGACY_PREFIX + workspaceId);
   } catch {
     // ignorar
   }

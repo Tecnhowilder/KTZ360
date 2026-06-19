@@ -4,7 +4,7 @@ import type { BillingCycle } from './BillingToggle';
 
 const ITEMS: PricingBenefitItem[] = [
   { label: 'Todo del plan PRO', included: true },
-  { label: 'KTZ360 IA', included: true },
+  { label: 'Shelwi IA', included: true },
   { label: 'Cotización desde fotografía', included: true },
   { label: 'Hasta 100 créditos IA al mes', included: true },
   { label: 'Reportes avanzados', included: true },

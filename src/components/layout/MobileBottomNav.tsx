@@ -16,7 +16,7 @@ const TABS = [
 
 const MORE_ITEMS = [
   { path: '/app/reportes',  icon: BarChart2,  label: 'Reportes' },
-  { path: '/app/ia',        icon: Sparkles,   label: 'KTZ360 IA' },
+  { path: '/app/ia',        icon: Sparkles,   label: 'Shelwi IA' },
   { path: '/app/empresa',   icon: Building2,  label: 'Mi Empresa' },
   { path: '/app/team',      icon: UserCog,    label: 'Equipo y usuarios' },
   { path: '/app/config',    icon: Settings,   label: 'Configuración' },

@@ -25,7 +25,7 @@ export function UpgradeModal() {
         style={{ background: '#fff', borderRadius: 18, padding: 26, maxWidth: 420, width: '100%', boxShadow: '0 24px 60px rgba(15,23,42,.25)', animation: 'popIn .22s ease-out' }}
       >
         <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: '.06em', color: accentColor, textTransform: 'uppercase', marginBottom: 8 }}>
-          {upgradeModal.targetPlan === 'premium' ? 'KTZ360 PREMIUM' : 'KTZ360 PRO'}
+          {upgradeModal.targetPlan === 'premium' ? 'Shelwi PREMIUM' : 'Shelwi PRO'}
         </div>
         <div style={{ fontSize: 17, fontWeight: 800, color: '#0F172A', marginBottom: 10 }}>{upgradeModal.title}</div>
         <p style={{ fontSize: 13.5, color: '#475569', lineHeight: 1.6, marginBottom: upgradeModal.bullets?.length ? 14 : 20, whiteSpace: 'pre-line' }}>{upgradeModal.message}</p>

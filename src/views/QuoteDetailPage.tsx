@@ -94,6 +94,7 @@ export function QuoteDetailPage() {
         companyName: '',
         publicUrl: url,
         total: total,
+        clientEmail: client?.email ?? undefined,
       });
     } catch (err: unknown) {
       if ((err as Error)?.name !== 'AbortError') showToast('Error al abrir correo');
@@ -191,7 +192,7 @@ export function QuoteDetailPage() {
           onClick={() => {
             if (editAccess.data === false) {
               openUpgradeModal({
-                title: 'KTZ360 PRO',
+                title: 'Shelwi PRO',
                 message: 'La edición de cotizaciones ya enviadas está disponible en los planes PRO y PREMIUM.',
                 targetPlan: 'pro',
                 ctaLabel: 'Actualizar a PRO',

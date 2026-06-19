@@ -14,6 +14,8 @@ export interface QuoteWithItemsInput {
   items: QuoteItem[];
   laborItems?: LaborItem[];
   costConfig: CostConfig;
+  /** Términos y condiciones de la empresa — se copian a la cotización */
+  termsConditions?: string[];
 }
 
 export async function createQuoteWithItems(
@@ -44,7 +46,7 @@ export async function createQuoteWithItems(
     advance_pct: input.costConfig.advance_pct,
     doc_detail_level: 'estandar' as DocDetailLevel,
     include_technical_annex: false,
-    terms_conditions: [],
+    terms_conditions: input.termsConditions ?? [],
     discount: input.costConfig.discount_pct,
     discount_on: input.costConfig.discount_pct > 0,
     transport_cost: 0,

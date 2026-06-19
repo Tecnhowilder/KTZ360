@@ -55,7 +55,7 @@ export async function getEffectivePlanCode(workspaceId: string): Promise<string>
   return data as unknown as string;
 }
 
-/** Nivel de PDF del plan efectivo: 'free' (con branding KTZ360) o 'pro' (PDF limpio con marca propia). */
+/** Nivel de PDF del plan efectivo: 'free' (con branding Shelwi) o 'pro' (PDF limpio con marca propia). */
 export async function getPdfTier(workspaceId: string): Promise<'free' | 'pro'> {
   const planCode = await getEffectivePlanCode(workspaceId);
   const { data, error } = await supabase.from('plan_features').select('pdf_tier').eq('plan_code', planCode).single();

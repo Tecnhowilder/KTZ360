@@ -1,5 +1,5 @@
 /**
- * Formato de moneda oficial para KTZ360.
+ * Formato de moneda oficial para Shelwi.
  * SIEMPRE muestra el número completo — nunca abreviado.
  *
  * Correcto:  $ 1.741.927   $ 125.000.000   $ 450.000

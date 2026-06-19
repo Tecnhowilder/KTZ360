@@ -433,7 +433,7 @@ function IAInsightCard({
             <span style={{ fontSize: 13, fontWeight: 900 }}>AI</span>
           </div>
           <div>
-            <div style={{ fontSize: 13, fontWeight: 800 }}>KTZ360 IA</div>
+            <div style={{ fontSize: 13, fontWeight: 800 }}>Shelwi IA</div>
             <div style={{ fontSize: 10.5, color: '#64748B' }}>Análisis automático</div>
           </div>
           <span style={{ marginLeft: 'auto', fontSize: 9, fontWeight: 800, background: '#2563EB', color: '#fff', padding: '2px 8px', borderRadius: 5 }}>PRO</span>
@@ -445,7 +445,7 @@ function IAInsightCard({
             </div>
           ))}
         </div>
-        <button onClick={() => openUpgradeModal({ title: 'Desbloquea KTZ360 IA', message: 'Con el plan PRO obtienes IA predictiva para tus ventas.', targetPlan: 'pro', ctaLabel: 'Actualizar a PRO' })}
+        <button onClick={() => openUpgradeModal({ title: 'Desbloquea Shelwi IA', message: 'Con el plan PRO obtienes IA predictiva para tus ventas.', targetPlan: 'pro', ctaLabel: 'Actualizar a PRO' })}
           style={{ width: '100%', border: 'none', background: 'linear-gradient(135deg,#2563EB,#7C3AED)', color: '#fff', fontWeight: 700, fontSize: 13.5, padding: '12px 0', borderRadius: 13, cursor: 'pointer' }}>
           Actualizar a PRO →
         </button>
@@ -460,7 +460,7 @@ function IAInsightCard({
           <span style={{ fontSize: 13, fontWeight: 900 }}>AI</span>
         </div>
         <div>
-          <div style={{ fontSize: 13, fontWeight: 800 }}>KTZ360 IA</div>
+          <div style={{ fontSize: 13, fontWeight: 800 }}>Shelwi IA</div>
           <div style={{ fontSize: 10.5, color: '#64748B' }}>Análisis automático</div>
         </div>
         <span style={{ marginLeft: 'auto', fontSize: 9, fontWeight: 800, background: plan === 'premium' ? 'linear-gradient(135deg,#7C3AED,#A855F7)' : '#00503f', color: '#fff', padding: '2px 8px', borderRadius: 5 }}>
@@ -863,9 +863,9 @@ function IAPremiumBanner({ planName, navigate, openUpgradeModal }: { planName: s
       <div style={{ position: 'absolute', left: -15, bottom: -15, width: 80, height: 80, borderRadius: '50%', background: 'rgba(255,255,255,.04)' }}/>
       <div style={{ fontSize: 28, marginBottom: 6 }}>🚀</div>
       <div style={{ fontSize: 18, fontWeight: 800, letterSpacing: '-.3px', marginBottom: 6 }}>Lleva tu negocio al siguiente nivel</div>
-      <div style={{ fontSize: 13, color: 'rgba(255,255,255,.65)', marginBottom: 18, lineHeight: 1.5 }}>Descubre el análisis avanzado con KTZ360 PREMIUM</div>
+      <div style={{ fontSize: 13, color: 'rgba(255,255,255,.65)', marginBottom: 18, lineHeight: 1.5 }}>Descubre el análisis avanzado con Shelwi PREMIUM</div>
       <button
-        onClick={() => isPremium ? navigate('/app/ia') : openUpgradeModal({ title: 'KTZ360 IA Premium', message: 'Accede a análisis predictivo, cierre asistido y más.', targetPlan: 'premium', ctaLabel: 'Ver PREMIUM' })}
+        onClick={() => isPremium ? navigate('/app/ia') : openUpgradeModal({ title: 'Shelwi IA Premium', message: 'Accede a análisis predictivo, cierre asistido y más.', targetPlan: 'premium', ctaLabel: 'Ver PREMIUM' })}
         style={{ border: 'none', background: '#fff', color: '#3b0f8c', fontWeight: 800, fontSize: 14, padding: '13px 24px', borderRadius: 14, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 7 }}>
         <Zap size={15}/> {isPremium ? 'Hablar con IA' : 'Ver planes →'}
       </button>

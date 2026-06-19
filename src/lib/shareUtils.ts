@@ -1,5 +1,5 @@
 /**
- * Utilidades de compartición profesional para KTZ360.
+ * Utilidades de compartición profesional para Shelwi.
  * Mensajes diferenciados por canal: WhatsApp (cercano), Email (corporativo), Link (corto).
  * Nunca usa fmtM() — siempre formatCurrencyCOP() para mostrar el valor completo.
  */
@@ -12,40 +12,40 @@ export interface ShareParams {
   publicUrl: string;
   total?: number;
   phone?: string;
+  clientEmail?: string;   // Para precompletar destinatario en mailto:
   quoteNumber?: string;
 }
 
 // ─── WhatsApp: cercano, emojis, negrita ─────────────────────────────────────
 
 export function buildWhatsAppMessage(params: ShareParams): string {
-  const { clientName, projectName, companyName, publicUrl, total, quoteNumber } = params;
+  const { clientName, projectName, companyName, publicUrl, total } = params;
   const firstName = clientName ? clientName.split(' ')[0] : '';
   const valorFmt  = total != null ? formatCurrencyCOP(total) : null;
 
   const lines = [
     `Hola ${firstName} 👋`,
     '',
-    `Preparé una propuesta personalizada para *${projectName || 'tu proyecto'}*.`,
+    'Preparé una propuesta personalizada para el proyecto:',
+    '',
+    `📌 ${projectName || 'tu proyecto'}`,
   ];
 
   if (valorFmt) {
-    lines.push('', `💰 Valor estimado: *${valorFmt}*`);
-  }
-
-  if (quoteNumber) {
-    lines.push(`📋 Referencia: ${quoteNumber}`);
+    lines.push('', `💰 Valor estimado:\n${valorFmt}`);
   }
 
   lines.push(
     '',
-    'Puedes revisar todos los detalles desde el siguiente enlace:',
+    'Puedes revisarla aquí:',
+    '',
     `🔗 ${publicUrl}`,
     '',
-    'Si tienes preguntas o deseas realizar ajustes estaré atento para ayudarte.',
+    'Si deseas realizar algún ajuste o tienes preguntas estaré atento para ayudarte.',
     '',
     'Muchas gracias por tu tiempo.',
     '',
-    `Saludos,\n${companyName || 'El equipo'}`,
+    companyName || 'El equipo',
   );
 
   return lines.join('\n');
@@ -105,8 +105,10 @@ export async function shareByEmail(params: ShareParams): Promise<void> {
     }
   }
 
+  // Incluir destinatario real si está disponible
+  const to = params.clientEmail ? encodeURIComponent(params.clientEmail) : '';
   window.open(
-    `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`,
+    `mailto:${to}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`,
     '_blank',
   );
 }

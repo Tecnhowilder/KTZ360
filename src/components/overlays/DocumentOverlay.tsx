@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { ShareBar } from '../ui/ShareBar';
 import { useUI } from '../../features/app/UIProvider';
 import { useWorkspace } from '../../features/auth/WorkspaceProvider';
 import { useClients, useQuotesRaw } from '../../hooks/useQuotes';
@@ -149,6 +150,7 @@ export function DocumentOverlay() {
     publicUrl: '', // se completa al llamar
     total: universalTotals?.total ?? doc.total,
     phone: client?.phone ?? undefined,
+    clientEmail: client?.email ?? undefined,
     quoteNumber: quote?.quote_number ?? undefined,
   };
 
@@ -197,23 +199,21 @@ export function DocumentOverlay() {
 
   return (
     <div id="ktz-doc-wrap" style={{ position: 'fixed', inset: 0, zIndex: 90, background: '#0F172A', display: 'flex', flexDirection: 'column' }}>
-      <div className="no-print" style={{ background: '#fff', borderBottom: '1px solid #EEF2F7', padding: '10px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0, flexWrap: 'wrap', gap: 8 }}>
+      {/* Barra superior: número + cerrar */}
+      <div className="no-print" style={{ background: '#fff', borderBottom: '1px solid #EEF2F7', padding: '10px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
         <div style={{ fontSize: 13, fontWeight: 700, color: '#64748B' }}>{quote.quote_number}</div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-          <button onClick={shareWa} disabled={sharing} style={{ border: 'none', background: '#22C55E', color: '#fff', fontWeight: 700, fontSize: 13, padding: '8px 14px', borderRadius: 10, cursor: sharing ? 'default' : 'pointer', opacity: sharing ? 0.7 : 1 }}>
-            WhatsApp
-          </button>
-          <button onClick={shareEmail} disabled={sharing} style={{ border: 'none', background: '#2563EB', color: '#fff', fontWeight: 700, fontSize: 13, padding: '8px 14px', borderRadius: 10, cursor: sharing ? 'default' : 'pointer', opacity: sharing ? 0.7 : 1 }}>
-            Correo
-          </button>
-          <button onClick={copyLink} style={{ border: '1.5px solid #E2E8F0', background: '#fff', color: '#475569', fontWeight: 700, fontSize: 13, padding: '8px 14px', borderRadius: 10, cursor: 'pointer' }}>
-            Copiar link
-          </button>
-          <button onClick={() => window.print()} style={{ border: '1.5px solid #E2E8F0', background: '#fff', color: '#0F172A', fontWeight: 700, fontSize: 13, padding: '8px 14px', borderRadius: 10, cursor: 'pointer' }}>
-            Imprimir / PDF
-          </button>
-          <button onClick={closeDocument} style={{ width: 38, height: 38, borderRadius: 11, border: 'none', background: '#F1F5F9', color: '#475569', fontSize: 16, cursor: 'pointer' }}>✕</button>
-        </div>
+        <button onClick={closeDocument} style={{ width: 36, height: 36, borderRadius: 10, border: 'none', background: '#F1F5F9', color: '#475569', fontSize: 16, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
+      </div>
+
+      {/* ShareBar integrada debajo del header */}
+      <div className="no-print" style={{ background: '#fff', borderBottom: '1px solid #EEF2F7', padding: '12px 16px', flexShrink: 0 }}>
+        <ShareBar
+          onWhatsApp={shareWa}
+          onEmail={shareEmail}
+          onCopyLink={copyLink}
+          onPDF={() => window.print()}
+          disabled={sharing}
+        />
       </div>
 
       <div id="ktz-doc-scroll" style={{ flex: 1, overflowY: 'auto', padding: '24px 8px', WebkitOverflowScrolling: 'touch', overscrollBehavior: 'contain' }}>
@@ -232,6 +232,8 @@ export function DocumentOverlay() {
           clientPhone={client?.phone}
           clientEmail={client?.email}
           clientMeta={client?.meta}
+          clientDocument={(client as any)?.document_number ?? null}
+          clientAddress={(client as any)?.address ?? null}
           issuedAt={new Date(quote.created_at)}
           due={due}
           doc={doc}
@@ -243,7 +245,11 @@ export function DocumentOverlay() {
           universalItems={universalItems}
           universalLaborItems={universalLaborItems}
           universalTotals={universalTotals}
-          termsConditions={Array.isArray((quote as any).terms_conditions) ? (quote as any).terms_conditions : undefined}
+          termsConditions={(() => {
+            const fromQuote = Array.isArray((quote as any).terms_conditions) ? (quote as any).terms_conditions as string[] : [];
+            const fromCompany = Array.isArray(company.terms_conditions) ? company.terms_conditions as unknown as string[] : [];
+            return fromQuote.length > 0 ? fromQuote : fromCompany.length > 0 ? fromCompany : undefined;
+          })()}
           status={quote.status}
         />
       </div>

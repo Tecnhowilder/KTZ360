@@ -8,6 +8,7 @@ import type { Client } from '../../lib/types';
 export interface StepClientData {
   clientId: string | null;
   clientName: string;
+  clientEmail?: string;    // para precompletar share por correo
   projectName: string;
   description: string;
 }
@@ -58,7 +59,7 @@ export function StepClient({ data, onChange, onContinue }: Props) {
   }, [search, workspace.id]);
 
   function selectClient(c: Client) {
-    onChange({ ...data, clientId: c.id, clientName: c.name });
+    onChange({ ...data, clientId: c.id, clientName: c.name, clientEmail: c.email ?? undefined });
     setSearch('');
     setResults([]);
   }
@@ -77,7 +78,7 @@ export function StepClient({ data, onChange, onContinue }: Props) {
       }
       // 2. Crear cliente
       const created = await createClient(workspace.id, user.id, form);
-      onChange({ ...data, clientId: created.id, clientName: created.name });
+      onChange({ ...data, clientId: created.id, clientName: created.name, clientEmail: created.email ?? undefined });
       setShowNewForm(false);
       setForm(EMPTY_FORM);
       setConsent(false);
@@ -209,7 +210,7 @@ export function StepClient({ data, onChange, onContinue }: Props) {
                   style={{ marginTop: 2, width: 16, height: 16, flexShrink: 0, cursor: 'pointer', accentColor: '#2563EB' }} />
                 <span style={{ fontSize: 12, color: '#92400E', lineHeight: 1.5 }}>
                   Al registrar este cliente declaro que cuento con la autorización necesaria para el tratamiento de sus datos personales.
-                  KTZ360 actúa únicamente como proveedor tecnológico y no es responsable por la gestión de datos realizada por sus usuarios.
+                  Shelwi actúa únicamente como proveedor tecnológico y no es responsable por la gestión de datos realizada por sus usuarios.
                 </span>
               </label>
             </div>
@@ -277,7 +278,7 @@ export function StepClient({ data, onChange, onContinue }: Props) {
               setSaving(true);
               try {
                 const created = await createClient(workspace.id, user!.id, form);
-                onChange({ ...data, clientId: created.id, clientName: created.name });
+                onChange({ ...data, clientId: created.id, clientName: created.name, clientEmail: created.email ?? undefined });
                 setShowNewForm(false);
                 setForm(EMPTY_FORM);
                 setConsent(false);

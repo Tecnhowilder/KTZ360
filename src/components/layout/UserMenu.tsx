@@ -80,7 +80,7 @@ export function UserMenu({ children, placement = 'top', align = 'left' }: UserMe
             </button>
           )}
           <a
-            href="mailto:soporte@ktz360.com"
+            href="mailto:soporte@shelwi.com"
             style={{ ...itemStyle, textDecoration: 'none', display: 'block' }}
             onClick={() => setOpen(false)}
           >

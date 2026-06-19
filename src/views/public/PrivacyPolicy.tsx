@@ -51,7 +51,7 @@ export function PrivacyPolicy() {
       <LegalSection title="7. Contacto">
         <p>
           Para ejercer tus derechos o realizar consultas sobre privacidad, escríbenos a{' '}
-          <a href="mailto:soporte@ktz360.com">soporte@ktz360.com</a>.
+          <a href="mailto:soporte@shelwi.com">soporte@shelwi.com</a>.
         </p>
       </LegalSection>
     </LegalPageLayout>

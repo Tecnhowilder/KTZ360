@@ -3,7 +3,7 @@ import { QRCodeSVG } from 'qrcode.react';
 import { fmt, fmtDateLong, fmtDate } from '../../lib/calc';
 import { formatCurrencyCOP } from '../../lib/currency';
 import { logoUrl } from '../../services/workspaces';
-import { APP_NAME, APP_URL } from '../../lib/brand';
+import { APP_URL } from '../../lib/brand';
 import type { CalcDocResultV2, DocItem } from '../../lib/engine';
 import type { CompanySettings, DerivedQuote } from '../../lib/types';
 
@@ -55,6 +55,8 @@ export interface ProposalDocumentProps {
   clientPhone?: string | null;
   clientEmail?: string | null;
   clientMeta?: string | null;
+  clientDocument?: string | null;   // Cédula / NIT del cliente
+  clientAddress?: string | null;    // Dirección del cliente
   issuedAt: Date;
   due: Date;
   doc: CalcDocResultV2;
@@ -112,6 +114,7 @@ function ItemTable({ title, headerColor, items, totalLabel, total, accent }: {
 
 export function ProposalDocument({
   quoteNumber, title, location, clientName, clientPhone, clientEmail, clientMeta,
+  clientDocument, clientAddress,
   issuedAt, due, doc, cfg, company, advance, verifyUrl, pdfTier = 'free',
   universalItems, universalLaborItems, universalTotals, termsConditions, status,
 }: ProposalDocumentProps) {
@@ -176,46 +179,42 @@ export function ProposalDocument({
 
       {/* ── FILA 2: 4 cards de información ───────────────────────────────────── */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', borderBottom: '1px solid #E2E8F0' }}>
-        {[
-          {
-            label: 'PARA',
-            main: clientName,
-            sub: [clientPhone, clientEmail, clientMeta, location].filter(Boolean).join(' · '),
-          },
-          {
-            label: 'PROYECTO',
-            main: title,
-            sub: location || '',
-          },
-          {
-            label: 'FECHA DE EMISIÓN',
-            main: fmtDateLong(issuedAt),
-            sub: '',
-          },
-          {
-            label: 'VIGENCIA',
-            main: null,
-            badge: `✓ Hasta ${fmtDateLong(due)}`,
-            sub: `${cfg.validDays || 15} días`,
-          },
-        ].map((card, i) => (
-          <div key={i} style={{ padding: '14px 16px', borderRight: i < 3 ? '1px solid #E2E8F0' : 'none' }}>
-            <div style={{ fontSize: 9.5, color: '#94A3B8', fontWeight: 700, letterSpacing: '.5px', marginBottom: 5 }}>{card.label}</div>
-            {card.badge ? (
-              <>
-                <div style={{ display: 'inline-flex', alignItems: 'center', gap: 5, background: '#EAFBF0', border: '1px solid #C6F0D5', color: '#15803D', fontSize: 11, fontWeight: 700, padding: '5px 10px', borderRadius: 99 }}>
-                  <CheckCircle2 size={12} />{card.badge}
-                </div>
-                {card.sub && <div style={{ fontSize: 11, color: '#94A3B8', marginTop: 4 }}>{card.sub}</div>}
-              </>
-            ) : (
-              <>
-                <div style={{ fontSize: 13.5, fontWeight: 700, color: '#0F172A', lineHeight: 1.3 }}>{card.main}</div>
-                {card.sub && <div style={{ fontSize: 11, color: '#64748B', marginTop: 3, lineHeight: 1.4 }}>{card.sub}</div>}
-              </>
+        {/* Card PARA — datos estructurados del cliente */}
+        <div style={{ padding: '14px 16px', borderRight: '1px solid #E2E8F0' }}>
+          <div style={{ fontSize: 9.5, color: '#94A3B8', fontWeight: 700, letterSpacing: '.5px', marginBottom: 6 }}>PARA</div>
+          <div style={{ fontSize: 13.5, fontWeight: 800, color: '#0F172A', marginBottom: 5 }}>{clientName}</div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+            {clientDocument && <div style={{ fontSize: 11, color: '#64748B' }}>CC {clientDocument}</div>}
+            {clientAddress  && <div style={{ fontSize: 11, color: '#64748B', display: 'flex', alignItems: 'center', gap: 4 }}><MapPin size={10} />{clientAddress}</div>}
+            {clientPhone    && <div style={{ fontSize: 11, color: '#64748B', display: 'flex', alignItems: 'center', gap: 4 }}><Phone size={10} />{clientPhone}</div>}
+            {clientEmail    && <div style={{ fontSize: 11, color: '#64748B', display: 'flex', alignItems: 'center', gap: 4 }}><Mail size={10} />{clientEmail}</div>}
+            {!clientDocument && !clientAddress && !clientPhone && !clientEmail && clientMeta && (
+              <div style={{ fontSize: 11, color: '#64748B' }}>{clientMeta}</div>
             )}
           </div>
-        ))}
+        </div>
+
+        {/* Card PROYECTO */}
+        <div style={{ padding: '14px 16px', borderRight: '1px solid #E2E8F0' }}>
+          <div style={{ fontSize: 9.5, color: '#94A3B8', fontWeight: 700, letterSpacing: '.5px', marginBottom: 6 }}>📁 PROYECTO</div>
+          <div style={{ fontSize: 13.5, fontWeight: 700, color: '#0F172A', lineHeight: 1.3 }}>{title}</div>
+          {location && <div style={{ fontSize: 11, color: '#64748B', marginTop: 3, display: 'flex', alignItems: 'center', gap: 4 }}><MapPin size={10} />{location}</div>}
+        </div>
+
+        {/* Card FECHA */}
+        <div style={{ padding: '14px 16px', borderRight: '1px solid #E2E8F0' }}>
+          <div style={{ fontSize: 9.5, color: '#94A3B8', fontWeight: 700, letterSpacing: '.5px', marginBottom: 6 }}>📅 FECHA DE EMISIÓN</div>
+          <div style={{ fontSize: 13.5, fontWeight: 700, color: '#0F172A', lineHeight: 1.3 }}>{fmtDateLong(issuedAt)}</div>
+        </div>
+
+        {/* Card VIGENCIA */}
+        <div style={{ padding: '14px 16px' }}>
+          <div style={{ fontSize: 9.5, color: '#94A3B8', fontWeight: 700, letterSpacing: '.5px', marginBottom: 6 }}>⏳ VIGENCIA</div>
+          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 5, background: '#EAFBF0', border: '1px solid #C6F0D5', color: '#15803D', fontSize: 11, fontWeight: 700, padding: '5px 10px', borderRadius: 99 }}>
+            <CheckCircle2 size={12} />Hasta {fmtDateLong(due)}
+          </div>
+          <div style={{ fontSize: 11, color: '#94A3B8', marginTop: 4 }}>{cfg.validDays || 15} días</div>
+        </div>
       </div>
 
       {/* ── FILA 3: Resumen ejecutivo ─────────────────────────────────────────── */}
@@ -352,9 +351,13 @@ export function ProposalDocument({
         </div>
 
         {/* ── Términos y condiciones ───────────────────────────────────────────── */}
-        {terms.length > 0 && (
-          <div style={{ marginBottom: 24, paddingTop: 16, borderTop: '1px solid #F1F5F9' }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: '#94A3B8', letterSpacing: '.5px', marginBottom: 10 }}>TÉRMINOS Y CONDICIONES</div>
+        <div style={{ marginBottom: 24, paddingTop: 16, borderTop: '1px solid #F1F5F9' }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: '#94A3B8', letterSpacing: '.5px', marginBottom: 10 }}>TÉRMINOS Y CONDICIONES</div>
+          {terms.length === 0 ? (
+            <div style={{ fontSize: 11, color: '#CBD5E1', fontStyle: 'italic' }}>
+              No se configuraron términos y condiciones para esta propuesta.
+            </div>
+          ) : (
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: '4px 24px' }}>
               {terms.map((t, i) => (
                 <div key={i} style={{ fontSize: 11, color: '#64748B', lineHeight: 1.5 }}>
@@ -362,27 +365,30 @@ export function ProposalDocument({
                 </div>
               ))}
             </div>
-          </div>
-        )}
+          )}
+        </div>
 
         {/* ── FOOTER: 3 columnas ───────────────────────────────────────────────── */}
-        <div style={{ paddingTop: 20, marginTop: 4, borderTop: '1px solid #F1F5F9', display: 'grid', gridTemplateColumns: verifyUrl ? (showBranding ? '1fr 1px 140px 1px 1fr' : '1fr 1px 140px') : (showBranding ? '1fr' : '1fr'), alignItems: 'stretch', gap: 0 }}>
+        {/* Footer: si no hay branding ni verifyUrl, no renderizar el footer vacío */}
+        {(showBranding || verifyUrl) && <div style={{ paddingTop: 20, marginTop: 4, borderTop: '1px solid #F1F5F9', display: 'grid', gridTemplateColumns: showBranding && verifyUrl ? '1fr 1px 160px 1px 1fr' : showBranding ? '1fr' : verifyUrl ? '1fr 1px 160px' : '1fr', alignItems: 'stretch', gap: 0 }}>
 
-          {/* Columna izquierda: branding */}
+          {/* Columna izquierda: branding Shelwi */}
           {showBranding && (
-            <div style={{ paddingRight: 24, display: 'flex', flexDirection: 'column', gap: 6, justifyContent: 'center' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <div style={{ display: 'flex', gap: 2 }}>
-                  {[.4,.7,1].map((op, i) => <div key={i} style={{ width: 5, height: 18, borderRadius: 3, background: i === 2 ? colorPrimary : `rgba(148,163,184,${op})`, transform: 'skewX(-16deg)' }} />)}
+            <div style={{ paddingRight: 24, display: 'flex', flexDirection: 'column', gap: 8, justifyContent: 'center' }}>
+              <div>
+                <div style={{ fontSize: 9.5, color: '#94A3B8', fontWeight: 700, letterSpacing: '.5px', marginBottom: 6 }}>
+                  GENERADO CON
                 </div>
-                <span style={{ fontSize: 12.5, color: '#64748B' }}>
-                  Propuesta generada con <strong style={{ color: '#0F172A' }}>{APP_NAME}</strong>
-                </span>
+                <img
+                  src="/icons/logo-horizontal-white-bg.png"
+                  alt="Shelwi"
+                  style={{ height: 28, width: 'auto', objectFit: 'contain', display: 'block' }}
+                />
               </div>
-              <div style={{ fontSize: 10.5, color: '#94A3B8', lineHeight: 1.6, maxWidth: 240 }}>
-                Plataforma universal de cotización para cualquier sector económico.
+              <div style={{ fontSize: 10.5, color: '#94A3B8', lineHeight: 1.6, maxWidth: 220 }}>
+                Plataforma de cotización profesional para cualquier sector económico.
               </div>
-              <a href={`https://${APP_URL.replace(/^https?:\/\//, '')}`} style={{ fontSize: 10.5, color: colorPrimary, marginTop: 2 }}>
+              <a href={`https://${APP_URL.replace(/^https?:\/\//, '')}`} style={{ fontSize: 10.5, color: colorPrimary }}>
                 🌐 {APP_URL.replace(/^https?:\/\//, '')}
               </a>
             </div>
@@ -422,7 +428,7 @@ export function ProposalDocument({
               </div>
             </div>
           )}
-        </div>
+        </div>}
 
         <div style={{ height: 24 }} />
       </div>

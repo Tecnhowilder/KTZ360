@@ -34,7 +34,7 @@ function CatalogPriceTable() {
     <div style={{ marginBottom: 24 }}>
       <h2 style={{ fontSize: 16, fontWeight: 800, marginBottom: 4 }}>Catálogo de precios sugeridos</h2>
       <p style={{ fontSize: 13, color: '#64748B', marginBottom: 14 }}>
-        Precios de referencia del motor de KTZ360 para el mercado colombiano. Si dejas tu precio vacío o igual al sugerido, se usa el valor sugerido.
+        Precios de referencia del motor de Shelwi para el mercado colombiano. Si dejas tu precio vacío o igual al sugerido, se usa el valor sugerido.
       </p>
       <div style={{ background: '#fff', border: '1px solid #E2E8F0', borderRadius: 18, overflow: 'hidden' }}>
         <div style={{ display: 'flex', padding: '12px 16px', background: '#F8FAFC', borderBottom: '1px solid #EEF2F7', fontSize: 11, fontWeight: 700, color: '#94A3B8', letterSpacing: '.5px' }}>
@@ -98,7 +98,7 @@ export function Materiales() {
           <span style={{ fontSize: 17 }}>+</span> Agregar
         </button>
       </div>
-      <p style={{ fontSize: 13.5, color: '#64748B', marginBottom: 18 }}>Materiales propios fuera del catálogo de KTZ360, para tu referencia.</p>
+      <p style={{ fontSize: 13.5, color: '#64748B', marginBottom: 18 }}>Materiales propios fuera del catálogo de Shelwi, para tu referencia.</p>
 
       <div style={{ background: '#fff', border: '1px solid #E2E8F0', borderRadius: 18, overflow: 'hidden' }}>
         <div style={{ display: 'flex', padding: '12px 16px', background: '#F8FAFC', borderBottom: '1px solid #EEF2F7', fontSize: 11, fontWeight: 700, color: '#94A3B8', letterSpacing: '.5px' }}>

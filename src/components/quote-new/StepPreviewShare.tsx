@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { MessageCircle, Mail, Link2, Download, Check, Edit2, ChevronDown } from 'lucide-react';
+import { Edit2, ChevronDown } from 'lucide-react';
 import { computeTotals, type QuoteItem, type LaborItem, type CostConfig } from '../../lib/itemEngine';
 import { PDFPreviewRenderer } from './PDFPreviewRenderer';
 import { getOrCreateQuoteToken } from '../../services/publicPortal';
@@ -8,6 +8,7 @@ import { useWorkspace } from '../../features/auth/WorkspaceProvider';
 import { useToast } from '../ui/Toast';
 import { formatCurrencyCOP } from '../../lib/currency';
 import { shareByEmail, openWhatsAppShare } from '../../lib/shareUtils';
+import { ShareBar } from '../ui/ShareBar';
 
 interface Props {
   items: QuoteItem[];
@@ -15,6 +16,7 @@ interface Props {
   config: CostConfig;
   clientName: string;
   clientPhone?: string | null;
+  clientEmail?: string | null;
   quoteName: string;
   quoteNumber?: string;
   onChangeQuoteName: (name: string) => void;
@@ -23,14 +25,14 @@ interface Props {
 }
 
 export function StepPreviewShare({
-  items, laborItems = [], config, clientName, clientPhone, quoteName, quoteNumber,
+  items, laborItems = [], config, clientName, clientPhone, clientEmail, quoteName, quoteNumber,
   onChangeQuoteName, onSave, isSaving,
 }: Props) {
   const { openDocument } = useUI();
   const { company } = useWorkspace();
   const { showToast } = useToast();
   const [savedId, setSavedId] = useState<string | null>(null);
-  const [linkCopied, setLinkCopied] = useState(false);
+  const [, setLinkCopied] = useState(false);
   const [editingName, setEditingName] = useState(false);
   const [working, setWorking] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
@@ -82,6 +84,7 @@ export function StepPreviewShare({
         companyName: company?.name ?? '',
         publicUrl: url,
         total: totals.total,
+        clientEmail: clientEmail ?? undefined,
       });
     } catch (err: unknown) {
       if ((err as Error)?.name !== 'AbortError') showToast('Error al abrir correo');
@@ -103,15 +106,6 @@ export function StepPreviewShare({
     finally { setWorking(false); }
   }
 
-  async function handlePDF() {
-    setWorking(true);
-    try {
-      const id = await ensureSaved();
-      if (!id) return;
-      openDocument(id);
-    } catch { showToast('Error al abrir PDF'); }
-    finally { setWorking(false); }
-  }
 
   async function handleSaveOnly() {
     const id = await onSave();
@@ -173,15 +167,19 @@ export function StepPreviewShare({
         </div>
       )}
 
-      {/* Botones compartir */}
-      <div style={{ fontSize: 11.5, fontWeight: 700, color: '#94A3B8', textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 10 }}>Compartir</div>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 14 }}>
-        <ShareBtn onClick={handleWhatsApp} disabled={working || isSaving} color="#22C55E" bg="#F0FDF4" icon={<MessageCircle size={18} />} label="WhatsApp" />
-        <ShareBtn onClick={handleEmail} disabled={working || isSaving} color="#2563EB" bg="#EFF6FF" icon={<Mail size={18} />} label="Correo" />
-        <ShareBtn onClick={handleCopyLink} disabled={working || isSaving} color="#7C3AED" bg="#F5F3FF"
-          icon={linkCopied ? <Check size={18} /> : <Link2 size={18} />}
-          label={linkCopied ? '¡Copiado!' : 'Copiar link'} />
-        <ShareBtn onClick={handlePDF} disabled={working || isSaving} color="#0F172A" bg="#F8FAFC" icon={<Download size={18} />} label="Descargar PDF" />
+      {/* Barra de compartir */}
+      <div style={{ marginBottom: 14 }}>
+        <ShareBar
+          onWhatsApp={handleWhatsApp}
+          onEmail={handleEmail}
+          onCopyLink={handleCopyLink}
+          onPDF={async () => {
+            // Guardar primero si no está guardado, luego abrir overlay para imprimir
+            const id = await ensureSaved();
+            if (id) openDocument(id);
+          }}
+          disabled={working || isSaving}
+        />
       </div>
 
       {/* Guardar */}
@@ -202,16 +200,3 @@ export function StepPreviewShare({
   );
 }
 
-function ShareBtn({ onClick, disabled, color, bg, icon, label }: {
-  onClick: () => void; disabled: boolean;
-  color: string; bg: string; icon: React.ReactNode; label: string;
-}) {
-  return (
-    <button
-      onClick={onClick} disabled={disabled}
-      style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '13px 14px', border: 'none', borderRadius: 12, background: bg, cursor: 'pointer', fontSize: 14, fontWeight: 700, color, fontFamily: 'inherit', opacity: disabled ? .6 : 1 }}
-    >
-      {icon} {label}
-    </button>
-  );
-}

@@ -3,13 +3,13 @@ import { PricingFeaturesGrid } from './PricingBenefits';
 const INCLUDED = [
   '10 cotizaciones por mes',
   '20 clientes',
-  'PDF básico KTZ360',
+  'PDF básico Shelwi',
   'Portal público de cotización',
   'Historial de cotizaciones',
   'Compartir por WhatsApp',
 ];
 
-const EXCLUDED = ['Plantillas', 'Branding corporativo', 'Edición de cotizaciones', 'Reportes', 'Multiusuario', 'KTZ360 IA'];
+const EXCLUDED = ['Plantillas', 'Branding corporativo', 'Edición de cotizaciones', 'Reportes', 'Multiusuario', 'Shelwi IA'];
 
 export function PricingCardFree({ isCurrent }: { isCurrent: boolean }) {
   return (

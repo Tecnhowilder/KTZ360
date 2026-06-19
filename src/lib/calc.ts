@@ -34,7 +34,7 @@ export function fmt(n: number): string {
   return '$ ' + Math.round(n).toLocaleString('es-CO');
 }
 
-/** @deprecated Usar formatCurrencyCOP() — nunca abreviar montos en KTZ360 */
+/** @deprecated Usar formatCurrencyCOP() — nunca abreviar montos en Shelwi */
 export function fmtM(n: number): string {
   // Redirigido a formatCurrencyCOP: muestra valor completo (ej. $ 1.741.927)
   return '$ ' + Math.round(n).toLocaleString('es-CO');

@@ -1,4 +1,5 @@
 import { ChevronRight, Truck } from 'lucide-react';
+import { ToggleSwitch } from '../ui/ToggleSwitch';
 import { computeTotals, type QuoteItem, type LaborItem, type CostConfig } from '../../lib/itemEngine';
 import { NumericInput } from '../ui/NumericInput';
 import { formatCurrencyCOP } from '../../lib/currency';
@@ -78,22 +79,11 @@ export function StepCosts({ items, laborItems, config, onChange, onContinue }: P
               <div style={{ fontSize: 11.5, color: '#94A3B8' }}>Sin IVA · Se suma al total</div>
             </div>
           </div>
-          {/* Toggle */}
-          <button
-            onClick={() => onChange({ ...config, include_transport: !config.include_transport })}
-            style={{
-              width: 48, height: 26, borderRadius: 99, border: 'none', cursor: 'pointer',
-              background: config.include_transport ? '#D97706' : '#E2E8F0',
-              position: 'relative', transition: 'background .2s', flexShrink: 0,
-            }}
-          >
-            <div style={{
-              position: 'absolute', top: 3,
-              left: config.include_transport ? 'calc(100% - 23px)' : 3,
-              width: 20, height: 20, borderRadius: '50%', background: '#fff',
-              transition: 'left .2s', boxShadow: '0 1px 3px rgba(0,0,0,.2)',
-            }} />
-          </button>
+          {/* Toggle ON/OFF */}
+          <ToggleSwitch
+            checked={config.include_transport}
+            onChange={v => onChange({ ...config, include_transport: v })}
+          />
         </div>
 
         {config.include_transport && (

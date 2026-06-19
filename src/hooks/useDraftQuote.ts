@@ -64,5 +64,5 @@ export function useDraftAutosave(
 }
 
 export const EMPTY_CLIENT_DATA: StepClientData = {
-  clientId: null, clientName: '', projectName: '', description: '',
+  clientId: null, clientName: '', clientEmail: undefined, projectName: '', description: '',
 };

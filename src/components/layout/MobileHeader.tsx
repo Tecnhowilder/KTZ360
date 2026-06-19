@@ -1,5 +1,4 @@
 import { Bell, Menu } from 'lucide-react';
-import { APP_NAME } from '../../lib/brand';
 
 interface MobileHeaderProps {
   onMenuOpen: () => void;
@@ -37,11 +36,12 @@ export function MobileHeader({ onMenuOpen }: MobileHeaderProps) {
         <Menu size={22} strokeWidth={2} />
       </button>
 
-      {/* Logo centered */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-        <img src="/icons/logo-light.png" alt="KTZ360" style={{ width: 28, height: 28, objectFit: 'contain', flexShrink: 0 }} />
-        <span style={{ fontWeight: 800, fontSize: 17, letterSpacing: '-.5px', color: '#0F172A' }}>{APP_NAME}</span>
-      </div>
+      {/* Logo principal centrado — incluye ícono + wordmark */}
+      <img
+        src="/icons/logo-horizontal-white-bg.png"
+        alt="Shelwi"
+        style={{ height: 40, width: 'auto', objectFit: 'contain' }}
+      />
 
       {/* Bell */}
       <button

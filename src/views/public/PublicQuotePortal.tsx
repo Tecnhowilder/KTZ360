@@ -184,8 +184,28 @@ export function PublicQuotePortal() {
     window.print();
   }
 
+  // Open Graph meta tags dinámicos para preview en WhatsApp/LinkedIn
+  const ogTitle   = `Propuesta: ${quote.title}`;
+  const totalStr  = universalTotals?.total ? `$ ${Math.round(universalTotals.total).toLocaleString('es-CO')}` : '';
+  const ogDesc    = [
+    client?.name ? `Para: ${client.name}` : '',
+    totalStr ? `Total: ${totalStr}` : '',
+    company.name ? `De: ${company.name}` : '',
+  ].filter(Boolean).join(' · ');
+  const canonicalUrl = `${window.location.origin}/p/${token}`;
+
   return (
     <div id="ktz-doc-wrap" style={{ minHeight: '100vh', background: '#0F172A', padding: '24px 16px 100px' }}>
+      {/* Meta tags Open Graph para preview social */}
+      <title>{ogTitle}</title>
+      {ogDesc && <meta name="description" content={ogDesc} />}
+      <meta property="og:title" content={ogTitle} />
+      {ogDesc && <meta property="og:description" content={ogDesc} />}
+      <meta property="og:url" content={canonicalUrl} />
+      <meta property="og:type" content="website" />
+      <meta name="twitter:card" content="summary" />
+      <meta name="twitter:title" content={ogTitle} />
+      {ogDesc && <meta name="twitter:description" content={ogDesc} />}
       <ProposalDocument
         quoteNumber={quote.quote_number}
         title={quote.title}
@@ -194,6 +214,8 @@ export function PublicQuotePortal() {
         clientPhone={client?.phone}
         clientEmail={client?.email}
         clientMeta={client?.meta}
+        clientDocument={(client as any)?.document_number ?? null}
+        clientAddress={(client as any)?.address ?? null}
         issuedAt={new Date(quote.created_at)}
         due={due}
         doc={doc}

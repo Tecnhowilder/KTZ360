@@ -4,7 +4,6 @@ import { Icon, NAV_ICONS, NAV_ITEMS, type NavId } from '../../lib/icons';
 import { useWorkspace } from '../../features/auth/WorkspaceProvider';
 import { useUI, defaultQConfig } from '../../features/app/UIProvider';
 import { isSuperAdmin } from '../../lib/permissions';
-import { APP_NAME } from '../../lib/brand';
 import { getThemeByPlan } from '../../lib/planTheme';
 import { UserMenu } from './UserMenu';
 
@@ -67,16 +66,20 @@ export function Sidebar({ width, rail }: SidebarProps) {
       }}
     >
       {/* Logo */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 11, padding: '6px 6px 18px', justifyContent: navJustify }}>
-        {!rail && (
-          <img src="/icons/logo-dark.png" alt="KTZ360" style={{ width: 40, height: 40, objectFit: 'contain', flexShrink: 0 }} />
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: navJustify, padding: '6px 6px 18px' }}>
+        {rail ? (
+          // Modo mini: solo el ícono cuadrado
+          <img src="/icons/favicon-64.png" alt="Shelwi" style={{ width: 32, height: 32, objectFit: 'contain', borderRadius: 8, flexShrink: 0 }} />
+        ) : (
+          // Modo full: logo horizontal en contenedor blanco redondeado
+          <div style={{ background: '#fff', borderRadius: 10, padding: '5px 10px', display: 'inline-flex', alignItems: 'center' }}>
+            <img
+              src="/icons/logo-horizontal-white-bg.png"
+              alt="Shelwi"
+              style={{ height: 30, width: 'auto', objectFit: 'contain' }}
+            />
+          </div>
         )}
-        {rail && (
-          <img src="/icons/logo-icon.png" alt="KTZ360" style={{ width: 32, height: 32, objectFit: 'contain', flexShrink: 0 }} />
-        )}
-        <span style={{ fontWeight: 800, fontSize: 20, color: '#fff', letterSpacing: '-.8px', display: labelDisplay }}>
-          {APP_NAME}
-        </span>
       </div>
 
       {/* Nav items */}

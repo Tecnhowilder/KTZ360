@@ -59,7 +59,7 @@ export function Terms() {
       <LegalSection title="8. Contacto">
         <p>
           Si tienes dudas sobre estos Términos de servicio, puedes escribirnos a{' '}
-          <a href="mailto:soporte@ktz360.com">soporte@ktz360.com</a>.
+          <a href="mailto:soporte@shelwi.com">soporte@shelwi.com</a>.
         </p>
       </LegalSection>
     </LegalPageLayout>

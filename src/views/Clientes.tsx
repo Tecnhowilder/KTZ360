@@ -1,127 +1,293 @@
 import { useState } from 'react';
 import { useMutation } from '@tanstack/react-query';
-import { Pencil, Trash2, MoreVertical } from 'lucide-react';
+import {
+  Search, Plus, ChevronRight, User, FileText, Clock, Phone,
+  Pencil, Trash2, MoreVertical,
+} from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { useUI } from '../features/app/UIProvider';
-import { useDerivedQuotes, useClients, useInvalidateClients } from '../hooks/useQuotes';
-import { fmtM, daysAgo } from '../lib/calc';
+import { useClients, useInvalidateClients } from '../hooks/useQuotes';
 import { deleteClient } from '../services/clients';
 import { ClientFormModal } from '../components/clients/ClientFormModal';
 import { useToast } from '../components/ui/Toast';
 import type { Client } from '../lib/types';
 
+const AVATAR_COLORS = [
+  { bg: '#DBEAFE', fg: '#1D4ED8' }, { bg: '#D1FAE5', fg: '#065F46' },
+  { bg: '#EDE9FE', fg: '#6D28D9' }, { bg: '#FEF3C7', fg: '#92400E' },
+  { bg: '#FCE7F3', fg: '#9D174D' }, { bg: '#CCFBF1', fg: '#115E59' },
+];
+const avColor = (name: string) => AVATAR_COLORS[name.charCodeAt(0) % AVATAR_COLORS.length];
+
+function initials(name: string): string {
+  const p = name.trim().split(/\s+/);
+  if (p.length === 1) return p[0].slice(0, 2).toUpperCase();
+  return (p[0][0] + p[1][0]).toUpperCase();
+}
+
 export function Clientes() {
+  const navigate   = useNavigate();
   const { openClientDetail } = useUI();
-  const { quotes, isLoading: loadingQuotes } = useDerivedQuotes();
-  const clientsQuery = useClients();
+  const clientsQ   = useClients();
   const invalidate = useInvalidateClients();
   const { showToast } = useToast();
 
-  const [showNew, setShowNew]             = useState(false);
-  const [editClient, setEditClient]       = useState<Client | null>(null);
-  const [menuOpenId, setMenuOpenId]       = useState<string | null>(null);
-  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [search,        setSearch]        = useState('');
+  const [expandedId,    setExpandedId]    = useState<string | null>(null);
+  const [showNew,       setShowNew]       = useState(false);
+  const [editClient,    setEditClient]    = useState<Client | null>(null);
+  const [confirmDel,    setConfirmDel]    = useState<Client | null>(null);
+  const [menuOpenId,    setMenuOpenId]    = useState<string | null>(null);
 
   const deleteMut = useMutation({
     mutationFn: (id: string) => deleteClient(id),
     onSuccess: () => {
       invalidate();
       showToast('Cliente eliminado');
-      setConfirmDeleteId(null);
+      setConfirmDel(null);
+      setExpandedId(null);
     },
-    onError: () => showToast('Error al eliminar el cliente'),
+    onError: () => showToast('Error al eliminar'),
   });
 
-  if (loadingQuotes || clientsQuery.isLoading || !clientsQuery.data) return null;
+  if (clientsQ.isLoading || !clientsQ.data) {
+    return (
+      <div style={{ minHeight: '100vh', background: '#F8FAFC', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div style={{ color: '#94A3B8', fontSize: 14 }}>Cargando...</div>
+      </div>
+    );
+  }
 
-  const clientCards = clientsQuery.data.map((c) => {
-    const qs = quotes.filter((q) => q.client_id === c.id);
-    const total = qs.reduce((a, q) => a + q.calc.total, 0);
-    const approved = qs.filter((q) => q.status === 'Aprobada').length;
-    const last = qs.length ? Math.min(...qs.map((q) => daysAgo(q.created_at))) : null;
-    const lastActivity = last === null ? 'Sin actividad' : last === 0 ? 'Hoy' : `Hace ${last} días`;
-    return { ...c, count: qs.length, approved, totalFmt: fmtM(total), lastActivity };
-  });
+  const filtered = clientsQ.data.filter(c =>
+    !search || c.name.toLowerCase().includes(search.toLowerCase())
+  );
 
-  const confirmClient = clientCards.find(c => c.id === confirmDeleteId);
+  function toggle(id: string) {
+    setExpandedId(prev => prev === id ? null : id);
+    setMenuOpenId(null);
+  }
 
   return (
-    <div>
+    <div style={{ background: '#F8FAFC', minHeight: '100vh' }}>
       {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 14, marginBottom: 18 }}>
-        <h1 style={{ fontSize: 'clamp(22px,4vw,30px)', fontWeight: 800, letterSpacing: '-1px' }}>Clientes</h1>
-        <button onClick={() => setShowNew(true)}
-          style={{ border: 'none', background: '#2563EB', color: '#fff', fontWeight: 700, fontSize: 14, padding: '11px 17px', borderRadius: 12, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 7 }}>
-          <span style={{ fontSize: 17 }}>+</span> Nuevo cliente
-        </button>
+      <div style={{
+        background: '#fff', borderBottom: '1px solid #F1F5F9',
+        padding: '16px 16px 0', position: 'sticky', top: 0, zIndex: 10,
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+          <h1 style={{ fontSize: 22, fontWeight: 800, color: '#0F172A', margin: 0 }}>Clientes</h1>
+          <button
+            onClick={() => setShowNew(true)}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 6,
+              border: 'none', background: '#2563EB', color: '#fff',
+              fontWeight: 700, fontSize: 14, padding: '10px 18px',
+              borderRadius: 12, cursor: 'pointer',
+            }}
+          >
+            <Plus size={16} strokeWidth={2.5} /> Nuevo cliente
+          </button>
+        </div>
+
+        {/* Buscador */}
+        <div style={{ position: 'relative', marginBottom: 12 }}>
+          <Search size={15} color="#94A3B8" style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)' }} />
+          <input
+            type="search"
+            placeholder="Buscar cliente..."
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            style={{
+              width: '100%', height: 42, border: '1px solid #E2E8F0',
+              borderRadius: 12, paddingLeft: 36, fontSize: 14.5,
+              outline: 'none', background: '#F8FAFC', color: '#0F172A',
+              boxSizing: 'border-box',
+            }}
+          />
+        </div>
       </div>
 
-      {/* Grid de clientes */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(270px,1fr))', gap: 14 }}>
-        {clientCards.map((c) => (
-          <div key={c.id} style={{ background: '#fff', border: '1px solid #E2E8F0', borderRadius: 18, padding: 20, position: 'relative' }}>
-            {/* Menú 3 puntos */}
-            <div style={{ position: 'absolute', top: 14, right: 14 }}>
-              <button
-                onClick={e => { e.stopPropagation(); setMenuOpenId(menuOpenId === c.id ? null : c.id); }}
-                style={{ border: 'none', background: '#F8FAFC', borderRadius: 8, width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#64748B' }}>
-                <MoreVertical size={15} />
-              </button>
-              {menuOpenId === c.id && (
-                <>
-                  <div onClick={() => setMenuOpenId(null)} style={{ position: 'fixed', inset: 0, zIndex: 9 }} />
-                  <div style={{ position: 'absolute', right: 0, top: 36, zIndex: 10, background: '#fff', border: '1px solid #E2E8F0', borderRadius: 12, boxShadow: '0 8px 24px rgba(15,23,42,.12)', overflow: 'hidden', minWidth: 140 }}>
-                    <button onClick={e => { e.stopPropagation(); setEditClient(c as Client); setMenuOpenId(null); }}
-                      style={menuItemStyle}>
-                      <Pencil size={13} /> Editar
-                    </button>
-                    <button onClick={e => { e.stopPropagation(); setConfirmDeleteId(c.id); setMenuOpenId(null); }}
-                      style={{ ...menuItemStyle, color: '#EF4444', borderTop: '1px solid #FEE2E2' }}>
-                      <Trash2 size={13} /> Eliminar
-                    </button>
-                  </div>
-                </>
-              )}
+      {/* Lista de clientes — acordeón */}
+      <div style={{ padding: '8px 0', background: '#fff', marginTop: 6 }}>
+        {filtered.length === 0 && (
+          <div style={{ padding: '48px 24px', textAlign: 'center' }}>
+            <div style={{ fontSize: 36, marginBottom: 10 }}>👥</div>
+            <div style={{ fontSize: 16, fontWeight: 700, color: '#0F172A', marginBottom: 6 }}>
+              {search ? 'Sin resultados' : 'No hay clientes aún'}
             </div>
-
-            {/* Card body */}
-            <div onClick={() => openClientDetail(c.id)} style={{ cursor: 'pointer' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14, paddingRight: 32 }}>
-                <div style={{ width: 48, height: 48, borderRadius: 14, background: 'linear-gradient(150deg,#2563EB,#1D4ED8)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 800, fontSize: 17, flexShrink: 0 }}>
-                  {c.initial}
-                </div>
-                <div style={{ minWidth: 0 }}>
-                  <div style={{ fontSize: 15, fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.name}</div>
-                  <div style={{ fontSize: 11.5, color: '#94A3B8' }}>Última actividad: {c.lastActivity}</div>
-                </div>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', paddingTop: 14, borderTop: '1px solid #F1F5F9' }}>
-                <div>
-                  <div style={{ fontSize: 18, fontWeight: 800, fontVariantNumeric: 'tabular-nums' }}>{c.count}</div>
-                  <div style={{ fontSize: 10, color: '#64748B' }}>Cotizaciones</div>
-                </div>
-                <div>
-                  <div style={{ fontSize: 18, fontWeight: 800, color: '#22C55E', fontVariantNumeric: 'tabular-nums' }}>{c.approved}</div>
-                  <div style={{ fontSize: 10, color: '#64748B' }}>Aprobadas</div>
-                </div>
-                <div style={{ textAlign: 'right' }}>
-                  <div style={{ fontSize: 18, fontWeight: 800, color: '#2563EB', fontVariantNumeric: 'tabular-nums' }}>{c.totalFmt}</div>
-                  <div style={{ fontSize: 10, color: '#64748B' }}>Cotizado</div>
-                </div>
-              </div>
+            <div style={{ fontSize: 13.5, color: '#64748B' }}>
+              {search ? 'Prueba con otro término' : 'Agrega tu primer cliente para empezar'}
             </div>
-          </div>
-        ))}
-        {clientCards.length === 0 && (
-          <div style={{ gridColumn: '1/-1', background: '#fff', border: '1px dashed #CBD5E1', borderRadius: 18, padding: 32, textAlign: 'center', fontSize: 13, color: '#94A3B8' }}>
-            Aún no tienes clientes registrados.
           </div>
         )}
+
+        {filtered.map((c, idx) => {
+          const isExpanded = expandedId === c.id;
+          const av = avColor(c.name);
+
+          return (
+            <div
+              key={c.id}
+              style={{
+                borderBottom: idx < filtered.length - 1 ? '1px solid #F8FAFC' : 'none',
+                transition: 'background .1s',
+              }}
+            >
+              {/* Fila colapsada — siempre visible */}
+              <div
+                onClick={() => toggle(c.id)}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 12,
+                  padding: '13px 16px', cursor: 'pointer',
+                  background: isExpanded ? '#FAFBFF' : '#fff',
+                  transition: 'background .15s',
+                }}
+              >
+                {/* Avatar */}
+                <div style={{
+                  width: 42, height: 42, borderRadius: 13,
+                  background: av.bg, color: av.fg,
+                  fontWeight: 800, fontSize: 14,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  flexShrink: 0, letterSpacing: '-.3px',
+                }}>
+                  {initials(c.name)}
+                </div>
+
+                {/* Nombre */}
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{
+                    fontSize: 15, fontWeight: 700, color: '#0F172A',
+                    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                  }}>
+                    {c.name}
+                  </div>
+                  {c.phone && (
+                    <div style={{ fontSize: 12, color: '#94A3B8', marginTop: 1 }}>{c.phone}</div>
+                  )}
+                </div>
+
+                {/* Menú 3 puntos */}
+                <div style={{ position: 'relative' }} onClick={e => e.stopPropagation()}>
+                  <button
+                    onClick={() => setMenuOpenId(menuOpenId === c.id ? null : c.id)}
+                    style={{
+                      width: 30, height: 30, borderRadius: 8, border: 'none',
+                      background: 'transparent', cursor: 'pointer', color: '#94A3B8',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    }}
+                  >
+                    <MoreVertical size={15} />
+                  </button>
+                  {menuOpenId === c.id && (
+                    <>
+                      <div onClick={() => setMenuOpenId(null)} style={{ position: 'fixed', inset: 0, zIndex: 9 }} />
+                      <div style={{
+                        position: 'absolute', right: 0, top: 34, zIndex: 10,
+                        background: '#fff', border: '1px solid #E2E8F0',
+                        borderRadius: 12, boxShadow: '0 8px 24px rgba(15,23,42,.12)',
+                        overflow: 'hidden', minWidth: 140,
+                      }}>
+                        <button
+                          onClick={() => { setEditClient(c); setMenuOpenId(null); }}
+                          style={mIS}>
+                          <Pencil size={13} /> Editar
+                        </button>
+                        <button
+                          onClick={() => { setConfirmDel(c); setMenuOpenId(null); }}
+                          style={{ ...mIS, color: '#EF4444', borderTop: '1px solid #FEE2E2' }}>
+                          <Trash2 size={13} /> Eliminar
+                        </button>
+                      </div>
+                    </>
+                  )}
+                </div>
+
+                {/* Chevron rotado */}
+                <ChevronRight
+                  size={18}
+                  color="#CBD5E1"
+                  style={{
+                    flexShrink: 0,
+                    transform: isExpanded ? 'rotate(90deg)' : 'rotate(0deg)',
+                    transition: 'transform 250ms ease',
+                  }}
+                />
+              </div>
+
+              {/* Acciones expandidas — acordeón */}
+              <div style={{
+                overflow: 'hidden',
+                maxHeight: isExpanded ? 120 : 0,
+                opacity: isExpanded ? 1 : 0,
+                transition: 'max-height 250ms ease, opacity 200ms ease',
+              }}>
+                <div style={{
+                  display: 'grid', gridTemplateColumns: 'repeat(4,1fr)',
+                  padding: '8px 8px 14px', gap: 4,
+                  background: '#FAFBFF',
+                  borderTop: isExpanded ? '1px solid #F1F5F9' : 'none',
+                }}>
+                  {[
+                    {
+                      icon: <User size={20} strokeWidth={1.6} />,
+                      label: 'Ver perfil',
+                      color: '#2563EB',
+                      action: () => openClientDetail(c.id),
+                    },
+                    {
+                      icon: <FileText size={20} strokeWidth={1.6} />,
+                      label: 'Nueva cotiz.',
+                      color: '#7C3AED',
+                      action: () => navigate('/app/cotizaciones/nueva'),
+                    },
+                    {
+                      icon: <Clock size={20} strokeWidth={1.6} />,
+                      label: 'Historial',
+                      color: '#0891B2',
+                      action: () => openClientDetail(c.id),
+                    },
+                    {
+                      icon: <Phone size={20} strokeWidth={1.6} />,
+                      label: 'Contactar',
+                      color: '#16A34A',
+                      action: () => {
+                        if (c.phone) window.open(`tel:${c.phone}`, '_self');
+                        else showToast('Este cliente no tiene teléfono registrado');
+                      },
+                    },
+                  ].map(({ icon, label, color, action }) => (
+                    <button
+                      key={label}
+                      onClick={e => { e.stopPropagation(); action(); }}
+                      style={{
+                        display: 'flex', flexDirection: 'column', alignItems: 'center',
+                        justifyContent: 'center', gap: 6,
+                        padding: '10px 6px', border: 'none', background: 'none',
+                        cursor: 'pointer', borderRadius: 12, color,
+                        fontFamily: 'inherit',
+                        transition: 'background .15s',
+                      }}
+                      onMouseEnter={e => (e.currentTarget.style.background = '#F1F5F9')}
+                      onMouseLeave={e => (e.currentTarget.style.background = 'none')}
+                    >
+                      <span style={{ lineHeight: 0 }}>{icon}</span>
+                      <span style={{ fontSize: 10.5, fontWeight: 600, color: '#475569', textAlign: 'center', lineHeight: 1.2 }}>
+                        {label}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          );
+        })}
       </div>
 
-      {/* Modal nuevo */}
+      {/* Modal nuevo cliente */}
       {showNew && <ClientFormModal onClose={() => setShowNew(false)} />}
 
-      {/* Modal editar */}
+      {/* Modal editar cliente */}
       {editClient && (
         <ClientFormModal
           editClient={editClient}
@@ -129,25 +295,31 @@ export function Clientes() {
         />
       )}
 
-      {/* Modal confirmar eliminar */}
-      {confirmDeleteId && confirmClient && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, padding: 16 }}
-          onClick={() => setConfirmDeleteId(null)}>
-          <div onClick={e => e.stopPropagation()} style={{ background: '#fff', borderRadius: 18, padding: 24, maxWidth: 380, width: '100%' }}>
-            <div style={{ fontSize: 32, textAlign: 'center', marginBottom: 12 }}>⚠️</div>
-            <div style={{ fontSize: 16, fontWeight: 800, color: '#0F172A', textAlign: 'center', marginBottom: 8 }}>¿Eliminar cliente?</div>
-            <div style={{ fontSize: 13.5, color: '#64748B', textAlign: 'center', marginBottom: 20 }}>
-              Vas a eliminar a <strong>{confirmClient.name}</strong>. Esta acción no se puede deshacer.
-              {confirmClient.count > 0 && <div style={{ marginTop: 8, color: '#F59E0B', fontSize: 12.5 }}>Este cliente tiene {confirmClient.count} cotizaci{confirmClient.count === 1 ? 'ón' : 'ones'} asociadas.</div>}
+      {/* Confirmar eliminar */}
+      {confirmDel && (
+        <div
+          style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, padding: 16 }}
+          onClick={() => setConfirmDel(null)}
+        >
+          <div onClick={e => e.stopPropagation()} style={{ background: '#fff', borderRadius: 18, padding: 24, maxWidth: 380, width: '100%', textAlign: 'center' }}>
+            <div style={{ fontSize: 32, marginBottom: 10 }}>⚠️</div>
+            <div style={{ fontSize: 16, fontWeight: 800, color: '#0F172A', marginBottom: 8 }}>
+              ¿Eliminar a {confirmDel.name}?
+            </div>
+            <div style={{ fontSize: 13.5, color: '#64748B', marginBottom: 20 }}>
+              Esta acción no se puede deshacer.
             </div>
             <div style={{ display: 'flex', gap: 10 }}>
-              <button onClick={() => setConfirmDeleteId(null)}
+              <button
+                onClick={() => setConfirmDel(null)}
                 style={{ flex: 1, height: 46, border: '1.5px solid #E2E8F0', background: '#fff', color: '#475569', fontWeight: 700, fontSize: 14, borderRadius: 11, cursor: 'pointer', fontFamily: 'inherit' }}>
                 Cancelar
               </button>
-              <button onClick={() => deleteMut.mutate(confirmDeleteId)} disabled={deleteMut.isPending}
+              <button
+                onClick={() => deleteMut.mutate(confirmDel.id)}
+                disabled={deleteMut.isPending}
                 style={{ flex: 1, height: 46, border: 'none', background: '#EF4444', color: '#fff', fontWeight: 700, fontSize: 14, borderRadius: 11, cursor: 'pointer', opacity: deleteMut.isPending ? .7 : 1, fontFamily: 'inherit' }}>
-                {deleteMut.isPending ? 'Eliminando…' : 'Sí, eliminar'}
+                {deleteMut.isPending ? 'Eliminando...' : 'Eliminar'}
               </button>
             </div>
           </div>
@@ -157,7 +329,7 @@ export function Clientes() {
   );
 }
 
-const menuItemStyle: React.CSSProperties = {
+const mIS: React.CSSProperties = {
   display: 'flex', alignItems: 'center', gap: 8,
   width: '100%', padding: '10px 14px',
   border: 'none', background: 'none',

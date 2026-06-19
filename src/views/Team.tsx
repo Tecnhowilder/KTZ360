@@ -188,7 +188,7 @@ export function Team() {
       <div style={{ maxWidth: 720 }}>
         <h1 style={{ fontSize: 'clamp(22px,4vw,30px)', fontWeight: 800, letterSpacing: '-1px', marginBottom: 6 }}>Equipo y usuarios</h1>
         <p style={{ fontSize: 13.5, color: '#64748B', marginBottom: 18 }}>
-          Invita a tu equipo, asigna roles y gestiona el acceso a tu cuenta de KTZ360.
+          Invita a tu equipo, asigna roles y gestiona el acceso a tu cuenta de Shelwi.
         </p>
         <div style={{ ...cardStyle, textAlign: 'center', padding: 40, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14 }}>
           <div style={{ fontSize: 40 }}>👥</div>
@@ -200,7 +200,7 @@ export function Team() {
           <button
             onClick={() =>
               openUpgradeModal({
-                title: 'Invita a tu equipo a KTZ360',
+                title: 'Invita a tu equipo a Shelwi',
                 message: 'Gestiona roles, permisos y accede a hasta 5 usuarios incluidos con el plan PREMIUM.',
                 targetPlan: 'premium',
                 ctaLabel: 'Actualizar a PREMIUM',

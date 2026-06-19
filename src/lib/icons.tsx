@@ -47,7 +47,7 @@ export const NAV_ITEMS: { id: NavId; label: string; badge?: boolean }[] = [
   { id: 'plantillas', label: 'Plantillas' },
   { id: 'materiales', label: 'Materiales' },
   { id: 'reportes', label: 'Reportes' },
-  { id: 'ia', label: 'KTZ360 IA', badge: true },
+  { id: 'ia', label: 'Shelwi IA', badge: true },
   { id: 'empresa', label: 'Mi Empresa' },
   { id: 'team', label: 'Equipo y usuarios' },
   { id: 'config', label: 'Configuración' },

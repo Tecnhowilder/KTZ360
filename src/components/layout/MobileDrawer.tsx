@@ -7,7 +7,6 @@ import { useWorkspace } from '../../features/auth/WorkspaceProvider';
 import { useUI, defaultQConfig } from '../../features/app/UIProvider';
 import { isSuperAdmin } from '../../lib/permissions';
 import { getThemeByPlan } from '../../lib/planTheme';
-import { APP_NAME } from '../../lib/brand';
 import { signOut } from '../../services/auth';
 
 interface MobileDrawerProps {
@@ -101,8 +100,9 @@ export function MobileDrawer({ open, onClose }: MobileDrawerProps) {
         {/* Header */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 14px 10px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <img src="/icons/logo-dark.png" alt="KTZ360" style={{ width: 30, height: 30, objectFit: 'contain', flexShrink: 0 }} />
-            <span style={{ fontWeight: 800, fontSize: 17, color: '#fff', letterSpacing: '-.5px' }}>{APP_NAME}</span>
+            <div style={{ background: '#fff', borderRadius: 9, padding: '4px 8px', display: 'inline-flex', alignItems: 'center' }}>
+                <img src="/icons/logo-horizontal-white-bg.png" alt="Shelwi" style={{ height: 26, width: 'auto', objectFit: 'contain' }} />
+              </div>
           </div>
           <button
             onClick={onClose}

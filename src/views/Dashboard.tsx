@@ -519,7 +519,7 @@ function FreeDashboard({ quotes, company, openQuoteFlow, openQuoteDetail, openUp
           <div style={{ ...CARD, flex: 1, display: 'flex', flexDirection: 'column' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 8 }}>
               <div style={{ width: 28, height: 28, borderRadius: 8, background: '#EEF2FF', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}><Lock size={13} color="#2563EB"/></div>
-              <span style={{ fontSize: 13, fontWeight: 800, color: '#0F172A' }}>KTZ360 IA</span>
+              <span style={{ fontSize: 13, fontWeight: 800, color: '#0F172A' }}>Shelwi IA</span>
               <span style={{ fontSize: 9, fontWeight: 800, background: '#2563EB', color: '#fff', padding: '2px 8px', borderRadius: 5, letterSpacing: '.3px' }}>PRO</span>
             </div>
             <p style={{ fontSize: 12, color: '#64748B', lineHeight: 1.5, margin: '0 0 9px' }}>Desbloquea la IA para recomendaciones inteligentes, predicción de cierre y más.</p>
@@ -528,7 +528,7 @@ function FreeDashboard({ quotes, company, openQuoteFlow, openQuoteDetail, openUp
                 <div key={item} style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 12, color: '#94A3B8' }}><Lock size={11} color="#CBD5E1"/> {item}</div>
               ))}
             </div>
-            <button onClick={() => openUpgradeModal({ title: 'Desbloquea KTZ360 IA', message: 'Accede a IA predictiva con el plan PRO.', targetPlan: 'pro', ctaLabel: 'Actualizar a PRO' })} style={{ width: '100%', border: '1.5px solid #BFDBFE', background: '#EFF6FF', color: '#2563EB', fontWeight: 700, fontSize: 13, padding: '9px 0', borderRadius: 11, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: 'auto' }}><TrendingUp size={13}/> Actualizar a PRO →</button>
+            <button onClick={() => openUpgradeModal({ title: 'Desbloquea Shelwi IA', message: 'Accede a IA predictiva con el plan PRO.', targetPlan: 'pro', ctaLabel: 'Actualizar a PRO' })} style={{ width: '100%', border: '1.5px solid #BFDBFE', background: '#EFF6FF', color: '#2563EB', fontWeight: 700, fontSize: 13, padding: '9px 0', borderRadius: 11, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: 'auto' }}><TrendingUp size={13}/> Actualizar a PRO →</button>
           </div>
         </div>
       </div>
@@ -913,7 +913,7 @@ function PremiumDashboard({ quotes, company, openQuoteFlow, openQuoteDetail, nav
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
             <div style={{ width: 36, height: 36, borderRadius: 11, background: 'linear-gradient(135deg,#7C3AED,#A855F7)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}><span style={{ fontSize: 14, fontWeight: 900 }}>AI</span></div>
             <div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}><span style={{ fontSize: 13, fontWeight: 800 }}>Resumen ejecutivo KTZ360 IA</span><span style={{ fontSize: 9, fontWeight: 800, background: 'linear-gradient(135deg,#7C3AED,#A855F7)', padding: '2px 7px', borderRadius: 5 }}>PREMIUM</span></div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}><span style={{ fontSize: 13, fontWeight: 800 }}>Resumen ejecutivo Shelwi IA</span><span style={{ fontSize: 9, fontWeight: 800, background: 'linear-gradient(135deg,#7C3AED,#A855F7)', padding: '2px 7px', borderRadius: 5 }}>PREMIUM</span></div>
               <div style={{ fontSize: 11, color: '#94A3B8' }}>Análisis automático</div>
             </div>
           </div>

@@ -76,7 +76,7 @@ export function EditQuotePage() {
       setCostConfig({
         ...DEFAULT_COST_CONFIG,
         tax_rate:      q.tax_rate ?? 19,
-        advance_pct:   q.advance_pct ?? 0,
+        advance_pct:   q.advance_pct ?? 50,
         discount_pct:  q.discount ?? 0,
         valid_days:    q.valid_days ?? 15,
       });
@@ -189,6 +189,7 @@ export function EditQuotePage() {
                     <StepPreviewShare
                       items={items} laborItems={laborItems} config={costConfig}
                       clientName={clientData.clientName}
+                      clientEmail={clientData.clientEmail}
                       quoteName={quoteName}
                       quoteNumber={quoteQ.data?.quote_number}
                       onChangeQuoteName={setQuoteName}

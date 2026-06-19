@@ -86,7 +86,7 @@ export function computeLaborSubtotal(
 }
 
 /**
- * Fórmula oficial KTZ360:
+ * Fórmula oficial Shelwi:
  *   subtotal              = Σ items
  *   discount              = subtotal × discount_pct (o discount_fixed)
  *   subtotal_net          = subtotal - discount
@@ -163,7 +163,7 @@ export const DEFAULT_COST_CONFIG: CostConfig = {
   tax_rate:          19,
   tax_included:      false,
   overhead_pct:      0,
-  advance_pct:       0,
+  advance_pct:       50,
   valid_days:        15,
   transport_cost:    0,
   include_transport: false,

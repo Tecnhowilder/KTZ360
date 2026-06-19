@@ -215,7 +215,7 @@ export function PDFPreviewRenderer({
         {/* Footer */}
         <div style={{ padding: '10px 20px', borderTop: '1px solid #F1F5F9', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div style={{ fontSize: 11, color: '#94A3B8' }}>Emitida: {fmtDateLong(now)}</div>
-          <div style={{ fontSize: 10, color: '#CBD5E1', fontWeight: 600 }}>KTZ360</div>
+          <div style={{ fontSize: 10, color: '#CBD5E1', fontWeight: 600 }}>Shelwi</div>
         </div>
       </div>
     </>

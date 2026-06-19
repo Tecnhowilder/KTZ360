@@ -67,7 +67,7 @@ export function AdminPanel() {
   return (
     <div>
       <h1 style={{ fontSize: 22, fontWeight: 800, color: '#0F172A', marginBottom: 4 }}>Panel de administración</h1>
-      <p style={{ fontSize: 13.5, color: '#64748B', marginBottom: 18 }}>Gestión global de KTZ360.</p>
+      <p style={{ fontSize: 13.5, color: '#64748B', marginBottom: 18 }}>Gestión global de Shelwi.</p>
 
       <div style={{ display: 'flex', gap: 6, background: '#EEF2F7', padding: 5, borderRadius: 14, marginBottom: 18, flexWrap: 'wrap', maxWidth: 760 }}>
         {tabs.map((t) => (

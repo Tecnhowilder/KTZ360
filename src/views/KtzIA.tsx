@@ -9,23 +9,20 @@ import { listCategories, listServicesByCategory, getServiceWithRules } from '../
 import { computeServiceLine, computeQuote } from '../lib/engine';
 import type { IaEstimate } from '../lib/types';
 
+// Sugerencias universales — no específicas de construcción
 const CHIPS = [
-  { label: 'Pintura 90 m²', txt: 'Pintura interior de apartamento de 90 m²' },
-  { label: 'Drywall 60 m²', txt: 'Muros en drywall de 60 m²' },
-  { label: 'Pisos 120 m²', txt: 'Instalación de pisos en porcelanato 120 m²' },
+  { label: 'Diseño gráfico', txt: 'Cotizar diseño de logo + manual de marca para empresa mediana' },
+  { label: 'Evento corporativo', txt: 'Cotizar evento corporativo para 50 personas con catering y decoración' },
+  { label: 'Instalación vidrios', txt: 'Cotizar instalación de vidrios templados para local comercial de 40 m²' },
+  { label: 'Carpintería', txt: 'Cotizar muebles de cocina en madera para apartamento' },
+  { label: 'Consultoría IT', txt: 'Cotizar 40 horas de consultoría en desarrollo web y UX' },
 ];
 
-const PHOTO_CATEGORY_KEYS = ['pintura', 'pisos_enchapes', 'drywall', 'remodelacion_banos', 'electricidad', 'plomeria'];
-const KEYWORD_CATEGORY_MAP: { keyword: string; categoryKey: string }[] = [
-  { keyword: 'drywa', categoryKey: 'drywall' },
-  { keyword: 'elect', categoryKey: 'electricidad' },
-  { keyword: 'plome', categoryKey: 'plomeria' },
-  { keyword: 'pisos', categoryKey: 'pisos_enchapes' },
-  { keyword: 'encha', categoryKey: 'pisos_enchapes' },
-  { keyword: 'remod', categoryKey: 'remodelacion_banos' },
-  { keyword: 'techo', categoryKey: 'cubiertas' },
-  { keyword: 'mampo', categoryKey: 'mamposteria' },
-];
+// Categorías disponibles para estimación por foto (se actualiza desde el catálogo real)
+const PHOTO_CATEGORY_KEYS: string[] = [];
+
+// Mapeo de palabras clave a categorías (se mantiene vacío hasta configurar catálogo universal)
+const KEYWORD_CATEGORY_MAP: { keyword: string; categoryKey: string }[] = [];
 
 async function estimate(categoryKey: string, area: number): Promise<IaEstimate | null> {
   const categories = await listCategories();
@@ -65,7 +62,7 @@ export function KtzIA() {
     if (iaLoading || aiLoading) return;
     if (aiAccess.data === false) {
       openUpgradeModal({
-        title: 'KTZ360 IA está disponible en PREMIUM',
+        title: 'Shelwi IA está disponible en PREMIUM',
         message: 'Genera cotizaciones desde una descripción. Calcula materiales automáticamente. Obtén reportes avanzados.',
         targetPlan: 'premium',
         ctaLabel: 'Pasar a PREMIUM',
@@ -146,11 +143,11 @@ export function KtzIA() {
     <div style={{ maxWidth: 680, margin: '0 auto' }}>
       <div style={{ textAlign: 'center', marginBottom: 18 }}>
         <div style={{ display: 'inline-flex', alignItems: 'center', gap: 7, background: '#0F172A', color: '#7CFFB0', padding: '6px 14px', borderRadius: 99, fontSize: 11, fontWeight: 800, letterSpacing: '.5px' }}>
-          ✦ KTZ360 IA
+          ✦ Shelwi IA
         </div>
         <h1 style={{ fontSize: 'clamp(24px,4vw,32px)', fontWeight: 800, letterSpacing: '-1px', marginTop: 14 }}>Cotiza en segundos</h1>
         <p style={{ fontSize: 13.5, color: '#64748B', marginTop: 6, lineHeight: 1.5 }}>
-          KTZ360 detecta el trabajo y el área, y usa <strong>el catálogo de reglas</strong> para calcular materiales y mano de obra. La IA solo pule la redacción.
+          Shelwi detecta el trabajo y el área, y usa <strong>el catálogo de reglas</strong> para calcular materiales y mano de obra. La IA solo pule la redacción.
         </p>
       </div>
 

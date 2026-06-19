@@ -1,4 +1,6 @@
 import { createBrowserRouter, Navigate } from 'react-router-dom';
+import { hasSeenOnboarding } from './lib/onboarding';
+import { OnboardingPage } from './views/OnboardingPage';
 import { LoginPage } from './features/auth/LoginPage';
 import { RegisterPage } from './features/auth/RegisterPage';
 import { ForgotPasswordPage } from './features/auth/ForgotPasswordPage';
@@ -31,7 +33,13 @@ import { BillingFailure } from './views/billing/BillingFailure';
 import { Team } from './views/Team';
 
 export const router = createBrowserRouter([
-  { path: '/', element: <Navigate to="/app/dashboard" replace /> },
+  {
+    path: '/',
+    element: hasSeenOnboarding()
+      ? <Navigate to="/app/dashboard" replace />
+      : <Navigate to="/onboarding" replace />,
+  },
+  { path: '/onboarding', element: <OnboardingPage /> },
   { path: '/login', element: <LoginPage /> },
   { path: '/registro', element: <RegisterPage /> },
   { path: '/recuperar-contrasena', element: <ForgotPasswordPage /> },

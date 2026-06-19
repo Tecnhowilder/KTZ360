@@ -42,7 +42,7 @@ function downloadTemplate() {
   ]);
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, 'Catálogo');
-  XLSX.writeFile(wb, 'plantilla_catalogo_ktz360.xlsx');
+  XLSX.writeFile(wb, 'plantilla_catalogo_shelwi.xlsx');
 }
 
 interface Props {

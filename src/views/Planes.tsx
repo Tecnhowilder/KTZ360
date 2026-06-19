@@ -47,7 +47,7 @@ export function Planes() {
           <h1 className="pricing-header-title">
             Elige el plan que <span className="pricing-header-highlight">impulsa tu negocio</span>
           </h1>
-          <p className="pricing-header-subtitle">Más herramientas, más control y mejores resultados con KTZ360.</p>
+          <p className="pricing-header-subtitle">Más herramientas, más control y mejores resultados con Shelwi.</p>
         </section>
 
         <BillingToggle value={billing} onChange={setBilling} />
