@@ -28,20 +28,21 @@ export function AppShell() {
   const isInnerFlow = location.pathname.startsWith('/app/cotizaciones/nueva')
     || location.pathname.match(/^\/app\/cotizaciones\/.+/) !== null;
 
+  // Dashboard gestiona su propio header compacto — no usar el global
+  const isDashboard = location.pathname === '/app/dashboard';
+
   const [drawerOpen, setDrawerOpen] = useState(false);
 
   const mainLeft = showSidebar ? sidebarW : 0;
-  // En inner flows: sin padding top (la página maneja su propio header)
-  // Siempre con paddingBottom para bottom nav
-  const mainPadTop = navBottom ? (isInnerFlow ? 0 : 64) : 28;
-  const mainPadBottom = navBottom ? 88 : 48; // siempre 88px en mobile
+  const mainPadTop = navBottom ? (isInnerFlow || isDashboard ? 0 : 64) : 28;
+  const mainPadBottom = navBottom ? 88 : 48;
 
   return (
     <div style={{ minHeight: '100vh', background: '#F8FAFC' }}>
       {showSidebar && <Sidebar width={sidebarW} rail={navMode === 'rail'} />}
 
-      {/* Header mobile solo en vistas principales (no en flujos internos) */}
-      {navBottom && !isInnerFlow && (
+      {/* Header mobile en vistas principales (no en inner flows ni dashboard) */}
+      {navBottom && !isInnerFlow && !isDashboard && (
         <>
           <MobileHeader onMenuOpen={() => setDrawerOpen(true)} />
           <MobileDrawer open={drawerOpen} onClose={() => setDrawerOpen(false)} />

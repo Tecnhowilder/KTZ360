@@ -5,8 +5,17 @@ import { useUI } from '../features/app/UIProvider';
 import { useFeatureAccess } from '../hooks/usePermissions';
 import { chartData, fmt, fmtM } from '../lib/calc';
 import { listQuoteEvents } from '../services/events';
+import { useWindowWidth, navModeFor } from '../hooks/useWindowWidth';
+import { ReportesMobile } from '../components/reportes/ReportesMobile';
 
 export function Reportes() {
+  const width   = useWindowWidth();
+  const navMode = navModeFor(width);
+  if (navMode === 'bottom') return <ReportesMobile />;
+  return <ReportesDesktop />;
+}
+
+function ReportesDesktop() {
   const { workspace } = useWorkspace();
   const { openUpgradeModal } = useUI();
   const advancedAccess = useFeatureAccess('advanced_reports_enabled');

@@ -8,7 +8,7 @@ import { signOut } from '../../services/auth';
 import { useQueryClient } from '@tanstack/react-query';
 
 const TABS = [
-  { path: '/app/dashboard',    icon: LayoutDashboard, label: 'Inicio' },
+  { path: '/app/dashboard',    icon: LayoutDashboard, label: 'Dashboard' },
   { path: '/app/cotizaciones', icon: FileText,         label: 'Cotizaciones' },
   { path: '/app/clientes',     icon: Users,            label: 'Clientes' },
   { path: '/app/catalogo',     icon: Package,          label: 'Catálogo' },

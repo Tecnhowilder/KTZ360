@@ -1,4 +1,5 @@
-import { Bell, Menu } from 'lucide-react';
+import { Menu } from 'lucide-react';
+import { NotificationBell } from '../ui/NotificationBell';
 
 interface MobileHeaderProps {
   onMenuOpen: () => void;
@@ -11,10 +12,8 @@ export function MobileHeader({ onMenuOpen }: MobileHeaderProps) {
         position: 'sticky',
         top: 0,
         zIndex: 35,
-        background: 'rgba(255,255,255,.95)',
-        backdropFilter: 'blur(12px)',
-        WebkitBackdropFilter: 'blur(12px)',
-        borderBottom: '1px solid #EEF2F7',
+        background: '#0B0F19',
+        borderBottom: '1px solid rgba(255,255,255,.08)',
         padding: '0 16px',
         height: 56,
         display: 'flex',
@@ -30,31 +29,23 @@ export function MobileHeader({ onMenuOpen }: MobileHeaderProps) {
         style={{
           border: 'none', background: 'none', padding: 0,
           cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
-          width: 44, height: 44, color: '#0F172A', flexShrink: 0,
+          width: 44, height: 44, color: 'rgba(255,255,255,.75)', flexShrink: 0,
         }}
       >
         <Menu size={22} strokeWidth={2} />
       </button>
 
-      {/* Logo principal centrado — incluye ícono + wordmark */}
-      <img
-        src="/icons/logo-horizontal-white-bg.png"
-        alt="Shelwi"
-        style={{ height: 40, width: 'auto', objectFit: 'contain' }}
-      />
+      {/* Logo horizontal Shelwi en pill blanco sobre header oscuro */}
+      <div style={{ background: '#fff', borderRadius: 10, padding: '4px 10px', display: 'flex', alignItems: 'center' }}>
+        <img
+          src="/icons/logo-horizontal-white-bg.png"
+          alt="Shelwi"
+          style={{ height: 28, width: 'auto', objectFit: 'contain' }}
+        />
+      </div>
 
-      {/* Bell */}
-      <button
-        aria-label="Notificaciones"
-        style={{
-          border: 'none', background: 'none', padding: 0,
-          cursor: 'pointer', width: 44, height: 44,
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          color: '#64748B', flexShrink: 0,
-        }}
-      >
-        <Bell size={20} />
-      </button>
+      {/* Campana de notificaciones */}
+      <NotificationBell />
     </header>
   );
 }

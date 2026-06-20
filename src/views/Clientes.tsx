@@ -1,4 +1,6 @@
 import { useState } from 'react';
+import { useWindowWidth, navModeFor } from '../hooks/useWindowWidth';
+import { ClientesMobile } from '../components/clientes/ClientesMobile';
 import { useMutation } from '@tanstack/react-query';
 import {
   Search, Plus, ChevronRight, User, FileText, Clock, Phone,
@@ -26,6 +28,13 @@ function initials(name: string): string {
 }
 
 export function Clientes() {
+  const width   = useWindowWidth();
+  const navMode = navModeFor(width);
+  if (navMode === 'bottom') return <ClientesMobile />;
+  return <ClientesDesktop />;
+}
+
+function ClientesDesktop() {
   const navigate   = useNavigate();
   const { openClientDetail } = useUI();
   const clientsQ   = useClients();

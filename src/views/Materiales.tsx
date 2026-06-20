@@ -1,4 +1,6 @@
 import { useState, type FormEvent } from 'react';
+import { useWindowWidth, navModeFor } from '../hooks/useWindowWidth';
+import { MaterialesMobile } from '../components/materiales/MaterialesMobile';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useWorkspace } from '../features/auth/WorkspaceProvider';
 import { useAuth } from '../features/auth/AuthProvider';
@@ -73,6 +75,13 @@ function CatalogPriceTable() {
 }
 
 export function Materiales() {
+  const width   = useWindowWidth();
+  const navMode = navModeFor(width);
+  if (navMode === 'bottom') return <MaterialesMobile />;
+  return <MaterialesDesktop />;
+}
+
+function MaterialesDesktop() {
   const { workspace } = useWorkspace();
   const [editing, setEditing] = useState<Material | 'new' | null>(null);
 

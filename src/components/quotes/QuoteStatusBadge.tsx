@@ -6,6 +6,7 @@ interface Props {
 const STATUS_MAP: Record<string, { label: string; color: string; bg: string }> = {
   'Borrador':           { label: 'Borrador',    color: '#475569', bg: '#F1F5F9' },
   'Enviada':            { label: 'Enviada',     color: '#92400E', bg: '#FEF3C7' },
+  'Vista':              { label: 'Vista',       color: '#0369A1', bg: '#E0F2FE' },
   'Aprobada':           { label: 'Aprobada',    color: '#166534', bg: '#DCFCE7' },
   'Rechazada':          { label: 'Rechazada',   color: '#991B1B', bg: '#FEE2E2' },
   'Vencida':            { label: 'Vencida',     color: '#64748B', bg: '#E2E8F0' },

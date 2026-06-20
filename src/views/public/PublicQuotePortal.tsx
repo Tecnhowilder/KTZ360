@@ -6,6 +6,8 @@ import { computeDoc } from '../../lib/engine';
 import { ProposalDocument, type UniversalItem, type UniversalLaborItem, type UniversalTotals } from '../../components/documents/ProposalDocument';
 import { getPublicQuote, registerQuoteEvent, registerConsentAndEvent } from '../../services/publicPortal';
 import { trackQuoteView } from '../../services/quoteViews';
+import { supabase } from '../../lib/supabaseClient';
+import { createNotification } from '../../services/notifications';
 import { APP_NAME } from '../../lib/brand';
 import type { CompanySettings } from '../../lib/types';
 import type { QuoteSnapshot } from '../../lib/itemEngine';
@@ -34,8 +36,26 @@ export function PublicQuotePortal() {
   useEffect(() => {
     if (query.data && token && !openedRef.current) {
       openedRef.current = true;
+      const q = query.data.quote;
+      const clientName = query.data.client?.name ?? 'El cliente';
+
       registerQuoteEvent(token, 'proposal_opened').catch(() => {});
-      trackQuoteView(query.data.quote.id).catch(() => {});
+      trackQuoteView(q.id).catch(() => {});
+
+      // B2-D: Auto-cambiar estado a 'Vista' si estaba en 'Enviada'
+      if (q.status === 'Enviada') {
+        supabase.from('quotes')
+          .update({ status: 'Vista' } as never)
+          .eq('id', q.id)
+          ;
+      }
+
+      // B3-B: Notificar al workspace que el cliente abrió la cotización
+      createNotification(q.workspace_id, {
+        title: `${clientName} abrió la cotización`,
+        message: `${(q as any).quote_number ?? q.id} · ${q.title}`,
+        type: 'info',
+      }).catch(() => {});
     }
   }, [query.data, token]);
 
@@ -166,6 +186,27 @@ export function PublicQuotePortal() {
     } else {
       await registerQuoteEvent(token!, event);
     }
+
+    // B2-E / B2-F: Auto-actualizar status de la cotización
+    const newStatus = action === 'accepted' ? 'Aprobada' : action === 'rejected' ? 'Rechazada' : null;
+    if (newStatus) {
+      supabase.from('quotes')
+        .update({ status: newStatus, ...(action === 'accepted' ? { sent_at: new Date().toISOString() } : {}) } as never)
+        .eq('id', quote.id)
+        ;
+
+      // B3-C / B3-D: Notificar al workspace
+      const clientName = client?.name ?? 'El cliente';
+      const qNum = (quote as any).quote_number ?? quote.id;
+      createNotification(quote.workspace_id, {
+        title: action === 'accepted'
+          ? `✅ ${clientName} aprobó la cotización`
+          : `❌ ${clientName} rechazó la cotización`,
+        message: `${qNum} · ${quote.title}`,
+        type: action === 'accepted' ? 'success' : 'danger',
+      }).catch(() => {});
+    }
+
     setResultMsg(resultLabels[action]);
     setPendingAction(null);
   }

@@ -8,8 +8,17 @@ import { useFeatureAccess } from '../hooks/usePermissions';
 import { NumberField } from '../components/ui/NumberField';
 import { isValidPhone } from '../lib/validation';
 import type { CompanySettings, TaxMode } from '../lib/types';
+import { useWindowWidth, navModeFor } from '../hooks/useWindowWidth';
+import { EmpresaMobile } from '../components/empresa/EmpresaMobile';
 
 export function Empresa() {
+  const width   = useWindowWidth();
+  const navMode = navModeFor(width);
+  if (navMode === 'bottom') return <EmpresaMobile />;
+  return <EmpresaDesktop />;
+}
+
+function EmpresaDesktop() {
   const { workspace, company } = useWorkspace();
   const queryClient = useQueryClient();
   const { showToast } = useToast();

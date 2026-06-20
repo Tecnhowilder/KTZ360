@@ -1,4 +1,5 @@
 import { useNavigate } from 'react-router-dom';
+import { formatCurrencyCOP } from '../lib/currency';
 import {
   Search, Bell, Plus, FileText, UserPlus, LayoutTemplate,
   Wallet, BarChart2, ChevronRight, MessageCircle,
@@ -11,7 +12,7 @@ import { useUI, defaultQConfig } from '../features/app/UIProvider';
 import { useDerivedQuotes } from '../hooks/useQuotes';
 import { usePlanLimit } from '../hooks/usePermissions';
 import { getThemeByPlan } from '../lib/planTheme';
-import { fmtM, fmt, statusStyle, daysAgo, TODAY, followMessage, openWhats } from '../lib/calc';
+import { fmt, statusStyle, daysAgo, TODAY, followMessage, openWhats } from '../lib/calc';
 import { MONTHS_LONG } from '../lib/data';
 import { useWindowWidth, navModeFor } from '../hooks/useWindowWidth';
 import { MobileDashboard } from '../components/dashboard/MobileDashboard';
@@ -107,18 +108,45 @@ function getClientRanking(quotes: DerivedQuote[]) {
   return Object.values(acc).sort((a, b) => b.total - a.total).slice(0, 5);
 }
 
-function getSmartAlerts(quotes: DerivedQuote[]) {
+function getSmartAlerts(quotes: DerivedQuote[], viewStats?: Record<string, number>) {
   const alerts: { type: 'warning' | 'success' | 'danger'; title: string; sub: string; quoteId: string; btn: string }[] = [];
-  quotes.filter(q => q.status === 'Enviada' && daysAgo(q.sent_at ?? q.created_at) >= 3).slice(0, 2).forEach(q =>
+
+  // 1. Sin seguimiento ≥3 días (Enviada o Vista)
+  quotes.filter(q => (q.status === 'Enviada' || (q.status as string) === 'Vista') && daysAgo(q.sent_at ?? q.created_at) >= 3).slice(0, 2).forEach(q =>
     alerts.push({ type: 'warning', title: `Sin seguimiento por ${daysAgo(q.sent_at ?? q.created_at)} días`, sub: `${q.clientName} · ${q.title}`, quoteId: q.id, btn: 'Contactar' })
   );
-  getUpcomingDue(quotes).slice(0, 1).forEach(q =>
+
+  // 2. Vista hace 3+ días sin contacto (alta probabilidad si fue vista)
+  quotes.filter(q => (q.status as string) === 'Vista' && daysAgo(q.sent_at ?? q.created_at) >= 3)
+    .filter(q => !alerts.find(a => a.quoteId === q.id))
+    .slice(0, 1).forEach(q =>
+      alerts.push({ type: 'warning', title: `Vista hace ${daysAgo(q.sent_at ?? q.created_at)}d — sin respuesta`, sub: `${q.clientName} · ${q.title}`, quoteId: q.id, btn: 'Contactar' })
+    );
+
+  // 3. Apertura frecuente (≥5 vistas) — alta probabilidad de cierre
+  if (viewStats) {
+    quotes.filter(q => (viewStats[q.id] ?? 0) >= 5 && q.status !== 'Aprobada' && q.status !== 'Rechazada')
+      .slice(0, 1).forEach(q =>
+        alerts.push({ type: 'success', title: `Alta probabilidad — abierta ${viewStats[q.id]} veces`, sub: `${q.clientName} · ${q.title}`, quoteId: q.id, btn: 'Cerrar' })
+      );
+  }
+
+  // 4. Próxima a vencer (≤2 días)
+  getUpcomingDue(quotes).filter(q => q.daysLeft <= 2).slice(0, 1).forEach(q =>
     alerts.push({ type: 'danger', title: `Vence en ${q.daysLeft} día${q.daysLeft === 1 ? '' : 's'}`, sub: `${q.title} · ${q.clientName}`, quoteId: q.id, btn: 'Recordar' })
   );
+
+  // 5. Próxima a vencer (3–5 días)
+  getUpcomingDue(quotes).filter(q => q.daysLeft > 2 && q.daysLeft <= 5).slice(0, 1).forEach(q =>
+    alerts.push({ type: 'warning', title: `Vence pronto — en ${q.daysLeft} días`, sub: `${q.title} · ${q.clientName}`, quoteId: q.id, btn: 'Recordar' })
+  );
+
+  // 6. Aprobada — anticipo pendiente
   quotes.filter(q => q.status === 'Aprobada').slice(0, 1).forEach(q =>
     alerts.push({ type: 'success', title: 'Propuesta aprobada — Anticipo pendiente', sub: `${q.title} · ${q.clientName}`, quoteId: q.id, btn: 'Registrar' })
   );
-  return alerts.slice(0, 3);
+
+  return alerts.slice(0, 6);
 }
 
 function generateAISummary(quotes: DerivedQuote[], prev: DerivedQuote[], company: { name: string }) {
@@ -133,7 +161,7 @@ function generateAISummary(quotes: DerivedQuote[], prev: DerivedQuote[], company
   const lines: string[] = [];
   lines.push(convChg >= 0 ? `Tu conversión aumentó ${convChg}pp vs mes pasado.` : `Tu conversión bajó ${Math.abs(convChg)}pp este mes.`);
   if (topSvc)       lines.push(`"${topSvc.name}" es tu servicio más activo.`);
-  if (totalChg !== 0) lines.push(`Cotizaste ${fmtM(thisTotal)}, ${Math.abs(totalChg)}% ${totalChg > 0 ? 'más' : 'menos'} que el mes anterior.`);
+  if (totalChg !== 0) lines.push(`Cotizaste ${formatCurrencyCOP(thisTotal)}, ${Math.abs(totalChg)}% ${totalChg > 0 ? 'más' : 'menos'} que el mes anterior.`);
   if (risk > 0)     lines.push(`${risk} cotización${risk > 1 ? 'es' : ''} en riesgo por falta de seguimiento.`);
   return { lines: lines.slice(0, 4), risk, topSvc: topSvc?.name ?? '—', company: company.name };
 }
@@ -315,7 +343,7 @@ function TrapFunnel({ quotes }: { quotes: DerivedQuote[] }) {
               </div>
             </div>
             <div style={{ width: 76, textAlign: 'right', flexShrink: 0 }}>
-              <div style={{ fontSize: 11.5, fontWeight: 700, color: '#374151', fontVariantNumeric: 'tabular-nums' }}>{fmtM(d.total)}</div>
+              <div style={{ fontSize: 11.5, fontWeight: 700, color: '#374151', fontVariantNumeric: 'tabular-nums' }}>{formatCurrencyCOP(d.total)}</div>
               {i > 0 && data[i - 1].count > 0 && d.count > 0 && (
                 <div style={{ fontSize: 9, color: '#94A3B8' }}>{Math.round((d.count / data[i - 1].count) * 100)}% tasa</div>
               )}
@@ -351,7 +379,7 @@ function FunnelViz({ quotes }: { quotes: DerivedQuote[] }) {
           <div key={s.status} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <div style={{ width: `${Math.min(barPct, 100)}%`, minWidth: count > 0 ? 8 : 0, height: 22, background: s.color, borderRadius: 4, transition: 'width .5s', flexShrink: 0 }}/>
             <span style={{ fontSize: 11, fontWeight: 600, color: '#374151', whiteSpace: 'nowrap' }}>{s.label}</span>
-            <span style={{ fontSize: 11, color: '#64748B', marginLeft: 'auto', flexShrink: 0 }}>{count} · {fmtM(total2)}</span>
+            <span style={{ fontSize: 11, color: '#64748B', marginLeft: 'auto', flexShrink: 0 }}>{count} · {formatCurrencyCOP(total2)}</span>
           </div>
         );
       })}
@@ -375,7 +403,7 @@ function ServiceBars({ quotes }: { quotes: DerivedQuote[] }) {
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 3 }}>
                 <span style={{ fontSize: 12, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.name}</span>
-                <span style={{ fontSize: 12, fontWeight: 700, color: '#374151', marginLeft: 6, flexShrink: 0 }}>{fmtM(s.total)}</span>
+                <span style={{ fontSize: 12, fontWeight: 700, color: '#374151', marginLeft: 6, flexShrink: 0 }}>{formatCurrencyCOP(s.total)}</span>
               </div>
               <div style={{ height: 5, background: '#F1F5F9', borderRadius: 99 }}>
                 <div style={{ width: `${(s.total / maxT) * 100}%`, height: '100%', background: CLRS[i] || '#94A3B8', borderRadius: 99 }}/>
@@ -467,7 +495,7 @@ function FreeDashboard({ quotes, company, openQuoteFlow, openQuoteDetail, openUp
           <div style={{ position: 'absolute', right: -20, top: -20, width: 90, height: 90, borderRadius: '50%', background: 'rgba(255,255,255,.08)' }}/>
           <div style={{ position: 'absolute', right: 18, top: 14, width: 32, height: 32, borderRadius: 10, background: 'rgba(255,255,255,.18)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><span style={{ fontSize: 16, fontWeight: 800 }}>$</span></div>
           <div style={{ fontSize: 9.5, fontWeight: 700, letterSpacing: '.4px', color: '#BFD3FF', marginBottom: 4 }}>VALOR COTIZADO · {monthLabel}</div>
-          <div style={{ fontSize: 34, fontWeight: 800, letterSpacing: '-1.5px', lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>{fmtM(monthTotal)}</div>
+          <div style={{ fontSize: 34, fontWeight: 800, letterSpacing: '-1.5px', lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>{formatCurrencyCOP(monthTotal)}</div>
           <div style={{ fontSize: 11, color: '#BFD3FF', marginTop: 3, marginBottom: 10 }}>Este mes</div>
           <SparkLine quotes={quotes}/>
         </div>
@@ -644,16 +672,16 @@ function ProDashboard({ quotes, company, openQuoteFlow, openQuoteDetail, navigat
             <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: '.4px', color: '#6EE7B7' }}>VALOR COTIZADO · {monthLabel}</span>
             {monthChg !== null && <span style={{ fontSize: 9, fontWeight: 700, color: '#6EE7B7' }}>{monthChg >= 0 ? '+' : ''}{monthChg}% vs ant.</span>}
           </div>
-          <div style={{ fontSize: 28, fontWeight: 800, letterSpacing: '-1.5px', lineHeight: 1.1, fontVariantNumeric: 'tabular-nums' }}>{fmtM(monthTotal)}</div>
+          <div style={{ fontSize: 28, fontWeight: 800, letterSpacing: '-1.5px', lineHeight: 1.1, fontVariantNumeric: 'tabular-nums' }}>{formatCurrencyCOP(monthTotal)}</div>
           <div style={{ fontSize: 10, color: '#6EE7B7', marginBottom: 4 }}>Este mes</div>
           <SparkLine quotes={quotes} color="rgba(110,231,183,.65)"/>
         </div>
 
         {/* 4 mini KPI cards */}
         {([
-          { label: 'PROBABLE CIERRE', val: fmtM(probCierre), sub: `${sent} en proceso`, IC: TrendingUp, ib: '#F5F3FF', ic: '#7C3AED' },
-          { label: 'APROBADAS',       val: fmtM(approvedTotal), sub: `${approved} cots · ${quotes.length ? Math.round((approved / quotes.length) * 100) : 0}% tot`, IC: CheckCircle2, ib: '#F0FDF4', ic: '#22C55E' },
-          { label: 'FACTURADO',       val: fmtM(facturado), sub: `${approvedTotal > 0 ? Math.round((facturado / approvedTotal) * 100) : 0}% del aprobado`, IC: Wallet, ib: '#FFF7ED', ic: '#F97316' },
+          { label: 'PROBABLE CIERRE', val: formatCurrencyCOP(probCierre), sub: `${sent} en proceso`, IC: TrendingUp, ib: '#F5F3FF', ic: '#7C3AED' },
+          { label: 'APROBADAS',       val: formatCurrencyCOP(approvedTotal), sub: `${approved} cots · ${quotes.length ? Math.round((approved / quotes.length) * 100) : 0}% tot`, IC: CheckCircle2, ib: '#F0FDF4', ic: '#22C55E' },
+          { label: 'FACTURADO',       val: formatCurrencyCOP(facturado), sub: `${approvedTotal > 0 ? Math.round((facturado / approvedTotal) * 100) : 0}% del aprobado`, IC: Wallet, ib: '#FFF7ED', ic: '#F97316' },
           { label: 'CONVERSIÓN',      val: `${conv}%`, sub: `${approved} de ${sent + approved}`, IC: BarChart2, ib: '#F0FDF4', ic: '#22C55E', ex: <MiniDonut value={conv} color="#22C55E"/> },
         ] as const).map(k => (
           <div key={k.label} style={{ ...CP, display: 'flex', flexDirection: 'column', gap: 0 }}>
@@ -784,7 +812,7 @@ function ProDashboard({ quotes, company, openQuoteFlow, openQuoteDetail, navigat
                     <Calendar size={11} color={q.daysLeft <= 1 ? '#EF4444' : q.daysLeft <= 3 ? '#F59E0B' : '#7C3AED'} style={{ flexShrink: 0 }}/>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontSize: 11, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{q.title}</div>
-                      <div style={{ fontSize: 10, color: '#94A3B8' }}>{q.clientName} · {fmtM(q.calc.total)}</div>
+                      <div style={{ fontSize: 10, color: '#94A3B8' }}>{q.clientName} · {formatCurrencyCOP(q.calc.total)}</div>
                     </div>
                     <span style={{ fontSize: 11, fontWeight: 800, color: q.daysLeft <= 1 ? '#EF4444' : q.daysLeft <= 3 ? '#F97316' : '#7C3AED', flexShrink: 0 }}>{q.daysLeft <= 0 ? 'HOY' : `${q.daysLeft}d`}</span>
                   </div>
@@ -815,7 +843,7 @@ function ProDashboard({ quotes, company, openQuoteFlow, openQuoteDetail, navigat
                         </div>
                         <div style={{ fontSize: 10.5, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.name}</div>
                       </div>
-                      <span style={{ fontSize: 11, fontWeight: 700, color: '#374151', flexShrink: 0 }}>{fmtM(s.total)}</span>
+                      <span style={{ fontSize: 11, fontWeight: 700, color: '#374151', flexShrink: 0 }}>{formatCurrencyCOP(s.total)}</span>
                     </div>
                   );
                 })
@@ -882,14 +910,14 @@ function PremiumDashboard({ quotes, company, openQuoteFlow, openQuoteDetail, nav
           <div style={{ position: 'absolute', right: -20, top: -20, width: 90, height: 90, borderRadius: '50%', background: 'rgba(255,255,255,.06)' }}/>
           <div style={{ position: 'absolute', right: 18, top: 14, width: 32, height: 32, borderRadius: 10, background: 'rgba(255,255,255,.18)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><span style={{ fontSize: 16, fontWeight: 800 }}>$</span></div>
           <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: '.4px', color: '#C4B5FD', marginBottom: 4 }}>VALOR COTIZADO · {monthLabel}</div>
-          <div style={{ fontSize: 30, fontWeight: 800, letterSpacing: '-1.5px', lineHeight: 1 }}>{fmtM(monthTotal)}</div>
+          <div style={{ fontSize: 30, fontWeight: 800, letterSpacing: '-1.5px', lineHeight: 1 }}>{formatCurrencyCOP(monthTotal)}</div>
           <div style={{ fontSize: 10.5, color: '#C4B5FD', marginTop: 3, marginBottom: 8 }}>{monthChg !== null ? `${monthChg >= 0 ? '+' : ''}${monthChg}% vs mes ant.` : 'Este mes'}</div>
           <SparkLine quotes={quotes} color="rgba(196,181,253,.6)"/>
         </div>
         {([
-          { label: 'PROBABLE CIERRE', value: fmtM(probCierre), sub: `${sent} cots · ${conv}% prob.`, ic: TrendingUp, bg: '#F5F3FF', fc: '#7C3AED' },
-          { label: 'APROBADAS',       value: fmtM(approvedTotal), sub: `${approved} cots · ${quotes.length ? Math.round((approved / quotes.length) * 100) : 0}% total`, ic: CheckCircle2, bg: '#F0FDF4', fc: '#22C55E' },
-          { label: 'FACTURADO',       value: fmtM(facturado), sub: `${approved} proyectos`, ic: Wallet, bg: '#FFF7ED', fc: '#F97316' },
+          { label: 'PROBABLE CIERRE', value: formatCurrencyCOP(probCierre), sub: `${sent} cots · ${conv}% prob.`, ic: TrendingUp, bg: '#F5F3FF', fc: '#7C3AED' },
+          { label: 'APROBADAS',       value: formatCurrencyCOP(approvedTotal), sub: `${approved} cots · ${quotes.length ? Math.round((approved / quotes.length) * 100) : 0}% total`, ic: CheckCircle2, bg: '#F0FDF4', fc: '#22C55E' },
+          { label: 'FACTURADO',       value: formatCurrencyCOP(facturado), sub: `${approved} proyectos`, ic: Wallet, bg: '#FFF7ED', fc: '#F97316' },
           { label: 'CONVERSIÓN',      value: `${conv}%`, sub: `${approved} de ${sent + approved}`, ic: BarChart2, bg: '#F0FDF4', fc: '#22C55E', extra: <MiniDonut value={conv} color="#7C3AED"/> },
           { label: 'T. PROM. CIERRE', value: approvedDays ? `${approvedDays} días` : '--', sub: 'Promedio histórico', ic: Clock, bg: '#EEF2FF', fc: '#2563EB' },
           { label: 'RENTABILIDAD',    value: avgUtil ? `${avgUtil}%` : '--', sub: 'Utilidad estimada', ic: TrendingUp, bg: '#F0FDF4', fc: '#22C55E' },
@@ -950,7 +978,7 @@ function PremiumDashboard({ quotes, company, openQuoteFlow, openQuoteDetail, nav
                     <div style={{ fontSize: 12, fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{q.title}</div>
                     <div style={{ fontSize: 10.5, color: '#64748B' }}>{q.clientName}</div>
                   </div>
-                  <span style={{ fontSize: 12, fontWeight: 700, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>{fmtM(q.calc.total)}</span>
+                  <span style={{ fontSize: 12, fontWeight: 700, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>{formatCurrencyCOP(q.calc.total)}</span>
                   <ProbBar pct={q.prob} size={60}/>
                   <button onClick={e => { e.stopPropagation(); openWhats(followMessage(q.clientName, q.title, q.calc.total, company.name)); }} style={{ width: 26, height: 26, borderRadius: 7, border: '1px solid #D1FAE5', background: '#F0FDF4', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0, flexShrink: 0 }}><MessageCircle size={12} color="#16A34A"/></button>
                 </div>
@@ -1019,7 +1047,7 @@ function PremiumDashboard({ quotes, company, openQuoteFlow, openQuoteDetail, nav
                     <div style={{ fontSize: 10.5, color: '#64748B' }}>{c.count} cotizaciones</div>
                   </div>
                   <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                    <div style={{ fontSize: 12, fontWeight: 700 }}>{fmtM(c.total)}</div>
+                    <div style={{ fontSize: 12, fontWeight: 700 }}>{formatCurrencyCOP(c.total)}</div>
                     <ProbBar pct={c.prob} size={50}/>
                   </div>
                 </div>
@@ -1072,7 +1100,7 @@ function PremiumDashboard({ quotes, company, openQuoteFlow, openQuoteDetail, nav
                     <Calendar size={13} color={q.daysLeft <= 1 ? '#EF4444' : q.daysLeft <= 3 ? '#F59E0B' : '#7C3AED'} style={{ flexShrink: 0 }}/>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontSize: 11.5, fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{q.title}</div>
-                      <div style={{ fontSize: 10, color: '#64748B' }}>{fmtM(q.calc.total)}</div>
+                      <div style={{ fontSize: 10, color: '#64748B' }}>{formatCurrencyCOP(q.calc.total)}</div>
                     </div>
                     <span style={{ fontSize: 10.5, fontWeight: 700, color: q.daysLeft <= 1 ? '#EF4444' : q.daysLeft <= 3 ? '#F97316' : '#7C3AED', flexShrink: 0 }}>{q.daysLeft <= 0 ? 'HOY' : `${q.daysLeft}d`}</span>
                   </div>

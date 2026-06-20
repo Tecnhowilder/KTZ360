@@ -5,8 +5,15 @@ import { listTemplates } from '../services/templates';
 import { serviceLabel, fmtM } from '../lib/calc';
 import { computeQuote } from '../lib/engine';
 import type { ServiceLine } from '../lib/engine';
+import { useWindowWidth, navModeFor } from '../hooks/useWindowWidth';
+import { TemplatesMobile } from '../components/templates/TemplatesMobile';
 
 export function Plantillas() {
+  const width   = useWindowWidth();
+  const navMode = navModeFor(width);
+
+  if (navMode === 'bottom') return <TemplatesMobile />;
+
   const { workspace, company } = useWorkspace();
   const { openQuoteFlow } = useUI();
 

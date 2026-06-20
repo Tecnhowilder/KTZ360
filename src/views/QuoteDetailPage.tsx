@@ -65,6 +65,12 @@ export function QuoteDetailPage() {
 
   async function getPublicUrl() {
     const token = await getOrCreateQuoteToken(id!);
+    // B2-C: auto-cambiar a 'Enviada' al generar/compartir el link
+    if (q && q.status === 'Borrador') {
+      updateQuoteStatus(id!, 'Enviada')
+        .then(() => { qc.invalidateQueries({ queryKey: ['quote', id] }); qc.invalidateQueries({ queryKey: ['quotes'] }); })
+        .catch(() => {});
+    }
     return `${window.location.origin}/p/${token}`;
   }
 

@@ -1,4 +1,6 @@
 import { useState } from 'react';
+import { useWindowWidth, navModeFor } from '../hooks/useWindowWidth';
+import { ShelwiIAMobile } from '../components/ia/ShelwiIAMobile';
 import { useQuery } from '@tanstack/react-query';
 import { useUI, defaultQConfig } from '../features/app/UIProvider';
 import { useFeatureAccess } from '../hooks/usePermissions';
@@ -45,6 +47,13 @@ async function estimate(categoryKey: string, area: number): Promise<IaEstimate |
 }
 
 export function KtzIA() {
+  const width   = useWindowWidth();
+  const navMode = navModeFor(width);
+  if (navMode === 'bottom') return <ShelwiIAMobile />;
+  return <KtzIADesktop />;
+}
+
+function KtzIADesktop() {
   const { openQuoteFlow, openUpgradeModal } = useUI();
   const aiAccess = useFeatureAccess('ai_enabled');
   const photoAccess = useFeatureAccess('photo_quote_enabled');

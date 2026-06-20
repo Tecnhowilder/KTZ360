@@ -4,6 +4,8 @@ import { useWorkspace } from '../features/auth/WorkspaceProvider';
 import { useUI } from '../features/app/UIProvider';
 import { useToast } from '../components/ui/Toast';
 import { useTeamSeats, useTeamMembers, usePendingInvitations, useInvitationHistory } from '../hooks/usePermissions';
+import { useWindowWidth, navModeFor } from '../hooks/useWindowWidth';
+import { TeamMobile } from '../components/team/TeamMobile';
 import {
   inviteTeamMember,
   resendInvitation,
@@ -65,6 +67,13 @@ const cardStyle: React.CSSProperties = { background: '#fff', border: '1px solid 
 const sectionTitleStyle: React.CSSProperties = { fontSize: 14, fontWeight: 800, marginBottom: 4 };
 
 export function Team() {
+  const width   = useWindowWidth();
+  const navMode = navModeFor(width);
+  if (navMode === 'bottom') return <TeamMobile />;
+  return <TeamDesktop />;
+}
+
+function TeamDesktop() {
   const { profile, workspace } = useWorkspace();
   const { openUpgradeModal } = useUI();
   const { showToast } = useToast();

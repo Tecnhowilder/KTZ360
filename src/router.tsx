@@ -23,6 +23,7 @@ import { Empresa } from './views/Empresa';
 import { Planes } from './views/Planes';
 import { AdminPanel } from './views/AdminPanel';
 import { SimpleEmpty } from './views/SimpleEmpty';
+import { ConfiguracionPage } from './views/ConfiguracionPage';
 import { PublicQuotePortal } from './views/public/PublicQuotePortal';
 import { AcceptInvite } from './views/public/AcceptInvite';
 import { Terms } from './views/public/Terms';
@@ -75,7 +76,7 @@ export const router = createBrowserRouter([
       { path: 'team', element: <RequireOwner><Team /></RequireOwner> },
       { path: 'admin', element: <RequireOwner><AdminPanel /></RequireOwner> },
       { path: 'proyectos', element: <SimpleEmpty variant="proyectos" /> },
-      { path: 'config', element: <SimpleEmpty variant="config" /> },
+      { path: 'config', element: <ConfiguracionPage /> },
     ],
   },
   { path: '*', element: <Navigate to="/" replace /> },

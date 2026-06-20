@@ -8,6 +8,7 @@ import { deriveQuote, dueDate, advanceAmount } from '../../lib/calc';
 import { buildWhatsAppMessage, shareByEmail, copyLinkToClipboard } from '../../lib/shareUtils';
 import { computeDoc } from '../../lib/engine';
 import { getOrCreateQuoteToken, registerQuoteEvent } from '../../services/publicPortal';
+import { updateQuoteStatus } from '../../services/quotes';
 import { listQuoteItems } from '../../services/quoteItems';
 import { ProposalDocument, type UniversalItem, type UniversalLaborItem, type UniversalTotals } from '../documents/ProposalDocument';
 import { usePdfTier, useFeatureAccess } from '../../hooks/usePermissions';
@@ -157,6 +158,10 @@ export function DocumentOverlay() {
   async function getPortalUrl() {
     const token = await getOrCreateQuoteToken(docQuoteId!);
     registerQuoteEvent(token, 'proposal_sent').catch(() => {});
+    // B2-A: auto-cambiar estado a 'Enviada' al compartir
+    if (quote && quote.status === 'Borrador') {
+      updateQuoteStatus(docQuoteId!, 'Enviada').catch(() => {});
+    }
     return `${window.location.origin}/p/${token}`;
   }
 

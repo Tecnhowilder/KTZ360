@@ -41,7 +41,7 @@ export const NAV_ICONS = {
 export type NavId = keyof typeof NAV_ICONS;
 
 export const NAV_ITEMS: { id: NavId; label: string; badge?: boolean }[] = [
-  { id: 'dashboard', label: 'Inicio' },
+  { id: 'dashboard', label: 'Dashboard' },
   { id: 'cotizaciones', label: 'Cotizaciones' },
   { id: 'clientes', label: 'Clientes' },
   { id: 'plantillas', label: 'Plantillas' },
@@ -54,7 +54,7 @@ export const NAV_ITEMS: { id: NavId; label: string; badge?: boolean }[] = [
 ];
 
 export const BOTTOM_NAV_ITEMS: { id: NavId; label: string }[] = [
-  { id: 'dashboard', label: 'Inicio' },
+  { id: 'dashboard', label: 'Dashboard' },
   { id: 'cotizaciones', label: 'Cotiz.' },
   { id: 'clientes', label: 'Clientes' },
   { id: 'reportes', label: 'Reportes' },
