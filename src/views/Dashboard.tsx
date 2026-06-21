@@ -16,6 +16,7 @@ import { fmt, statusStyle, daysAgo, TODAY, followMessage, openWhats } from '../l
 import { MONTHS_LONG } from '../lib/data';
 import { useWindowWidth, navModeFor } from '../hooks/useWindowWidth';
 import { MobileDashboard } from '../components/dashboard/MobileDashboard';
+import { OnboardingCard } from '../components/dashboard/OnboardingCard';
 import type { DerivedQuote } from '../lib/types';
 import type { ServiceLine } from '../lib/types';
 import '../styles/dashboard.css';
@@ -1174,6 +1175,9 @@ export function Dashboard() {
           <button onClick={() => openUpgradeModal({ title: 'Cotizaciones ilimitadas con PRO', message: 'Tu plan FREE permite hasta 10 cotizaciones por mes. Actualiza a PRO por $39.900/mes.', targetPlan: 'pro', ctaLabel: 'Actualizar a PRO' })} style={{ border: 'none', background: '#F59E0B', color: '#fff', fontWeight: 700, fontSize: 12, padding: '7px 12px', borderRadius: 9, cursor: 'pointer' }}>Actualizar a PRO</button>
         </div>
       )}
+
+      {/* Tarjeta de activación guiada — visible mientras progreso < 100% o recompensa pendiente */}
+      <OnboardingCard margin="0" />
 
       {plan === 'premium' && <PremiumDashboard {...shared}/>}
       {plan === 'pro'     && <ProDashboard     {...shared}/>}

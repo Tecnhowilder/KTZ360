@@ -34,7 +34,8 @@ export function Sidebar({ width, rail }: SidebarProps) {
 
   const theme = getThemeByPlan(planName);
 
-  const activeView = location.pathname.split('/')[2] as NavId | undefined;
+  const rawView    = location.pathname.split('/')[2];
+  const activeView = (rawView === 'ordenes-trabajo' ? 'ordenesDeTrabajo' : rawView) as NavId | undefined;
   const activeTab = new URLSearchParams(location.search).get('tab') ?? 'dashboard';
   const navJustify = rail ? 'center' : 'flex-start';
   const labelDisplay = rail ? 'none' : 'inline';
@@ -121,7 +122,7 @@ export function Sidebar({ width, rail }: SidebarProps) {
               return (
                 <button
                   key={it.id}
-                  onClick={() => navigate(`/app/${it.id}`)}
+                  onClick={() => navigate(`/app/${it.id === 'ordenesDeTrabajo' ? 'ordenes-trabajo' : it.id}`)}
                   style={{
                     display: 'flex',
                     alignItems: 'center',

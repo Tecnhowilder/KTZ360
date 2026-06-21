@@ -6,8 +6,6 @@ import { computeDoc } from '../../lib/engine';
 import { ProposalDocument, type UniversalItem, type UniversalLaborItem, type UniversalTotals } from '../../components/documents/ProposalDocument';
 import { getPublicQuote, registerQuoteEvent, registerConsentAndEvent } from '../../services/publicPortal';
 import { trackQuoteView } from '../../services/quoteViews';
-import { supabase } from '../../lib/supabaseClient';
-import { createNotification } from '../../services/notifications';
 import { APP_NAME } from '../../lib/brand';
 import type { CompanySettings } from '../../lib/types';
 import type { QuoteSnapshot } from '../../lib/itemEngine';
@@ -37,25 +35,19 @@ export function PublicQuotePortal() {
     if (query.data && token && !openedRef.current) {
       openedRef.current = true;
       const q = query.data.quote;
-      const clientName = query.data.client?.name ?? 'El cliente';
 
+      // Registrar evento comercial (proposal_opened)
       registerQuoteEvent(token, 'proposal_opened').catch(() => {});
+
+      // Registrar vista técnica — el trigger trg_quote_views_crm (Sprint 4) se encarga de:
+      //   1. Actualizar commercial_status a 'vista' si aplica
+      //   2. Registrar en client_timeline_events
+      //   3. Enviar notificación al owner (una sola vez)
+      // El frontend NO hace nada de esto — Zero Trust.
       trackQuoteView(q.id).catch(() => {});
 
-      // B2-D: Auto-cambiar estado a 'Vista' si estaba en 'Enviada'
-      if (q.status === 'Enviada') {
-        supabase.from('quotes')
-          .update({ status: 'Vista' } as never)
-          .eq('id', q.id)
-          ;
-      }
-
-      // B3-B: Notificar al workspace que el cliente abrió la cotización
-      createNotification(q.workspace_id, {
-        title: `${clientName} abrió la cotización`,
-        message: `${(q as any).quote_number ?? q.id} · ${q.title}`,
-        type: 'info',
-      }).catch(() => {});
+      // ELIMINADO: supabase.from('quotes').update({status:'Vista'}) — violaba Zero Trust
+      // ELIMINADO: createNotification() — duplicaba la notificación del trigger Sprint 4
     }
   }, [query.data, token]);
 
@@ -187,25 +179,9 @@ export function PublicQuotePortal() {
       await registerQuoteEvent(token!, event);
     }
 
-    // B2-E / B2-F: Auto-actualizar status de la cotización
-    const newStatus = action === 'accepted' ? 'Aprobada' : action === 'rejected' ? 'Rechazada' : null;
-    if (newStatus) {
-      supabase.from('quotes')
-        .update({ status: newStatus, ...(action === 'accepted' ? { sent_at: new Date().toISOString() } : {}) } as never)
-        .eq('id', quote.id)
-        ;
-
-      // B3-C / B3-D: Notificar al workspace
-      const clientName = client?.name ?? 'El cliente';
-      const qNum = (quote as any).quote_number ?? quote.id;
-      createNotification(quote.workspace_id, {
-        title: action === 'accepted'
-          ? `✅ ${clientName} aprobó la cotización`
-          : `❌ ${clientName} rechazó la cotización`,
-        message: `${qNum} · ${quote.title}`,
-        type: action === 'accepted' ? 'success' : 'danger',
-      }).catch(() => {});
-    }
+    // La actualización de status (Aprobada/Rechazada) y la notificación ocurren
+    // automáticamente en el backend via trigger trg_quote_events_decision (0061).
+    // El frontend NO actualiza estado directamente — Zero Trust.
 
     setResultMsg(resultLabels[action]);
     setPendingAction(null);

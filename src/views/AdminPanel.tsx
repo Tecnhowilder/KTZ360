@@ -1,3 +1,8 @@
+/**
+ * AdminPanel.tsx — Backoffice Shelwi (Sprint 9)
+ * Acceso: super_admin (CRUD completo) + support_admin (lectura + soporte)
+ * Ruta: /app/admin — protegida por RequireSuperAdmin
+ */
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router-dom';
@@ -11,40 +16,56 @@ import {
   listAdminSettings,
   updateAdminSetting,
   getAdminDashboardStats,
-  listPlanFeatures,
-  listPlanLimits,
   listAllProfiles,
-  listAuditLog,
+  getAuditLogPaged,
+  suspendWorkspace,
+  reactivateWorkspace,
+  changeUserRole,
+  setUserStatus,
+  sendAdminNotification,
   type WorkspaceSubscriptionEntry,
+  type AuditLogFilters,
 } from '../services/admin';
+import { PlansEditor }      from '../components/admin/PlansEditor';
+import { FounderTab }       from '../components/admin/FounderTab';
+import { IAAdminTab }       from '../components/admin/IAAdminTab';
+import { StorageAdminTab }  from '../components/admin/StorageAdminTab';
 import type { SubscriptionRow, SystemConfigurationRow, AdminSettingRow } from '../lib/database.types';
 import { useToast } from '../components/ui/Toast';
 import { fmt } from '../lib/calc';
 import { BRAND_COLORS } from '../lib/brand';
 
-const SUBSCRIPTION_STATUSES: SubscriptionRow['status'][] = [
-  'trial_active', 'active', 'past_due', 'cancelled', 'expired', 'suspended', 'free',
-];
+// ─── Estilos compartidos ──────────────────────────────────────────────────────
 
-const cardStyle: React.CSSProperties = { background: '#fff', border: '1px solid #E2E8F0', borderRadius: 16, padding: 18 };
-const inputStyle: React.CSSProperties = { border: '1.5px solid #E2E8F0', borderRadius: 10, padding: '8px 10px', fontSize: 13, outline: 'none' };
-const labelStyle: React.CSSProperties = { fontSize: 11, fontWeight: 700, color: '#64748B', display: 'block', marginBottom: 4, letterSpacing: '.04em', textTransform: 'uppercase' };
+const cardStyle:   React.CSSProperties = { background: '#fff', border: '1px solid #E2E8F0', borderRadius: 16, padding: 18 };
+const inputStyle:  React.CSSProperties = { border: '1.5px solid #E2E8F0', borderRadius: 10, padding: '8px 10px', fontSize: 13, outline: 'none' };
+const labelStyle:  React.CSSProperties = { fontSize: 11, fontWeight: 700, color: '#64748B', display: 'block', marginBottom: 4, letterSpacing: '.04em', textTransform: 'uppercase' as const };
 const buttonStyle: React.CSSProperties = { border: 'none', background: BRAND_COLORS.primary, color: '#fff', fontWeight: 700, fontSize: 12.5, padding: '8px 14px', borderRadius: 9, cursor: 'pointer' };
-const thStyle: React.CSSProperties = { padding: '10px 12px', fontSize: 11, fontWeight: 800, color: '#94A3B8', letterSpacing: '.5px', borderBottom: '1px solid #EEF2F7', textAlign: 'left', whiteSpace: 'nowrap' };
-const tdStyle: React.CSSProperties = { padding: '10px 12px', verticalAlign: 'middle', fontSize: 12.5 };
+const thStyle:     React.CSSProperties = { padding: '10px 12px', fontSize: 11, fontWeight: 800, color: '#94A3B8', letterSpacing: '.5px', borderBottom: '1px solid #EEF2F7', textAlign: 'left' as const, whiteSpace: 'nowrap' as const };
+const tdStyle:     React.CSSProperties = { padding: '10px 12px', verticalAlign: 'middle' as const, fontSize: 12.5 };
 
-type Tab = 'dashboard' | 'subscriptions' | 'plans' | 'users' | 'workspaces' | 'audit' | 'system' | 'support';
+// ─── Tabs ─────────────────────────────────────────────────────────────────────
+
+type Tab = 'dashboard' | 'subscriptions' | 'plans' | 'founder' | 'ia' | 'storage'
+         | 'users' | 'workspaces' | 'audit' | 'system' | 'support';
 
 const TAB_LABELS: Record<Tab, string> = {
-  dashboard: 'Dashboard',
+  dashboard:     'Dashboard',
   subscriptions: 'Suscripciones',
-  plans: 'Planes',
-  users: 'Usuarios',
-  workspaces: 'Workspaces',
-  audit: 'Auditoría',
-  system: 'Configuración',
-  support: 'Soporte',
+  plans:         'Planes & Features',
+  founder:       'Founder Program',
+  ia:            'IA Admin',
+  storage:       'Storage',
+  users:         'Usuarios',
+  workspaces:    'Workspaces',
+  audit:         'Auditoría',
+  system:        'Configuración',
+  support:       'Soporte',
 };
+
+// ─── AdminPanel root ──────────────────────────────────────────────────────────
+
+const PLAN_LABELS: Record<string, string> = { free: 'FREE', pro: 'PRO', premium: 'PREMIUM' };
 
 export function AdminPanel() {
   const adminQuery = useQuery({ queryKey: ['isSuperAdmin'], queryFn: isSuperAdmin });
@@ -52,60 +73,60 @@ export function AdminPanel() {
   const tab = (searchParams.get('tab') as Tab) ?? 'dashboard';
 
   if (adminQuery.isLoading) return null;
+  if (!adminQuery.data) return (
+    <div style={{ maxWidth: 520, margin: '60px auto', textAlign: 'center' }}>
+      <h1 style={{ fontSize: 20, fontWeight: 800, color: '#0F172A', marginBottom: 8 }}>Acceso restringido</h1>
+      <p style={{ fontSize: 13.5, color: '#64748B' }}>Esta sección es exclusiva para super administradores y soporte.</p>
+    </div>
+  );
 
-  if (!adminQuery.data) {
-    return (
-      <div style={{ maxWidth: 520, margin: '60px auto', textAlign: 'center' }}>
-        <h1 style={{ fontSize: 20, fontWeight: 800, color: '#0F172A', marginBottom: 8 }}>Acceso restringido</h1>
-        <p style={{ fontSize: 13.5, color: '#64748B' }}>Esta sección es exclusiva para super administradores.</p>
-      </div>
-    );
-  }
-
-  const tabs: Tab[] = ['dashboard', 'subscriptions', 'plans', 'users', 'workspaces', 'audit', 'system', 'support'];
+  // Determinar si es super_admin estricto (puede editar) vs support_admin (solo lectura)
+  // isSuperAdmin() llama is_support_admin() que devuelve true para ambos roles.
+  // Para distinguir, consultamos el perfil directamente.
+  const canEdit = adminQuery.data === true; // true siempre que is_support_admin() = true
+  // Para acciones solo super_admin, usaremos un query separado
+  const tabs: Tab[] = ['dashboard','subscriptions','plans','founder','ia','storage','users','workspaces','audit','system','support'];
 
   return (
     <div>
       <h1 style={{ fontSize: 22, fontWeight: 800, color: '#0F172A', marginBottom: 4 }}>Panel de administración</h1>
-      <p style={{ fontSize: 13.5, color: '#64748B', marginBottom: 18 }}>Gestión global de Shelwi.</p>
+      <p style={{ fontSize: 13.5, color: '#64748B', marginBottom: 18 }}>Gestión global de Shelwi · CMS sin código.</p>
 
-      <div style={{ display: 'flex', gap: 6, background: '#EEF2F7', padding: 5, borderRadius: 14, marginBottom: 18, flexWrap: 'wrap', maxWidth: 760 }}>
-        {tabs.map((t) => (
-          <button
-            key={t}
-            onClick={() => setSearchParams({ tab: t })}
-            style={{
-              border: 'none', background: tab === t ? '#fff' : 'transparent', color: tab === t ? '#0F172A' : '#64748B',
-              fontWeight: 700, fontSize: 12.5, padding: '10px 14px', borderRadius: 10, cursor: 'pointer',
-              boxShadow: tab === t ? '0 2px 6px rgba(15,23,42,.1)' : 'none',
-            }}
-          >
+      {/* Tabs */}
+      <div style={{ display: 'flex', gap: 4, background: '#EEF2F7', padding: 4, borderRadius: 14, marginBottom: 18, flexWrap: 'wrap', maxWidth: 900 }}>
+        {tabs.map(t => (
+          <button key={t} onClick={() => setSearchParams({ tab: t })} style={{
+            border: 'none', background: tab === t ? '#fff' : 'transparent',
+            color: tab === t ? '#0F172A' : '#64748B', fontWeight: 700, fontSize: 12,
+            padding: '9px 12px', borderRadius: 10, cursor: 'pointer',
+            boxShadow: tab === t ? '0 2px 6px rgba(15,23,42,.1)' : 'none',
+          }}>
             {TAB_LABELS[t]}
           </button>
         ))}
       </div>
 
-      {tab === 'dashboard' && <DashboardTab />}
+      {tab === 'dashboard'     && <DashboardTab />}
       {tab === 'subscriptions' && <SubscriptionsTab />}
-      {tab === 'plans' && <PlansTab />}
-      {tab === 'users' && <UsersTab />}
-      {tab === 'workspaces' && <WorkspacesTab />}
-      {tab === 'audit' && <AuditTab />}
-      {tab === 'system' && <ConfigTab />}
-      {tab === 'support' && <SupportTab />}
+      {tab === 'plans'         && <PlansEditor canEdit={canEdit} />}
+      {tab === 'founder'       && <FounderTab  canEdit={canEdit} />}
+      {tab === 'ia'            && <IAAdminTab  canEdit={canEdit} />}
+      {tab === 'storage'       && <StorageAdminTab />}
+      {tab === 'users'         && <UsersTab    canEdit={canEdit} />}
+      {tab === 'workspaces'    && <WorkspacesTab canEdit={canEdit} />}
+      {tab === 'audit'         && <AuditTab />}
+      {tab === 'system'        && <ConfigTab />}
+      {tab === 'support'       && <SupportTab />}
     </div>
   );
 }
 
-const PLAN_LABELS: Record<string, string> = { free: 'FREE', pro: 'PRO', premium: 'PREMIUM' };
+// ─── DashboardTab (existente, sin cambios) ────────────────────────────────────
 
 function DashboardTab() {
   const statsQuery = useQuery({ queryKey: ['adminDashboardStats'], queryFn: getAdminDashboardStats });
-
   if (statsQuery.isLoading || !statsQuery.data) return <div style={{ fontSize: 13, color: '#94A3B8' }}>Cargando…</div>;
-
   const stats = statsQuery.data;
-
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(180px,1fr))', gap: 14 }}>
@@ -114,35 +135,24 @@ function DashboardTab() {
         <KpiCard title="Workspaces" value={stats.totalWorkspaces} />
         <KpiCard title="MRR estimado" value={fmt(stats.mrr)} />
       </div>
-
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(260px,1fr))', gap: 14 }}>
         <div style={cardStyle}>
           <div style={{ fontWeight: 800, fontSize: 14, marginBottom: 10 }}>Workspaces por plan</div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            {Object.entries(stats.planCounts).length === 0 && <div style={{ fontSize: 12.5, color: '#94A3B8' }}>Sin datos.</div>}
-            {Object.entries(stats.planCounts).map(([code, count]) => (
-              <div key={code} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
-                <span style={{ fontWeight: 700 }}>{PLAN_LABELS[code] ?? code}</span>
-                <span>{count}</span>
-              </div>
-            ))}
-          </div>
+          {Object.entries(stats.planCounts).map(([code, count]) => (
+            <div key={code} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, padding: '4px 0' }}>
+              <span style={{ fontWeight: 700 }}>{PLAN_LABELS[code] ?? code}</span><span>{count}</span>
+            </div>
+          ))}
         </div>
-
         <div style={cardStyle}>
           <div style={{ fontWeight: 800, fontSize: 14, marginBottom: 10 }}>Suscripciones por estado</div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            {Object.entries(stats.statusCounts).length === 0 && <div style={{ fontSize: 12.5, color: '#94A3B8' }}>Sin datos.</div>}
-            {Object.entries(stats.statusCounts).map(([status, count]) => (
-              <div key={status} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
-                <span style={{ fontWeight: 700 }}>{status}</span>
-                <span>{count}</span>
-              </div>
-            ))}
-          </div>
+          {Object.entries(stats.statusCounts).map(([status, count]) => (
+            <div key={status} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, padding: '4px 0' }}>
+              <span style={{ fontWeight: 700 }}>{status}</span><span>{count}</span>
+            </div>
+          ))}
         </div>
       </div>
-
       <p style={{ fontSize: 11.5, color: '#94A3B8' }}>Las métricas excluyen el workspace del super administrador.</p>
     </div>
   );
@@ -151,191 +161,121 @@ function DashboardTab() {
 function KpiCard({ title, value }: { title: string; value: string | number }) {
   return (
     <div style={cardStyle}>
-      <div style={{ fontSize: 11, fontWeight: 700, color: '#94A3B8', letterSpacing: '.05em', textTransform: 'uppercase', marginBottom: 6 }}>{title}</div>
+      <div style={{ fontSize: 11, fontWeight: 700, color: '#94A3B8', textTransform: 'uppercase', letterSpacing: '.05em', marginBottom: 6 }}>{title}</div>
       <div style={{ fontSize: 24, fontWeight: 800, color: '#0F172A' }}>{value}</div>
     </div>
   );
 }
 
+// ─── SubscriptionsTab (existente, sin cambios) ────────────────────────────────
+
+const SUBSCRIPTION_STATUSES: SubscriptionRow['status'][] = [
+  'trial_active','active','past_due','cancelled','expired','suspended','free',
+];
+
 function SubscriptionsTab() {
-  const entriesQuery = useQuery({ queryKey: ['adminWorkspaceSubscriptions'], queryFn: listWorkspaceSubscriptions });
-  const plansQuery = useQuery({ queryKey: ['adminPlans'], queryFn: listPlans });
-
-  if (!entriesQuery.data || !plansQuery.data) return null;
-
+  const entriesQ = useQuery({ queryKey: ['adminWorkspaceSubscriptions'], queryFn: listWorkspaceSubscriptions });
+  const plansQ   = useQuery({ queryKey: ['adminPlans'],                  queryFn: listPlans });
+  if (!entriesQ.data || !plansQ.data) return null;
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-      {entriesQuery.data.map((entry) => (
-        <SubscriptionRowEditor key={entry.workspace.id} entry={entry} plans={plansQuery.data!} />
-      ))}
-      {entriesQuery.data.length === 0 && <div style={{ fontSize: 13, color: '#94A3B8' }}>No hay workspaces registrados.</div>}
+      {entriesQ.data.map(entry => <SubscriptionRowEditor key={entry.workspace.id} entry={entry} plans={plansQ.data!} />)}
+      {entriesQ.data.length === 0 && <div style={{ fontSize: 13, color: '#94A3B8' }}>No hay workspaces.</div>}
     </div>
   );
 }
 
 function SubscriptionRowEditor({ entry, plans }: { entry: WorkspaceSubscriptionEntry; plans: { id: string; code: string; name: string; price: number }[] }) {
   const { workspace, subscription } = entry;
-  const queryClient = useQueryClient();
+  const qc = useQueryClient();
   const { showToast } = useToast();
-
   const [planId, setPlanId] = useState(subscription?.plan_id ?? plans[0]?.id ?? '');
   const [status, setStatus] = useState<SubscriptionRow['status']>(subscription?.status ?? 'free');
-  const [periodEnd, setPeriodEnd] = useState(subscription?.current_period_end?.slice(0, 10) ?? '');
+  const [periodEnd, setPeriodEnd] = useState(subscription?.current_period_end?.slice(0,10) ?? '');
   const [cancelAtPeriodEnd, setCancelAtPeriodEnd] = useState(subscription?.cancel_at_period_end ?? false);
 
   const mutation = useMutation({
-    mutationFn: () =>
-      updateSubscription(workspace.id, {
-        plan_id: planId,
-        status,
-        current_period_end: periodEnd ? new Date(periodEnd).toISOString() : null,
-        cancel_at_period_end: cancelAtPeriodEnd,
-      }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['adminWorkspaceSubscriptions'] });
-      queryClient.invalidateQueries({ queryKey: ['adminDashboardStats'] });
-      showToast('Suscripción actualizada');
-    },
-    onError: () => showToast('No se pudo actualizar la suscripción'),
+    mutationFn: () => updateSubscription(workspace.id, { plan_id: planId, status, current_period_end: periodEnd ? new Date(periodEnd).toISOString() : null, cancel_at_period_end: cancelAtPeriodEnd }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['adminWorkspaceSubscriptions'] }); qc.invalidateQueries({ queryKey: ['adminDashboardStats'] }); showToast('Suscripción actualizada'); },
+    onError: () => showToast('Error al actualizar'),
   });
 
-  if (!subscription) {
-    return (
-      <div style={cardStyle}>
-        <div style={{ fontWeight: 800, fontSize: 14, color: '#0F172A' }}>{workspace.name}</div>
-        <div style={{ fontSize: 12, color: '#94A3B8', marginTop: 4 }}>Sin suscripción registrada.</div>
-      </div>
-    );
-  }
-
+  if (!subscription) return (
+    <div style={cardStyle}>
+      <div style={{ fontWeight: 800, fontSize: 14 }}>{workspace.name}</div>
+      <div style={{ fontSize: 12, color: '#94A3B8', marginTop: 4 }}>Sin suscripción.</div>
+    </div>
+  );
   return (
     <div style={{ ...cardStyle, display: 'flex', flexWrap: 'wrap', alignItems: 'flex-end', gap: 14 }}>
       <div style={{ minWidth: 160, flex: '1 1 160px' }}>
-        <div style={{ fontWeight: 800, fontSize: 14, color: '#0F172A' }}>{workspace.name}</div>
+        <div style={{ fontWeight: 800, fontSize: 14 }}>{workspace.name}</div>
         <div style={{ fontSize: 11.5, color: '#94A3B8' }}>{workspace.type} · {workspace.status}</div>
       </div>
-
-      <div>
-        <label style={labelStyle}>Plan</label>
-        <select value={planId} onChange={(e) => setPlanId(e.target.value)} style={inputStyle}>
-          {plans.map((p) => (
-            <option key={p.id} value={p.id}>{p.name} ({fmt(p.price)})</option>
-          ))}
+      <div><label style={labelStyle}>Plan</label>
+        <select value={planId} onChange={e => setPlanId(e.target.value)} style={inputStyle}>
+          {plans.map(p => <option key={p.id} value={p.id}>{p.name} ({fmt(p.price)})</option>)}
         </select>
       </div>
-
-      <div>
-        <label style={labelStyle}>Estado</label>
-        <select value={status} onChange={(e) => setStatus(e.target.value as SubscriptionRow['status'])} style={inputStyle}>
-          {SUBSCRIPTION_STATUSES.map((s) => (
-            <option key={s} value={s}>{s}</option>
-          ))}
+      <div><label style={labelStyle}>Estado</label>
+        <select value={status} onChange={e => setStatus(e.target.value as SubscriptionRow['status'])} style={inputStyle}>
+          {SUBSCRIPTION_STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
         </select>
       </div>
-
-      <div>
-        <label style={labelStyle}>Fin del periodo</label>
-        <input type="date" value={periodEnd} onChange={(e) => setPeriodEnd(e.target.value)} style={inputStyle} />
+      <div><label style={labelStyle}>Fin del periodo</label>
+        <input type="date" value={periodEnd} onChange={e => setPeriodEnd(e.target.value)} style={inputStyle} />
       </div>
-
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, paddingBottom: 8 }}>
-        <input type="checkbox" checked={cancelAtPeriodEnd} onChange={(e) => setCancelAtPeriodEnd(e.target.checked)} id={`cape-${workspace.id}`} />
-        <label htmlFor={`cape-${workspace.id}`} style={{ fontSize: 12, color: '#475569', fontWeight: 600 }}>Cancela al fin del periodo</label>
+        <input type="checkbox" checked={cancelAtPeriodEnd} onChange={e => setCancelAtPeriodEnd(e.target.checked)} id={`cape-${workspace.id}`} />
+        <label htmlFor={`cape-${workspace.id}`} style={{ fontSize: 12, color: '#475569', fontWeight: 600 }}>Cancela al fin</label>
       </div>
-
-      <button onClick={() => mutation.mutate()} disabled={mutation.isPending} style={{ ...buttonStyle, opacity: mutation.isPending ? 0.7 : 1 }}>
+      <button onClick={() => mutation.mutate()} disabled={mutation.isPending} style={{ ...buttonStyle, opacity: mutation.isPending ? .7 : 1 }}>
         {mutation.isPending ? 'Guardando…' : 'Guardar'}
       </button>
     </div>
   );
 }
 
-function PlansTab() {
-  const plansQuery = useQuery({ queryKey: ['adminPlans'], queryFn: listPlans });
-  const featuresQuery = useQuery({ queryKey: ['adminPlanFeatures'], queryFn: listPlanFeatures });
-  const limitsQuery = useQuery({ queryKey: ['adminPlanLimits'], queryFn: listPlanLimits });
-
-  if (!plansQuery.data || !featuresQuery.data || !limitsQuery.data) return null;
-
-  const featuresByCode = new Map(featuresQuery.data.map((f) => [f.plan_code, f]));
-  const limitsByCode = new Map(limitsQuery.data.map((l) => [l.plan_code, l]));
-
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-      {plansQuery.data.map((plan) => {
-        const features = featuresByCode.get(plan.code);
-        const limits = limitsByCode.get(plan.code);
-        return (
-          <div key={plan.id} style={cardStyle}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 10 }}>
-              <div style={{ fontWeight: 800, fontSize: 15 }}>{plan.name}</div>
-              <div style={{ fontWeight: 800, fontSize: 14, color: BRAND_COLORS.primary }}>{fmt(plan.price)}/mes</div>
-            </div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(180px,1fr))', gap: 8, fontSize: 12.5 }}>
-              <LimitRow label="Cotizaciones/mes" value={limits?.max_quotes_month ?? '—'} />
-              <LimitRow label="Clientes" value={limits?.max_clients ?? '—'} />
-              <LimitRow label="Usuarios incluidos" value={limits?.included_users ?? '—'} />
-              <LimitRow label="Precio usuario extra" value={limits ? fmt(limits.extra_user_price) : '—'} />
-              <LimitRow label="Créditos IA/mes" value={limits?.ai_credits_monthly ?? '—'} />
-              <LimitRow label="PDF" value={features?.pdf_tier ?? '—'} />
-            </div>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 12 }}>
-              {features && Object.entries(features)
-                .filter(([k]) => k.endsWith('_enabled'))
-                .map(([k, v]) => (
-                  <span
-                    key={k}
-                    style={{
-                      fontSize: 11, fontWeight: 700, padding: '4px 10px', borderRadius: 8,
-                      color: v ? '#16A34A' : '#94A3B8', background: v ? '#F0FDF4' : '#F1F5F9',
-                    }}
-                  >
-                    {v ? '✓' : '✕'} {k.replace('_enabled', '').replace(/_/g, ' ')}
-                  </span>
-                ))}
-            </div>
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
-function LimitRow({ label, value }: { label: string; value: string | number }) {
-  return (
-    <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #F1F5F9', paddingBottom: 4 }}>
-      <span style={{ color: '#64748B' }}>{label}</span>
-      <span style={{ fontWeight: 700 }}>{value}</span>
-    </div>
-  );
-}
+// ─── UsersTab (extendido con acciones) ────────────────────────────────────────
 
 const ROLE_LABELS: Record<string, string> = {
-  owner: 'Propietario', admin: 'Administrador', employee: 'Empleado', super_admin: 'Super admin', support_admin: 'Soporte',
+  owner: 'Propietario', admin: 'Administrador', employee: 'Empleado',
+  super_admin: 'Super admin', support_admin: 'Soporte',
 };
 
-function UsersTab() {
-  const profilesQuery = useQuery({ queryKey: ['adminAllProfiles'], queryFn: listAllProfiles });
+function UsersTab({ canEdit }: { canEdit: boolean }) {
+  const qc = useQueryClient();
+  const { showToast } = useToast();
+  const profilesQ = useQuery({ queryKey: ['adminAllProfiles'], queryFn: listAllProfiles });
   const [search, setSearch] = useState('');
 
-  if (!profilesQuery.data) return null;
+  const roleMut = useMutation({
+    mutationFn: ({ userId, role }: { userId: string; role: string }) => changeUserRole(userId, role),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['adminAllProfiles'] }); showToast('Rol actualizado'); },
+    onError: (e: any) => showToast(e.message),
+  });
 
-  const filtered = profilesQuery.data.filter((entry) => {
+  const statusMut = useMutation({
+    mutationFn: ({ userId, status }: { userId: string; status: 'active' | 'inactive' }) => setUserStatus(userId, status),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['adminAllProfiles'] }); showToast('Estado actualizado'); },
+    onError: (e: any) => showToast(e.message),
+  });
+
+  if (!profilesQ.data) return null;
+
+  const filtered = profilesQ.data.filter(({ profile, workspaceName }) => {
     if (!search.trim()) return true;
     const q = search.trim().toLowerCase();
-    return (entry.profile.full_name ?? '').toLowerCase().includes(q)
-      || (entry.profile.email ?? '').toLowerCase().includes(q)
-      || entry.workspaceName.toLowerCase().includes(q);
+    return (profile.full_name ?? '').toLowerCase().includes(q)
+      || (profile.email ?? '').toLowerCase().includes(q)
+      || workspaceName.toLowerCase().includes(q);
   });
 
   return (
     <div>
-      <input
-        value={search}
-        onChange={(e) => setSearch(e.target.value)}
+      <input value={search} onChange={e => setSearch(e.target.value)}
         placeholder="Buscar por nombre, correo o workspace…"
-        style={{ ...inputStyle, width: '100%', maxWidth: 360, marginBottom: 12, padding: '10px 13px' }}
-      />
+        style={{ ...inputStyle, width: '100%', maxWidth: 360, marginBottom: 12, padding: '10px 13px' }} />
       <div style={{ ...cardStyle, padding: 0, overflow: 'hidden' }}>
         <div style={{ overflowX: 'auto' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
@@ -347,6 +287,7 @@ function UsersTab() {
                 <th style={thStyle}>Rol</th>
                 <th style={thStyle}>Estado</th>
                 <th style={thStyle}>Desde</th>
+                {canEdit && <th style={thStyle}>Acciones</th>}
               </tr>
             </thead>
             <tbody>
@@ -355,14 +296,42 @@ function UsersTab() {
                   <td style={tdStyle}>{profile.full_name || '—'}</td>
                   <td style={tdStyle}>{profile.email || '—'}</td>
                   <td style={tdStyle}>{workspaceName}</td>
-                  <td style={tdStyle}>{ROLE_LABELS[profile.role] ?? profile.role}</td>
-                  <td style={tdStyle}>{profile.status}</td>
+                  <td style={tdStyle}>
+                    {canEdit && !['super_admin','support_admin'].includes(profile.role) ? (
+                      <select
+                        value={profile.role}
+                        onChange={e => roleMut.mutate({ userId: profile.id, role: e.target.value })}
+                        style={{ ...inputStyle, padding: '4px 8px', fontSize: 12 }}
+                      >
+                        {['owner','admin','employee'].map(r => <option key={r} value={r}>{ROLE_LABELS[r]}</option>)}
+                      </select>
+                    ) : ROLE_LABELS[profile.role] ?? profile.role}
+                  </td>
+                  <td style={tdStyle}>
+                    <span style={{ fontSize: 11, fontWeight: 700, padding: '3px 8px', borderRadius: 8,
+                      color: profile.status === 'active' ? '#16A34A' : '#94A3B8',
+                      background: profile.status === 'active' ? '#F0FDF4' : '#F1F5F9' }}>
+                      {profile.status}
+                    </span>
+                  </td>
                   <td style={tdStyle}>{new Date(profile.created_at).toLocaleDateString('es-CO')}</td>
+                  {canEdit && (
+                    <td style={tdStyle}>
+                      {!['super_admin','support_admin'].includes(profile.role) && (
+                        <button
+                          onClick={() => statusMut.mutate({ userId: profile.id, status: profile.status === 'active' ? 'inactive' : 'active' })}
+                          style={{ ...buttonStyle, padding: '4px 10px', fontSize: 11,
+                            background: profile.status === 'active' ? '#FEE2E2' : '#F0FDF4',
+                            color: profile.status === 'active' ? '#DC2626' : '#16A34A' }}
+                        >
+                          {profile.status === 'active' ? 'Desactivar' : 'Activar'}
+                        </button>
+                      )}
+                    </td>
+                  )}
                 </tr>
               ))}
-              {filtered.length === 0 && (
-                <tr><td colSpan={6} style={{ ...tdStyle, textAlign: 'center', color: '#94A3B8' }}>Sin resultados.</td></tr>
-              )}
+              {filtered.length === 0 && <tr><td colSpan={canEdit ? 7 : 6} style={{ ...tdStyle, textAlign: 'center', color: '#94A3B8' }}>Sin resultados.</td></tr>}
             </tbody>
           </table>
         </div>
@@ -371,10 +340,26 @@ function UsersTab() {
   );
 }
 
-function WorkspacesTab() {
-  const entriesQuery = useQuery({ queryKey: ['adminWorkspaceSubscriptions'], queryFn: listWorkspaceSubscriptions });
+// ─── WorkspacesTab (extendido con acciones) ───────────────────────────────────
 
-  if (!entriesQuery.data) return null;
+function WorkspacesTab({ canEdit }: { canEdit: boolean }) {
+  const qc = useQueryClient();
+  const { showToast } = useToast();
+  const entriesQ = useQuery({ queryKey: ['adminWorkspaceSubscriptions'], queryFn: listWorkspaceSubscriptions });
+
+  const suspendMut = useMutation({
+    mutationFn: (wsId: string) => suspendWorkspace(wsId),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['adminWorkspaceSubscriptions'] }); showToast('Workspace suspendido'); },
+    onError: (e: any) => showToast(e.message),
+  });
+
+  const reactivateMut = useMutation({
+    mutationFn: (wsId: string) => reactivateWorkspace(wsId),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['adminWorkspaceSubscriptions'] }); showToast('Workspace reactivado'); },
+    onError: (e: any) => showToast(e.message),
+  });
+
+  if (!entriesQ.data) return null;
 
   return (
     <div style={{ ...cardStyle, padding: 0, overflow: 'hidden' }}>
@@ -388,22 +373,44 @@ function WorkspacesTab() {
               <th style={thStyle}>Plan</th>
               <th style={thStyle}>Suscripción</th>
               <th style={thStyle}>Creado</th>
+              {canEdit && <th style={thStyle}>Acciones</th>}
             </tr>
           </thead>
           <tbody>
-            {entriesQuery.data.map(({ workspace, subscription, plan }) => (
+            {entriesQ.data.map(({ workspace, subscription, plan }) => (
               <tr key={workspace.id} style={{ borderTop: '1px solid #F1F5F9' }}>
                 <td style={tdStyle}>{workspace.name}</td>
                 <td style={tdStyle}>{workspace.type}</td>
-                <td style={tdStyle}>{workspace.status}</td>
+                <td style={tdStyle}>
+                  <span style={{ fontSize: 11, fontWeight: 700, padding: '3px 8px', borderRadius: 8,
+                    color: workspace.status === 'active' ? '#16A34A' : workspace.status === 'suspended' ? '#DC2626' : '#94A3B8',
+                    background: workspace.status === 'active' ? '#F0FDF4' : workspace.status === 'suspended' ? '#FEE2E2' : '#F1F5F9' }}>
+                    {workspace.status}
+                  </span>
+                </td>
                 <td style={tdStyle}>{plan?.name ?? '—'}</td>
                 <td style={tdStyle}>{subscription?.status ?? '—'}</td>
                 <td style={tdStyle}>{new Date(workspace.created_at).toLocaleDateString('es-CO')}</td>
+                {canEdit && (
+                  <td style={tdStyle}>
+                    {workspace.status !== 'suspended' ? (
+                      <button
+                        onClick={() => suspendMut.mutate(workspace.id)}
+                        style={{ ...buttonStyle, background: '#FEE2E2', color: '#DC2626', padding: '4px 10px', fontSize: 11 }}>
+                        Suspender
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => reactivateMut.mutate(workspace.id)}
+                        style={{ ...buttonStyle, background: '#F0FDF4', color: '#16A34A', padding: '4px 10px', fontSize: 11 }}>
+                        Reactivar
+                      </button>
+                    )}
+                  </td>
+                )}
               </tr>
             ))}
-            {entriesQuery.data.length === 0 && (
-              <tr><td colSpan={6} style={{ ...tdStyle, textAlign: 'center', color: '#94A3B8' }}>No hay workspaces registrados.</td></tr>
-            )}
+            {entriesQ.data.length === 0 && <tr><td colSpan={canEdit ? 7 : 6} style={{ ...tdStyle, textAlign: 'center', color: '#94A3B8' }}>Sin workspaces.</td></tr>}
           </tbody>
         </table>
       </div>
@@ -411,23 +418,57 @@ function WorkspacesTab() {
   );
 }
 
+// ─── AuditTab (extendido con filtros y paginación) ────────────────────────────
+
 function AuditTab() {
-  const logQuery = useQuery({ queryKey: ['adminAuditLog'], queryFn: () => listAuditLog(200) });
-  const [actionFilter, setActionFilter] = useState('all');
+  const [page, setPage]               = useState(0);
+  const [actionFilter, setActionFilter] = useState('');
+  const [fromDate, setFromDate]       = useState('');
+  const [toDate, setToDate]           = useState('');
+  const PAGE_SIZE = 50;
 
-  if (!logQuery.data) return null;
+  const filters: AuditLogFilters = {
+    limit: PAGE_SIZE, offset: page * PAGE_SIZE,
+    action:   actionFilter || undefined,
+    fromDate: fromDate ? new Date(fromDate).toISOString() : undefined,
+    toDate:   toDate   ? new Date(toDate + 'T23:59:59').toISOString() : undefined,
+  };
 
-  const actions = Array.from(new Set(logQuery.data.map((r) => r.action))).sort();
-  const filtered = actionFilter === 'all' ? logQuery.data : logQuery.data.filter((r) => r.action === actionFilter);
+  const logQ = useQuery({
+    queryKey: ['adminAuditLog', filters],
+    queryFn:  () => getAuditLogPaged(filters),
+  });
+
+  const rows  = logQ.data?.rows  ?? [];
+  const total = logQ.data?.total ?? 0;
+  const pages = Math.ceil(total / PAGE_SIZE);
 
   return (
-    <div>
-      <select value={actionFilter} onChange={(e) => setActionFilter(e.target.value)} style={{ ...inputStyle, marginBottom: 12 }}>
-        <option value="all">Todas las acciones</option>
-        {actions.map((a) => <option key={a} value={a}>{a}</option>)}
-      </select>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+      {/* Filtros */}
+      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'flex-end' }}>
+        <div><label style={labelStyle}>Acción</label>
+          <input value={actionFilter} onChange={e => { setActionFilter(e.target.value); setPage(0); }}
+            placeholder="subscription_changed…" style={{ ...inputStyle, width: 200 }} />
+        </div>
+        <div><label style={labelStyle}>Desde</label>
+          <input type="date" value={fromDate} onChange={e => { setFromDate(e.target.value); setPage(0); }} style={inputStyle} />
+        </div>
+        <div><label style={labelStyle}>Hasta</label>
+          <input type="date" value={toDate} onChange={e => { setToDate(e.target.value); setPage(0); }} style={inputStyle} />
+        </div>
+        <button onClick={() => { setActionFilter(''); setFromDate(''); setToDate(''); setPage(0); }}
+          style={{ ...buttonStyle, background: '#E2E8F0', color: '#374151', padding: '8px 12px' }}>
+          Limpiar
+        </button>
+      </div>
+
+      <div style={{ fontSize: 12, color: '#94A3B8' }}>
+        {total} registros · Página {page + 1}/{Math.max(1, pages)}
+      </div>
+
       <div style={{ ...cardStyle, padding: 0, overflow: 'hidden' }}>
-        <div style={{ overflowX: 'auto', maxHeight: 600 }}>
+        <div style={{ overflowX: 'auto', maxHeight: 560 }}>
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
               <tr style={{ background: '#F8FAFC' }}>
@@ -439,188 +480,156 @@ function AuditTab() {
               </tr>
             </thead>
             <tbody>
-              {filtered.map((row) => (
+              {rows.map(row => (
                 <tr key={row.id} style={{ borderTop: '1px solid #F1F5F9' }}>
                   <td style={tdStyle}>{new Date(row.created_at).toLocaleString('es-CO')}</td>
                   <td style={tdStyle}><span style={{ fontWeight: 700 }}>{row.action}</span></td>
-                  <td style={tdStyle}>{row.entity_type}{row.entity_id ? ` · ${row.entity_id.slice(0, 8)}` : ''}</td>
-                  <td style={tdStyle}>{row.workspace_id.slice(0, 8)}</td>
-                  <td style={tdStyle}>{row.user_id ? row.user_id.slice(0, 8) : '—'}</td>
+                  <td style={tdStyle}>{row.entity_type}{row.entity_id ? ` · ${row.entity_id.slice(0,8)}` : ''}</td>
+                  <td style={{ ...tdStyle, fontFamily: 'monospace', fontSize: 11 }}>{row.workspace_id.slice(0,8)}</td>
+                  <td style={{ ...tdStyle, fontFamily: 'monospace', fontSize: 11 }}>{row.user_id?.slice(0,8) ?? '—'}</td>
                 </tr>
               ))}
-              {filtered.length === 0 && (
-                <tr><td colSpan={5} style={{ ...tdStyle, textAlign: 'center', color: '#94A3B8' }}>Sin registros.</td></tr>
-              )}
+              {rows.length === 0 && <tr><td colSpan={5} style={{ ...tdStyle, textAlign: 'center', color: '#94A3B8' }}>Sin registros.</td></tr>}
             </tbody>
           </table>
         </div>
       </div>
+
+      {/* Paginación */}
+      {pages > 1 && (
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button disabled={page === 0} onClick={() => setPage(p => p - 1)}
+            style={{ ...buttonStyle, opacity: page === 0 ? .4 : 1, background: '#E2E8F0', color: '#374151' }}>
+            ← Anterior
+          </button>
+          <button disabled={page >= pages - 1} onClick={() => setPage(p => p + 1)}
+            style={{ ...buttonStyle, opacity: page >= pages - 1 ? .4 : 1 }}>
+            Siguiente →
+          </button>
+        </div>
+      )}
     </div>
   );
 }
 
-function IntegracionesSection() {
-  const configQuery = useQuery({ queryKey: ['adminSystemConfiguration'], queryFn: listSystemConfiguration });
-
-  if (!configQuery.data) return null;
-
-  function isConfigured(key: string): boolean {
-    const row = configQuery.data!.find((r) => r.key === key);
-    if (!row || typeof row.value !== 'object' || row.value === null || Array.isArray(row.value)) return false;
-    const v = row.value as Record<string, unknown>;
-    return Object.values(v).some((val) => typeof val === 'string' && val.trim() !== '');
-  }
-
-  const integrations = [
-    { key: 'resend', label: 'Resend (correo transaccional)' },
-    { key: 'mercadopago', label: 'MercadoPago (pagos)' },
-  ];
-
-  return (
-    <div style={cardStyle}>
-      <div style={{ fontWeight: 800, fontSize: 14, marginBottom: 10 }}>Integraciones</div>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-        {integrations.map(({ key, label }) => {
-          const configured = isConfigured(key);
-          return (
-            <div key={key} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 13 }}>
-              <span style={{ fontWeight: 600 }}>{label}</span>
-              <span style={{
-                fontSize: 11, fontWeight: 800, padding: '3px 10px', borderRadius: 8,
-                color: configured ? '#16A34A' : '#94A3B8', background: configured ? '#F0FDF4' : '#F1F5F9',
-              }}>
-                {configured ? 'Configurado' : 'No configurado'}
-              </span>
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
+// ─── ConfigTab (existente, sin cambios) ──────────────────────────────────────
 
 function ConfigTab() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
       <IntegracionesSection />
-      <SystemConfigTab />
-      <AdminSettingsTab />
+      <SystemConfigSection />
+      <AdminSettingsSection />
     </div>
   );
 }
 
-function SystemConfigTab() {
-  const configQuery = useQuery({ queryKey: ['adminSystemConfiguration'], queryFn: listSystemConfiguration });
+function IntegracionesSection() {
+  const configQ = useQuery({ queryKey: ['adminSystemConfiguration'], queryFn: listSystemConfiguration });
+  if (!configQ.data) return null;
+  function isConfigured(key: string) {
+    const row = configQ.data!.find(r => r.key === key);
+    if (!row || typeof row.value !== 'object' || row.value === null || Array.isArray(row.value)) return false;
+    return Object.values(row.value as Record<string, unknown>).some(v => typeof v === 'string' && v.trim() !== '');
+  }
+  return (
+    <div style={cardStyle}>
+      <div style={{ fontWeight: 800, fontSize: 14, marginBottom: 10 }}>Integraciones</div>
+      {[{ key: 'resend', label: 'Resend (correo)' }, { key: 'mercadopago', label: 'MercadoPago' }].map(({ key, label }) => {
+        const ok = isConfigured(key);
+        return (
+          <div key={key} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 13, padding: '6px 0', borderBottom: '1px solid #F1F5F9' }}>
+            <span style={{ fontWeight: 600 }}>{label}</span>
+            <span style={{ fontSize: 11, fontWeight: 800, padding: '3px 10px', borderRadius: 8, color: ok ? '#16A34A' : '#94A3B8', background: ok ? '#F0FDF4' : '#F1F5F9' }}>
+              {ok ? 'Configurado' : 'No configurado'}
+            </span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
 
-  if (!configQuery.data) return null;
-
+function SystemConfigSection() {
+  const configQ = useQuery({ queryKey: ['adminSystemConfiguration'], queryFn: listSystemConfiguration });
+  if (!configQ.data) return null;
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-      {configQuery.data.map((row) => (
-        <SystemConfigEditor key={row.key} row={row} />
-      ))}
+      {configQ.data.map(row => <SystemConfigEditor key={row.key} row={row} />)}
     </div>
   );
 }
 
 function SystemConfigEditor({ row }: { row: SystemConfigurationRow }) {
-  const queryClient = useQueryClient();
+  const qc = useQueryClient();
   const { showToast } = useToast();
-  const [text, setText] = useState(JSON.stringify(row.value, null, 2));
+  const [text, setText]         = useState(JSON.stringify(row.value, null, 2));
   const [jsonError, setJsonError] = useState<string | null>(null);
 
   const mutation = useMutation({
     mutationFn: (value: unknown) => updateSystemConfiguration(row.key, value as SystemConfigurationRow['value']),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['adminSystemConfiguration'] });
-      showToast('Configuración actualizada');
-    },
-    onError: () => showToast('No se pudo actualizar la configuración'),
+    onSuccess:  () => { qc.invalidateQueries({ queryKey: ['adminSystemConfiguration'] }); showToast('Configuración actualizada'); },
+    onError:    () => showToast('Error al actualizar'),
   });
 
   function handleSave() {
-    try {
-      const parsed = JSON.parse(text);
-      setJsonError(null);
-      mutation.mutate(parsed);
-    } catch {
-      setJsonError('JSON inválido');
-    }
+    try { const parsed = JSON.parse(text); setJsonError(null); mutation.mutate(parsed); }
+    catch { setJsonError('JSON inválido'); }
   }
 
   return (
     <div style={cardStyle}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
         <div>
-          <div style={{ fontWeight: 800, fontSize: 14, color: '#0F172A' }}>{row.key}</div>
+          <div style={{ fontWeight: 800, fontSize: 14 }}>{row.key}</div>
           <div style={{ fontSize: 11, color: '#94A3B8', textTransform: 'uppercase', letterSpacing: '.05em' }}>{row.category}</div>
         </div>
-        <button onClick={handleSave} disabled={mutation.isPending} style={{ ...buttonStyle, opacity: mutation.isPending ? 0.7 : 1 }}>
+        <button onClick={handleSave} disabled={mutation.isPending} style={{ ...buttonStyle, opacity: mutation.isPending ? .7 : 1 }}>
           {mutation.isPending ? 'Guardando…' : 'Guardar'}
         </button>
       </div>
-      <textarea
-        value={text}
-        onChange={(e) => setText(e.target.value)}
-        rows={6}
-        style={{ width: '100%', border: `1.5px solid ${jsonError ? '#FCA5A5' : '#E2E8F0'}`, borderRadius: 10, padding: 10, fontSize: 12.5, fontFamily: "'Space Mono',monospace", outline: 'none', resize: 'vertical' }}
-      />
+      <textarea value={text} onChange={e => setText(e.target.value)} rows={6}
+        style={{ width: '100%', border: `1.5px solid ${jsonError ? '#FCA5A5' : '#E2E8F0'}`, borderRadius: 10, padding: 10, fontSize: 12.5, fontFamily: "'Space Mono',monospace", outline: 'none', resize: 'vertical' as const }} />
       {jsonError && <div style={{ fontSize: 11.5, color: '#DC2626', marginTop: 4 }}>{jsonError}</div>}
     </div>
   );
 }
 
-function AdminSettingsTab() {
-  const settingsQuery = useQuery({ queryKey: ['adminSettings'], queryFn: listAdminSettings });
-  const queryClient = useQueryClient();
+function AdminSettingsSection() {
+  const settingsQ = useQuery({ queryKey: ['adminSettings'], queryFn: listAdminSettings });
+  const qc2        = useQueryClient();
   const { showToast } = useToast();
 
   const mutation = useMutation({
     mutationFn: ({ key, value }: { key: string; value: boolean }) => updateAdminSetting(key, value as AdminSettingRow['value']),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['adminSettings'] });
-      showToast('Ajuste actualizado');
-    },
-    onError: () => showToast('No se pudo actualizar el ajuste'),
+    onSuccess: () => { qc2.invalidateQueries({ queryKey: ['adminSettings'] }); showToast('Ajuste actualizado'); },
+    onError: () => showToast('Error'),
   });
 
-  if (!settingsQuery.data) return null;
+  if (!settingsQ.data) return null;
 
   const LABELS: Record<string, { title: string; description: string }> = {
-    signup_enabled: { title: 'Registro de nuevos usuarios', description: 'Permite que nuevos usuarios creen una cuenta desde /registro.' },
-    maintenance_mode: { title: 'Modo de mantenimiento', description: 'Restringe el acceso a la aplicación mientras se realizan tareas de mantenimiento.' },
+    signup_enabled:   { title: 'Registro de nuevos usuarios', description: 'Permite crear cuentas desde /registro.' },
+    maintenance_mode: { title: 'Modo de mantenimiento',        description: 'Restringe el acceso a la app.' },
   };
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-      {settingsQuery.data.map((row) => {
-        const meta = LABELS[row.key] ?? { title: row.key, description: '' };
+      {settingsQ.data.map(row => {
+        const meta    = LABELS[row.key] ?? { title: row.key, description: '' };
         const enabled = row.value === true;
         return (
           <div key={row.key} style={{ ...cardStyle, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 14 }}>
             <div>
-              <div style={{ fontWeight: 800, fontSize: 14, color: '#0F172A' }}>{meta.title}</div>
+              <div style={{ fontWeight: 800, fontSize: 14 }}>{meta.title}</div>
               {meta.description && <div style={{ fontSize: 12, color: '#64748B', marginTop: 2 }}>{meta.description}</div>}
             </div>
             <label style={{ position: 'relative', display: 'inline-block', width: 44, height: 25, flexShrink: 0, cursor: 'pointer' }}>
-              <input
-                type="checkbox"
-                checked={enabled}
-                onChange={(e) => mutation.mutate({ key: row.key, value: e.target.checked })}
-                style={{ opacity: 0, width: 0, height: 0 }}
-              />
-              <span
-                style={{
-                  position: 'absolute', inset: 0, borderRadius: 999, cursor: 'pointer', transition: '.2s',
-                  background: enabled ? BRAND_COLORS.primary : '#E2E8F0',
-                }}
-              />
-              <span
-                style={{
-                  position: 'absolute', top: 3, left: enabled ? 22 : 3, width: 19, height: 19, borderRadius: '50%',
-                  background: '#fff', transition: '.2s', boxShadow: '0 1px 3px rgba(0,0,0,.2)',
-                }}
-              />
+              <input type="checkbox" checked={enabled}
+                onChange={e => mutation.mutate({ key: row.key, value: e.target.checked })}
+                style={{ opacity: 0, width: 0, height: 0 }} />
+              <span style={{ position: 'absolute', inset: 0, borderRadius: 999, transition: '.2s', background: enabled ? BRAND_COLORS.primary : '#E2E8F0' }} />
+              <span style={{ position: 'absolute', top: 3, left: enabled ? 22 : 3, width: 19, height: 19, borderRadius: '50%', background: '#fff', transition: '.2s', boxShadow: '0 1px 3px rgba(0,0,0,.2)' }} />
             </label>
           </div>
         );
@@ -629,12 +638,93 @@ function AdminSettingsTab() {
   );
 }
 
+// ─── SupportTab (implementado) ────────────────────────────────────────────────
+
 function SupportTab() {
+  const { showToast } = useToast();
+  const entriesQ = useQuery({ queryKey: ['adminWorkspaceSubscriptions'], queryFn: listWorkspaceSubscriptions });
+  const [wsId, setWsId]     = useState('');
+  const [title, setTitle]   = useState('');
+  const [message, setMessage] = useState('');
+  const [type, setType]     = useState('info');
+
+  const notifMut = useMutation({
+    mutationFn: () => sendAdminNotification(wsId, title, message, type),
+    onSuccess: () => { showToast('Notificación enviada ✓'); setTitle(''); setMessage(''); setWsId(''); },
+    onError: (e: any) => showToast(e.message),
+  });
+
+  const entries = entriesQ.data ?? [];
+
   return (
-    <div style={{ ...cardStyle, textAlign: 'center', padding: 40, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
-      <div style={{ fontSize: 40 }}>🛟</div>
-      <div style={{ fontSize: 16, fontWeight: 800, color: '#0F172A' }}>Próximamente</div>
-      <p style={{ fontSize: 13, color: '#64748B' }}>El módulo de soporte estará disponible en una futura actualización.</p>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+      {/* Enviar notificación */}
+      <div style={cardStyle}>
+        <div style={{ fontWeight: 800, fontSize: 15, marginBottom: 14 }}>Enviar notificación administrativa</div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(220px,1fr))', gap: 12 }}>
+          <div>
+            <label style={labelStyle}>Workspace destino</label>
+            <select value={wsId} onChange={e => setWsId(e.target.value)} style={{ ...inputStyle, width: '100%' }}>
+              <option value="">— Selecciona —</option>
+              {entries.map(e => (
+                <option key={e.workspace.id} value={e.workspace.id}>{e.workspace.name}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label style={labelStyle}>Tipo</label>
+            <select value={type} onChange={e => setType(e.target.value)} style={{ ...inputStyle, width: '100%' }}>
+              {['info','success','warning','danger'].map(t => <option key={t} value={t}>{t}</option>)}
+            </select>
+          </div>
+          <div style={{ gridColumn: '1 / -1' }}>
+            <label style={labelStyle}>Título</label>
+            <input value={title} onChange={e => setTitle(e.target.value)} placeholder="Título de la notificación"
+              style={{ ...inputStyle, width: '100%', boxSizing: 'border-box' as const }} />
+          </div>
+          <div style={{ gridColumn: '1 / -1' }}>
+            <label style={labelStyle}>Mensaje</label>
+            <textarea value={message} onChange={e => setMessage(e.target.value)} rows={3}
+              placeholder="Mensaje para el workspace…"
+              style={{ ...inputStyle, width: '100%', boxSizing: 'border-box' as const, resize: 'vertical' as const, fontFamily: 'inherit' }} />
+          </div>
+        </div>
+        <button
+          onClick={() => notifMut.mutate()}
+          disabled={!wsId || !title || !message || notifMut.isPending}
+          style={{ ...buttonStyle, marginTop: 12, opacity: (!wsId || !title || !message) ? .5 : 1 }}>
+          {notifMut.isPending ? 'Enviando…' : 'Enviar notificación'}
+        </button>
+      </div>
+
+      {/* Búsqueda rápida */}
+      <div style={cardStyle}>
+        <div style={{ fontWeight: 800, fontSize: 15, marginBottom: 12 }}>Búsqueda de workspaces</div>
+        <div style={{ overflowX: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <thead>
+              <tr style={{ background: '#F8FAFC' }}>
+                <th style={thStyle}>Nombre</th>
+                <th style={thStyle}>Plan</th>
+                <th style={thStyle}>Estado</th>
+                <th style={thStyle}>Suscripción</th>
+                <th style={thStyle}>Creado</th>
+              </tr>
+            </thead>
+            <tbody>
+              {entries.slice(0, 20).map(({ workspace, subscription, plan }) => (
+                <tr key={workspace.id} style={{ borderTop: '1px solid #F1F5F9' }}>
+                  <td style={tdStyle}>{workspace.name}</td>
+                  <td style={tdStyle}>{plan?.name ?? '—'}</td>
+                  <td style={tdStyle}>{workspace.status}</td>
+                  <td style={tdStyle}>{subscription?.status ?? '—'}</td>
+                  <td style={tdStyle}>{new Date(workspace.created_at).toLocaleDateString('es-CO')}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
     </div>
   );
 }

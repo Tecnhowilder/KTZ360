@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import {
-  LayoutDashboard, FileText, Users, Package, MoreHorizontal,
+  LayoutDashboard, FileText, Users, TrendingUp, MoreHorizontal,
   BarChart2, Sparkles, Building2, UserCog, Settings, HelpCircle, LogOut, X,
+  Package, Wrench,
 } from 'lucide-react';
 import { signOut } from '../../services/auth';
 import { useQueryClient } from '@tanstack/react-query';
@@ -10,16 +11,19 @@ import { useQueryClient } from '@tanstack/react-query';
 const TABS = [
   { path: '/app/dashboard',    icon: LayoutDashboard, label: 'Dashboard' },
   { path: '/app/cotizaciones', icon: FileText,         label: 'Cotizaciones' },
+  { path: '/app/pipeline',     icon: TrendingUp,       label: 'Pipeline' },
   { path: '/app/clientes',     icon: Users,            label: 'Clientes' },
-  { path: '/app/catalogo',     icon: Package,          label: 'Catálogo' },
 ];
 
 const MORE_ITEMS = [
-  { path: '/app/reportes',  icon: BarChart2,  label: 'Reportes' },
-  { path: '/app/ia',        icon: Sparkles,   label: 'Shelwi IA' },
-  { path: '/app/empresa',   icon: Building2,  label: 'Mi Empresa' },
-  { path: '/app/team',      icon: UserCog,    label: 'Equipo y usuarios' },
-  { path: '/app/config',    icon: Settings,   label: 'Configuración' },
+  { path: '/app/pedidos',          icon: Package,  label: 'Pedidos' },
+  { path: '/app/ordenes-trabajo',  icon: Wrench,   label: 'Órdenes de Trabajo' },
+  { path: '/app/catalogo',         icon: Package,  label: 'Catálogo' },
+  { path: '/app/reportes',         icon: BarChart2, label: 'Reportes' },
+  { path: '/app/ia',               icon: Sparkles, label: 'Shelwi IA' },
+  { path: '/app/empresa',          icon: Building2, label: 'Mi Empresa' },
+  { path: '/app/team',             icon: UserCog,  label: 'Equipo y usuarios' },
+  { path: '/app/config',           icon: Settings, label: 'Configuración' },
 ];
 
 export function MobileBottomNav() {

@@ -1,5 +1,12 @@
 import { supabase } from '../lib/supabaseClient';
-import type { WorkspaceRow, SubscriptionRow, PlanRow, SystemConfigurationRow, AdminSettingRow, ProfileRow, PlanFeaturesRow, PlanLimitsRow, AuditLogRow, Json } from '../lib/database.types';
+import type {
+  WorkspaceRow, SubscriptionRow, PlanRow, SystemConfigurationRow, AdminSettingRow,
+  ProfileRow, PlanFeaturesRow, PlanLimitsRow, AuditLogRow, Json,
+  FounderPromotionRow, AiOperationCostRow,
+} from '../lib/database.types';
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const rpc = (supabase as any).rpc.bind(supabase as any);
 
 export interface WorkspaceSubscriptionEntry {
   workspace: WorkspaceRow;
@@ -203,4 +210,143 @@ export async function updateAdminSetting(key: string, value: Json): Promise<void
       timestamp: new Date().toISOString(),
     },
   });
+}
+
+// ─── Sprint 9: funciones admin ────────────────────────────────────────────────
+
+// Planes
+export async function updatePlan(planId: string, patch: { price?: number; name?: string; description?: string; active?: boolean }): Promise<void> {
+  const { data, error } = await rpc('admin_update_plan', { p_plan_id: planId, p_price: patch.price ?? null, p_name: patch.name ?? null, p_description: patch.description ?? null, p_active: patch.active ?? null });
+  if (error) throw error;
+  if (!data.ok) throw new Error(data.error);
+}
+
+export async function updatePlanFeature(planCode: string, feature: string, value: boolean): Promise<void> {
+  const { data, error } = await rpc('admin_update_plan_feature', { p_plan_code: planCode, p_feature: feature, p_value: value });
+  if (error) throw error;
+  if (!data.ok) throw new Error(data.error);
+}
+
+export async function updatePlanLimit(planCode: string, field: string, value: number): Promise<void> {
+  const { data, error } = await rpc('admin_update_plan_limit', { p_plan_code: planCode, p_field: field, p_value: value });
+  if (error) throw error;
+  if (!data.ok) throw new Error(data.error);
+}
+
+// Workspaces
+export async function suspendWorkspace(workspaceId: string): Promise<void> {
+  const { data, error } = await rpc('admin_suspend_workspace', { p_workspace_id: workspaceId });
+  if (error) throw error;
+  if (!data.ok) throw new Error(data.error);
+}
+
+export async function reactivateWorkspace(workspaceId: string): Promise<void> {
+  const { data, error } = await rpc('admin_reactivate_workspace', { p_workspace_id: workspaceId });
+  if (error) throw error;
+  if (!data.ok) throw new Error(data.error);
+}
+
+// Usuarios
+export async function changeUserRole(userId: string, newRole: string): Promise<void> {
+  const { data, error } = await rpc('admin_change_user_role', { p_user_id: userId, p_new_role: newRole });
+  if (error) throw error;
+  if (!data.ok) throw new Error(data.error);
+}
+
+export async function setUserStatus(userId: string, status: 'active' | 'inactive'): Promise<void> {
+  const { data, error } = await rpc('admin_set_user_status', { p_user_id: userId, p_status: status });
+  if (error) throw error;
+  if (!data.ok) throw new Error(data.error);
+}
+
+// Notificaciones
+export async function sendAdminNotification(workspaceId: string, title: string, message: string, type: string): Promise<void> {
+  const { data, error } = await rpc('admin_send_notification', { p_workspace_id: workspaceId, p_title: title, p_message: message, p_type: type });
+  if (error) throw error;
+  if (!data.ok) throw new Error(data.error);
+}
+
+// IA
+export async function listAiOperationCosts(): Promise<AiOperationCostRow[]> {
+  const { data, error } = await supabase.from('ai_operation_costs').select('*').order('operation');
+  if (error) throw error;
+  return data ?? [];
+}
+
+export async function updateAiCost(operation: string, creditsCost: number, active?: boolean): Promise<void> {
+  const { data, error } = await rpc('admin_update_ai_cost', { p_operation: operation, p_credits_cost: creditsCost, p_active: active ?? null });
+  if (error) throw error;
+  if (!data.ok) throw new Error(data.error);
+}
+
+export interface AiUsageGlobalRow {
+  workspace_id: string; workspace_name: string;
+  total_calls: number; total_credits: number; total_cost_usd: number; last_used: string;
+}
+export async function getAiUsageGlobal(): Promise<AiUsageGlobalRow[]> {
+  const { data, error } = await rpc('admin_get_ai_usage_global', { p_limit: 100 });
+  if (error) throw error;
+  if (!data.ok) throw new Error(data.error);
+  return data.data ?? [];
+}
+
+// Storage
+export interface StorageGlobalRow {
+  workspace_id: string; workspace_name: string;
+  total_bytes: number; total_files: number; total_mb: number;
+}
+export async function getStorageGlobal(): Promise<StorageGlobalRow[]> {
+  const { data, error } = await rpc('admin_get_storage_global', { p_limit: 100 });
+  if (error) throw error;
+  if (!data.ok) throw new Error(data.error);
+  return data.data ?? [];
+}
+
+// Founder
+export async function listFounderPromotions(): Promise<FounderPromotionRow[]> {
+  const { data, error } = await supabase.from('founder_promotions').select('*').order('created_at', { ascending: false });
+  if (error) throw error;
+  return data ?? [];
+}
+
+export async function upsertFounderPromotion(input: {
+  id?: string; planCode?: string; name?: string;
+  founderPrice?: number; regularPrice?: number;
+  durationMonths?: number; maxRedemptions?: number | null;
+  active?: boolean; validUntil?: string | null;
+}): Promise<string> {
+  const { data, error } = await rpc('admin_upsert_founder_promotion', {
+    p_id: input.id ?? null, p_plan_code: input.planCode ?? null,
+    p_name: input.name ?? null, p_founder_price: input.founderPrice ?? null,
+    p_regular_price: input.regularPrice ?? null, p_duration_months: input.durationMonths ?? 12,
+    p_max_redemptions: input.maxRedemptions ?? null, p_active: input.active ?? true,
+    p_valid_until: input.validUntil ?? null,
+  });
+  if (error) throw error;
+  if (!data.ok) throw new Error(data.error);
+  return data.id;
+}
+
+export async function activateFounderForWorkspace(workspaceId: string, promotionId: string): Promise<void> {
+  const { data, error } = await rpc('admin_activate_founder', { p_workspace_id: workspaceId, p_promotion_id: promotionId });
+  if (error) throw error;
+  if (!data.ok) throw new Error(data.error);
+}
+
+// Auditoría paginada
+export interface AuditLogFilters {
+  limit?: number; offset?: number; action?: string;
+  workspaceId?: string; userId?: string; fromDate?: string; toDate?: string;
+}
+export interface AuditLogPage { rows: AuditLogRow[]; total: number; }
+export async function getAuditLogPaged(filters: AuditLogFilters = {}): Promise<AuditLogPage> {
+  const { data, error } = await rpc('admin_get_audit_log', {
+    p_limit: filters.limit ?? 100, p_offset: filters.offset ?? 0,
+    p_action_filter: filters.action ?? null, p_workspace_id: filters.workspaceId ?? null,
+    p_user_id: filters.userId ?? null, p_from_date: filters.fromDate ?? null,
+    p_to_date: filters.toDate ?? null,
+  });
+  if (error) throw error;
+  if (!data.ok) throw new Error(data.error);
+  return { rows: data.rows ?? [], total: data.total ?? 0 };
 }

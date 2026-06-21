@@ -5,7 +5,7 @@ import { useUI } from '../../features/app/UIProvider';
 import { useWorkspace } from '../../features/auth/WorkspaceProvider';
 import { useClients, useQuotesRaw } from '../../hooks/useQuotes';
 import { deriveQuote, dueDate, advanceAmount } from '../../lib/calc';
-import { buildWhatsAppMessage, shareByEmail, copyLinkToClipboard } from '../../lib/shareUtils';
+import { shareByEmail, copyLinkToClipboard } from '../../lib/shareUtils';
 import { computeDoc } from '../../lib/engine';
 import { getOrCreateQuoteToken, registerQuoteEvent } from '../../services/publicPortal';
 import { updateQuoteStatus } from '../../services/quotes';
@@ -169,19 +169,9 @@ export function DocumentOverlay() {
     setSharing(true);
     try {
       const url = await getPortalUrl();
-      const msg = buildWhatsAppMessage({ ...shareParams, publicUrl: url });
-      // navigator.share() en mobile (Android/iOS): selector nativo
-      if (navigator.share) {
-        try {
-          await navigator.share({ title: shareParams.projectName, text: msg, url });
-          return;
-        } catch (e: unknown) {
-          if ((e as Error)?.name === 'AbortError') return;
-          // fallback a window.open
-        }
-      }
-      const phone = (shareParams.phone ?? '').replace(/\D/g, '');
-      window.open(`https://wa.me/${phone}?text=${encodeURIComponent(msg)}`, '_blank');
+      // Usar openWhatsAppShare desde shareUtils (fallback legacy)
+      const { openWhatsAppShare } = await import('../../lib/shareUtils');
+      openWhatsAppShare({ ...shareParams, publicUrl: url });
     } finally { setSharing(false); }
   }
 

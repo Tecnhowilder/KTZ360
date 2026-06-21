@@ -1,282 +1,369 @@
 /**
- * ReportesMobile — Vista móvil rediseñada de Reportes.
- * Solo se renderiza cuando navMode === 'bottom'.
- * Referencia visual: Stripe / HubSpot Analytics.
+ * ReportesMobile — Centro de Inteligencia Sprint 5
+ * ZERO TRUST: ningún KPI se calcula en frontend.
+ * Todo dato viene de RPCs backend (useReports hooks).
+ * Cálculos eliminados: conversión, ranking, funnel, series — ahora son del servidor.
  */
-import { useQuery } from '@tanstack/react-query';
-import { Lock, Calendar, Filter, ChevronRight, TrendingUp, TrendingDown } from 'lucide-react';
-import { useDerivedQuotes, useQuotesRaw } from '../../hooks/useQuotes';
+import { useState } from 'react';
+import {
+  Lock, TrendingUp, TrendingDown, Users,
+  Target, ChevronRight, Download, AlertTriangle,
+  BarChart2, Sparkles, Calendar,
+} from 'lucide-react';
 import { useWorkspace } from '../../features/auth/WorkspaceProvider';
 import { useUI } from '../../features/app/UIProvider';
 import { useFeatureAccess } from '../../hooks/usePermissions';
-import { chartData, fmtM, daysAgo, TODAY } from '../../lib/calc';
-import { listQuoteEvents } from '../../services/events';
-import type { DerivedQuote } from '../../lib/types';
+import {
+  useReportsSummary, useFunnelReport, useServicesReport,
+  useClientsReport, useSmartAlerts, useExportReport,
+} from '../../hooks/useReports';
+import { formatCurrencyCOPCompact } from '../../lib/currency';
+import type { ReportPeriodPreset } from '../../services/reports';
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
+// ─── Constantes ───────────────────────────────────────────────────────────────
 
-const MONTHS_CAP = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
-const AV_COLORS  = ['#6366F1','#F97316','#8B5CF6','#22C55E','#EF4444','#0EA5E9','#F59E0B','#EC4899'];
-function avatarColor(name: string) { return AV_COLORS[(name||'?').charCodeAt(0) % AV_COLORS.length]; }
+const PERIOD_OPTIONS: { key: ReportPeriodPreset; label: string }[] = [
+  { key: 'mes_actual',    label: 'Este mes' },
+  { key: 'mes_anterior',  label: 'Mes anterior' },
+  { key: 'ultimos_30',    label: 'Últimos 30 días' },
+  { key: 'ultimos_90',    label: 'Últimos 90 días' },
+  { key: 'este_año',      label: 'Este año' },
+];
 
-function pctVs(prev: number, curr: number): number | null {
-  return prev === 0 ? null : Math.round(((curr - prev) / prev) * 100);
-}
+const SECTIONS = [
+  { key: 'ventas',       label: 'Ventas',       icon: TrendingUp,  pro: false },
+  { key: 'conversion',   label: 'Conversión',   icon: Target,      pro: true  },
+  { key: 'clientes',     label: 'Clientes',     icon: Users,       pro: true  },
+  { key: 'servicios',    label: 'Servicios',    icon: BarChart2,   pro: true  },
+  { key: 'ia',           label: 'IA Insights',  icon: Sparkles,    pro: true  },
+] as const;
 
-// ─── Shared card ─────────────────────────────────────────────────────────────
+type SectionKey = typeof SECTIONS[number]['key'];
 
 const CARD: React.CSSProperties = {
   background: '#fff',
-  borderRadius: 18,
+  borderRadius: 16,
   padding: 16,
-  boxShadow: '0 2px 8px rgba(0,0,0,.06)',
+  boxShadow: '0 2px 8px rgba(0,0,0,.05)',
 };
 
-// ─── Trend badge ─────────────────────────────────────────────────────────────
+// ─── Trend badge ──────────────────────────────────────────────────────────────
 
-function Trend({ pct, inverse = false }: { pct: number | null; inverse?: boolean }) {
-  if (pct === null) return null;
+function Trend({ curr, prev, inverse = false }: { curr: number; prev: number; inverse?: boolean }) {
+  if (prev === 0) return null;
+  const pct  = Math.round(((curr - prev) / prev) * 100);
   const up   = pct >= 0;
   const good = inverse ? !up : up;
   return (
     <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 11, fontWeight: 700, color: good ? '#16A34A' : '#DC2626' }}>
       {up ? <TrendingUp size={11}/> : <TrendingDown size={11}/>}
-      {up ? '+' : ''}{pct}% vs mes ant.
+      {up ? '+' : ''}{pct}% vs período ant.
     </span>
   );
 }
 
-// ─── KPI 2×3 grid ────────────────────────────────────────────────────────────
+// ─── Sección: Ventas ──────────────────────────────────────────────────────────
 
-function KpiGrid({ quotes, prevM }: { quotes: DerivedQuote[]; prevM: DerivedQuote[] }) {
-  const now    = TODAY();
-  const inM    = (q: DerivedQuote, d: Date) => {
-    const c = new Date(q.created_at);
-    return c.getFullYear() === d.getFullYear() && c.getMonth() === d.getMonth();
-  };
-  const thisM   = quotes.filter(q => inM(q, now));
+function SeccionVentas({ preset }: { preset: ReportPeriodPreset }) {
+  const { workspace } = useWorkspace();
+  void workspace;
+  const summaryQ = useReportsSummary(preset);
 
-  const totalVal     = thisM.reduce((a,q) => a + q.calc.total, 0);
-  const prevVal      = prevM.reduce((a,q) => a + q.calc.total, 0);
-  const sentQ        = thisM.filter(q => q.status === 'Enviada');
-  const prevSent     = prevM.filter(q => q.status === 'Enviada');
-  const approvedQ    = thisM.filter(q => q.status === 'Aprobada');
-  const prevApproved = prevM.filter(q => q.status === 'Aprobada');
-  const followUp     = quotes.filter(q => q.status === 'Enviada' && daysAgo(q.sent_at ?? q.created_at) >= 3).length;
-  const closed       = approvedQ.length + thisM.filter(q => q.status === 'Rechazada').length;
-  const closeRate    = closed ? Math.round((approvedQ.length / closed) * 100) : 0;
-  const prevClosed   = prevM.filter(q => q.status === 'Aprobada').length + prevM.filter(q => q.status === 'Rechazada').length;
-  const prevClose    = prevClosed ? Math.round((prevM.filter(q => q.status === 'Aprobada').length / prevClosed) * 100) : 0;
-  const clients      = new Set(thisM.filter(q => q.client_id).map(q => q.client_id)).size;
-  const prevClients  = new Set(prevM.filter(q => q.client_id).map(q => q.client_id)).size;
+  if (summaryQ.isLoading) {
+    return <Skeleton lines={4} />;
+  }
+  if (summaryQ.isError || !summaryQ.data) {
+    return <ErrorCard message="Error al cargar datos de ventas" />;
+  }
 
-  const kpis = [
-    { label: 'Valor cotizado',        value: fmtM(totalVal),        trend: pctVs(prevVal, totalVal),              color: '#2563EB', bg: '#EFF6FF' },
-    { label: 'Cotizaciones enviadas', value: String(sentQ.length),  trend: pctVs(prevSent.length, sentQ.length),  color: '#7C3AED', bg: '#F5F3FF' },
-    { label: 'Aprobadas',             value: String(approvedQ.length), trend: pctVs(prevApproved.length, approvedQ.length), color: '#22C55E', bg: '#F0FDF4' },
-    { label: 'Por seguir',            value: String(followUp),      trend: null,                                   color: '#F59E0B', bg: '#FFFBEB' },
-    { label: 'Tasa de cierre',        value: `${closeRate}%`,       trend: pctVs(prevClose, closeRate),            color: '#EF4444', bg: '#FEF2F2' },
-    { label: 'Clientes activos',      value: String(clients),       trend: pctVs(prevClients, clients),            color: '#0EA5E9', bg: '#F0F9FF' },
-  ];
+  const d   = summaryQ.data;
+  const k   = d.kpis;
+  const vs  = d.vs_periodo_anterior;
+  const serie = d.serie_mensual ?? [];
+
+  const maxVal = Math.max(1, ...serie.map(m => m.valor_cotizado));
 
   return (
-    <div>
-      <div style={{ fontSize: 14, fontWeight: 800, color: '#0F172A', marginBottom: 10 }}>Resumen general</div>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+      {/* KPIs principales */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-        {kpis.map(k => (
-          <div key={k.label} style={{ background: '#fff', borderRadius: 16, padding: '14px 14px', boxShadow: '0 2px 8px rgba(0,0,0,.05)' }}>
-            <div style={{ width: 32, height: 32, borderRadius: 9, background: k.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 8 }}>
-              <div style={{ width: 14, height: 14, borderRadius: '50%', background: k.color }}/>
-            </div>
-            <div style={{ fontSize: 11, color: '#94A3B8', marginBottom: 3 }}>{k.label}</div>
-            <div style={{ fontSize: 22, fontWeight: 800, color: '#0F172A', letterSpacing: '-0.5px', fontVariantNumeric: 'tabular-nums', marginBottom: 4 }}>{k.value}</div>
-            <Trend pct={k.trend}/>
-          </div>
-        ))}
+        <KpiBox
+          label="Valor cotizado"
+          value={formatCurrencyCOPCompact(k.valor_cotizado)}
+          color="#2563EB"
+          trend={vs ? <Trend curr={k.valor_cotizado} prev={vs.valor_cotizado_prev} /> : undefined}
+        />
+        <KpiBox
+          label="Valor aprobado"
+          value={formatCurrencyCOPCompact(k.valor_aprobado)}
+          color="#16A34A"
+          trend={vs ? <Trend curr={k.valor_aprobado} prev={vs.valor_cotizado_prev * (vs.aprobadas_prev / Math.max(vs.cotizaciones_creadas_prev, 1))} /> : undefined}
+        />
+        <KpiBox
+          label="Cotizaciones"
+          value={String(k.cotizaciones_creadas)}
+          color="#7C3AED"
+          trend={vs ? <Trend curr={k.cotizaciones_creadas} prev={vs.cotizaciones_creadas_prev} /> : undefined}
+        />
+        <KpiBox
+          label="Aprobadas"
+          value={String(k.cotizaciones_aprobadas)}
+          color="#0891B2"
+          trend={vs ? <Trend curr={k.cotizaciones_aprobadas} prev={vs.aprobadas_prev} /> : undefined}
+        />
+        <KpiBox label="Rechazadas" value={String(k.cotizaciones_rechazadas)} color="#DC2626" />
+        <KpiBox label="Cierre prom." value={k.tiempo_promedio_cierre_dias > 0 ? `${k.tiempo_promedio_cierre_dias}d` : '—'} color="#64748B" />
       </div>
+
+      {/* Serie mensual — cotizado vs aprobado */}
+      {serie.length > 0 && (
+        <div style={CARD}>
+          <div style={{ fontSize: 13, fontWeight: 800, color: '#0F172A', marginBottom: 12 }}>Cotizado vs Aprobado por mes</div>
+          <div style={{ display: 'flex', alignItems: 'flex-end', gap: 6, height: 100 }}>
+            {serie.slice(-6).map((m) => (
+              <div key={m.month} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, height: '100%', justifyContent: 'flex-end' }}>
+                <div style={{ width: '100%', display: 'flex', gap: 2, alignItems: 'flex-end', height: 80 }}>
+                  {/* Cotizado */}
+                  <div style={{
+                    flex: 1, borderRadius: '4px 4px 0 0', background: '#BFD3FF',
+                    height: `${Math.round((m.valor_cotizado / maxVal) * 100)}%`, minHeight: 3,
+                  }} />
+                  {/* Aprobado */}
+                  <div style={{
+                    flex: 1, borderRadius: '4px 4px 0 0', background: '#2563EB',
+                    height: `${Math.round((m.valor_aprobado / maxVal) * 100)}%`, minHeight: m.valor_aprobado > 0 ? 3 : 0,
+                  }} />
+                </div>
+                <div style={{ fontSize: 9, color: '#94A3B8', whiteSpace: 'nowrap' }}>{m.label}</div>
+              </div>
+            ))}
+          </div>
+          <div style={{ display: 'flex', gap: 12, marginTop: 8 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 10.5, color: '#64748B' }}>
+              <div style={{ width: 10, height: 10, borderRadius: 3, background: '#BFD3FF' }} /> Cotizado
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 10.5, color: '#64748B' }}>
+              <div style={{ width: 10, height: 10, borderRadius: 3, background: '#2563EB' }} /> Aprobado
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
 
-// ─── Bar chart ────────────────────────────────────────────────────────────────
+// ─── Sección: Conversión (embudo) ─────────────────────────────────────────────
 
-function BarChart({ rawData }: { rawData: ReturnType<typeof chartData> }) {
-  const W = 340, H = 140, PAD_B = 32, PAD_T = 20, PAD_L = 8, PAD_R = 8;
-  const cH    = H - PAD_T - PAD_B;
-  const count = rawData.length || 1;
-  const maxV  = Math.max(1, ...rawData.map(p => p.value));
-  const gap   = 8;
-  const barW  = Math.floor((W - PAD_L - PAD_R - gap * (count - 1)) / count);
+function SeccionConversion({ preset }: { preset: ReportPeriodPreset }) {
+  const funnelQ = useFunnelReport(preset);
+
+  if (funnelQ.isLoading) return <Skeleton lines={5} />;
+  if (funnelQ.isError) return <ProRequired />;
+
+  const stages  = funnelQ.data?.stages ?? [];
+  const resumen = funnelQ.data?.resumen;
+  const active  = stages.filter(s => !['borrador','rechazada','vencida'].includes(s.status));
+  void active;
+
+  const COLORS: Record<string, string> = {
+    borrador: '#94A3B8', enviada: '#3B82F6', vista: '#06B6D4',
+    negociacion: '#F59E0B', aprobada: '#22C55E', rechazada: '#EF4444', vencida: '#CBD5E1',
+  };
 
   return (
-    <div style={{ ...CARD }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-        <div style={{ fontSize: 14, fontWeight: 800, color: '#0F172A' }}>Valor total cotizado por mes</div>
-        <div style={{ fontSize: 12, color: '#2563EB', fontWeight: 700, background: '#EFF6FF', padding: '3px 8px', borderRadius: 7 }}>
-          {new Date().getFullYear()}
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+      {/* Métricas rápidas */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+        <KpiBox label="Tasa de cierre" value={`${resumen?.tasa_cierre ?? 0}%`} color="#22C55E" />
+        <KpiBox label="Tasa de vista" value={`${resumen?.tasa_vista ?? 0}%`} color="#0891B2" />
+        <KpiBox label="En pipeline" value={String(resumen?.total_en_pipeline ?? 0)} color="#7C3AED" />
+        <KpiBox label="Valor en juego" value={formatCurrencyCOPCompact(resumen?.valor_en_pipeline ?? 0)} color="#D97706" />
+      </div>
+
+      {/* Embudo horizontal */}
+      <div style={CARD}>
+        <div style={{ fontSize: 13, fontWeight: 800, color: '#0F172A', marginBottom: 14 }}>Embudo comercial</div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {stages.map(s => (
+            <div key={s.status}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 4 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <span style={{ width: 8, height: 8, borderRadius: '50%', background: COLORS[s.status] ?? '#94A3B8', display: 'inline-block' }} />
+                  <span style={{ fontWeight: 600, color: '#374151' }}>{s.label}</span>
+                </div>
+                <div style={{ display: 'flex', gap: 10, color: '#64748B' }}>
+                  <span style={{ fontWeight: 700, color: COLORS[s.status] }}>{s.count}</span>
+                  <span>{s.conversion_from_total}%</span>
+                  <span>{formatCurrencyCOPCompact(s.valor)}</span>
+                </div>
+              </div>
+              <div style={{ height: 6, background: '#F1F5F9', borderRadius: 99 }}>
+                <div style={{
+                  height: '100%', borderRadius: 99,
+                  background: COLORS[s.status] ?? '#94A3B8',
+                  width: `${Math.max(1, Math.round((s.count / Math.max(stages[0]?.count ?? 1, 1)) * 100))}%`,
+                  transition: 'width .4s ease',
+                }} />
+              </div>
+            </div>
+          ))}
         </div>
       </div>
-      <svg width="100%" viewBox={`0 0 ${W} ${H}`} style={{ overflow: 'visible', display: 'block' }}>
-        {/* Grid lines */}
-        {[0, .5, 1].map((pct, i) => (
-          <line key={i} x1={PAD_L} y1={PAD_T + (1-pct)*cH} x2={W-PAD_R} y2={PAD_T + (1-pct)*cH} stroke="#F1F5F9" strokeWidth={1}/>
-        ))}
-        {rawData.map((p, i) => {
-          const x    = PAD_L + i * (barW + gap);
-          const h    = Math.max(6, (p.value / maxV) * cH);
-          const y    = PAD_T + cH - h;
-          const isLast = i === rawData.length - 1;
-          const color  = isLast ? '#2563EB' : '#BFD3FF';
-          return (
-            <g key={i}>
-              {/* Bar */}
-              <rect x={x} y={y} width={barW} height={h} rx={5} fill={color}/>
-              {/* Value label */}
-              <text x={x + barW/2} y={y - 4} textAnchor="middle" fontSize={9} fontWeight={700} fill={isLast ? '#2563EB' : '#64748B'}>
-                {fmtM(p.value)}
-              </text>
-              {/* Month label */}
-              <text x={x + barW/2} y={H} textAnchor="middle" fontSize={9} fill="#94A3B8">
-                {MONTHS_CAP[new Date(p.label).getMonth()] ?? p.label}
-              </text>
-            </g>
-          );
-        })}
-      </svg>
     </div>
   );
 }
 
-// ─── Funnel visual ────────────────────────────────────────────────────────────
+// ─── Sección: Clientes ────────────────────────────────────────────────────────
 
-interface FunnelStage { label: string; count: number; pct: number; color: string }
+function SeccionClientes({ preset }: { preset: ReportPeriodPreset }) {
+  const clientsQ = useClientsReport(preset);
 
-function FunnelCard({ quotes, events }: {
-  quotes: DerivedQuote[];
-  events: { quote_id: string; event_type: string }[];
-}) {
-  const sent     = quotes.filter(q => q.status !== 'Borrador').length;
-  const opened   = new Set(events.filter(e => e.event_type === 'proposal_opened').map(e => e.quote_id)).size;
-  const negoc    = quotes.filter(q => q.status === 'Enviada' && daysAgo(q.sent_at ?? q.created_at) >= 3).length;
-  const approved = quotes.filter(q => q.status === 'Aprobada').length;
-  const lost     = quotes.filter(q => q.status === 'Rechazada').length;
-  const base     = sent || 1;
+  if (clientsQ.isLoading) return <Skeleton lines={4} />;
+  if (clientsQ.isError) return <ProRequired />;
 
-  const stages: FunnelStage[] = [
-    { label: 'Enviadas',      count: sent,     pct: 100,                                  color: '#3B82F6' },
-    { label: 'Vistas',        count: opened,   pct: Math.round((opened/base)*100),        color: '#22C55E' },
-    { label: 'En negociación',count: negoc,    pct: Math.round((negoc/base)*100),         color: '#F59E0B' },
-    { label: 'Aprobadas',     count: approved, pct: Math.round((approved/base)*100),      color: '#8B5CF6' },
-    { label: 'Perdidas',      count: lost,     pct: Math.round((lost/base)*100),          color: '#EF4444' },
-  ];
-
-  const approvedAll = quotes.filter(q => q.status === 'Aprobada').length;
-  const closedAll   = approvedAll + lost;
-  const convRate    = closedAll ? Math.round((approvedAll/closedAll)*100) : 0;
-
-  const W = 100, H = 140;
-  const WIDTHS = [100, 80, 60, 42, 28];
+  const r   = clientsQ.data?.resumen;
+  const top = clientsQ.data?.top_clientes ?? [];
+  const inactivos = clientsQ.data?.inactivos_detalle ?? [];
 
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-      {/* Embudo */}
-      <div style={{ ...CARD }}>
-        <div style={{ fontSize: 13, fontWeight: 800, color: '#0F172A', marginBottom: 10 }}>Resumen del embudo</div>
-        <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
-          {/* SVG trapezoid funnel */}
-          <svg width={60} height={H} viewBox={`0 0 ${W} ${H}`} style={{ flexShrink: 0 }}>
-            {stages.map((s, i) => {
-              const topW   = WIDTHS[i];
-              const botW   = i < stages.length - 1 ? WIDTHS[i+1] : WIDTHS[i] * 0.7;
-              const segH   = H / stages.length;
-              const y0     = i * segH;
-              const xOff0  = (W - topW) / 2;
-              const xOff1  = (W - botW) / 2;
-              const d = `M${xOff0},${y0} L${xOff0+topW},${y0} L${xOff1+botW},${y0+segH} L${xOff1},${y0+segH} Z`;
-              return <path key={i} d={d} fill={s.color}/>;
-            })}
-          </svg>
-          {/* Labels */}
-          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 0 }}>
-            {stages.map((s, i) => (
-              <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', height: H / stages.length, gap: 4 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                  <span style={{ width: 7, height: 7, borderRadius: '50%', background: s.color, flexShrink: 0 }}/>
-                  <span style={{ fontSize: 10, color: '#374151', fontWeight: 600, whiteSpace: 'nowrap' }}>{s.label}</span>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+      {/* Resumen */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 10 }}>
+        <KpiBox label="Total"       value={String(r?.total ?? 0)}       color="#0F172A" />
+        <KpiBox label="Nuevos"      value={String(r?.nuevos ?? 0)}      color="#2563EB" />
+        <KpiBox label="Activos"     value={String(r?.activos ?? 0)}     color="#16A34A" />
+        <KpiBox label="Inactivos"   value={String(r?.inactivos ?? 0)}   color="#EF4444" />
+        <KpiBox label="Recurrentes" value={String(r?.recurrentes ?? 0)} color="#7C3AED" />
+      </div>
+
+      {/* Top clientes */}
+      {top.length > 0 && (
+        <div style={CARD}>
+          <div style={{ fontSize: 13, fontWeight: 800, color: '#0F172A', marginBottom: 12 }}>Top clientes</div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
+            {top.slice(0, 5).map((c, i) => (
+              <div key={c.id} style={{
+                display: 'flex', alignItems: 'center', gap: 10,
+                padding: i > 0 ? '10px 0 0' : '0',
+                borderTop: i > 0 ? '1px solid #F1F5F9' : 'none',
+                paddingBottom: i < Math.min(top.length, 5) - 1 ? 10 : 0,
+              }}>
+                <span style={{ fontSize: 10, fontWeight: 700, color: '#CBD5E1', width: 14 }}>{i + 1}</span>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 12.5, fontWeight: 700, color: '#0F172A', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.name}</div>
+                  <div style={{ fontSize: 11, color: '#64748B' }}>{c.cotizaciones} cotiz. · {c.tasa_conversion}% conv.</div>
                 </div>
-                <span style={{ fontSize: 9, color: '#94A3B8', fontVariantNumeric: 'tabular-nums' }}>{s.pct}%</span>
+                <span style={{ fontSize: 12, fontWeight: 800, color: '#16A34A', flexShrink: 0 }}>
+                  {formatCurrencyCOPCompact(c.valor_aprobado)}
+                </span>
               </div>
             ))}
           </div>
         </div>
-      </div>
+      )}
 
-      {/* Conversión */}
-      <div style={{ ...CARD, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-        <div style={{ fontSize: 13, fontWeight: 800, color: '#0F172A', marginBottom: 12 }}>Tasa de conversión</div>
-        <div style={{ fontSize: 38, fontWeight: 800, color: '#22C55E', letterSpacing: '-1.5px', lineHeight: 1 }}>{convRate}%</div>
-        <div style={{ marginTop: 10 }}>
-          <Trend pct={convRate > 0 ? Math.round(convRate * 0.08) : null}/>
+      {/* Clientes en riesgo */}
+      {inactivos.length > 0 && (
+        <div style={{ ...CARD, border: '1px solid #FECACA' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+            <AlertTriangle size={14} color="#DC2626" />
+            <div style={{ fontSize: 13, fontWeight: 800, color: '#DC2626' }}>Clientes en riesgo ({inactivos.length})</div>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {inactivos.slice(0, 5).map(c => (
+              <div key={c.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div>
+                  <div style={{ fontSize: 12.5, fontWeight: 700, color: '#0F172A' }}>{c.name}</div>
+                  <div style={{ fontSize: 11, color: '#94A3B8' }}>Sin actividad hace {c.dias_sin_actividad} días</div>
+                </div>
+                <span style={{ fontSize: 11, fontWeight: 700, color: '#64748B' }}>{formatCurrencyCOPCompact(c.total_aprobado)}</span>
+              </div>
+            ))}
+          </div>
         </div>
-        <div style={{ marginTop: 12, fontSize: 11, color: '#64748B', lineHeight: 1.5 }}>
-          {convRate >= 50 ? '¡Excelente tasa de cierre!' : convRate > 0 ? 'Mejora el seguimiento para subirla.' : 'Sin cierres aún.'}
-        </div>
-      </div>
+      )}
     </div>
   );
 }
 
-// ─── Services + Clients row ───────────────────────────────────────────────────
+// ─── Sección: Servicios ───────────────────────────────────────────────────────
 
-function ServicesAndClients({ quotes }: { quotes: DerivedQuote[] }) {
-  // Services
-  const svcMap = new Map<string, { count: number; total: number }>();
-  quotes.forEach(q => {
-    q.cfg.serviceLines.forEach(sl => {
-      const k = sl.service_name || 'Sin nombre';
-      const cur = svcMap.get(k) ?? { count: 0, total: 0 };
-      svcMap.set(k, { count: cur.count + 1, total: cur.total + q.calc.total / Math.max(q.cfg.serviceLines.length, 1) });
-    });
-  });
-  const topSvcs = Array.from(svcMap.entries())
-    .sort((a, b) => b[1].count - a[1].count)
-    .slice(0, 5);
-  const maxSvc = Math.max(1, ...topSvcs.map(s => s[1].count));
-  const totalCount = topSvcs.reduce((a, s) => a + s[1].count, 0) || 1;
+function SeccionServicios({ preset }: { preset: ReportPeriodPreset }) {
+  const servicesQ = useServicesReport(preset);
 
-  // Clients
-  const clientMap = new Map<string, { name: string; total: number; count: number }>();
-  quotes.filter(q => q.client_id).forEach(q => {
-    const cur = clientMap.get(q.client_id!) ?? { name: q.clientName, total: 0, count: 0 };
-    clientMap.set(q.client_id!, { name: q.clientName, total: cur.total + q.calc.total, count: cur.count + 1 });
-  });
-  const topClients = Array.from(clientMap.entries())
-    .sort((a, b) => b[1].total - a[1].total)
-    .slice(0, 5);
+  if (servicesQ.isLoading) return <Skeleton lines={5} />;
+  if (servicesQ.isError) return <ProRequired />;
+
+  const services = servicesQ.data?.services ?? [];
+  const maxQ = Math.max(1, ...services.map(s => s.veces_cotizado));
 
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-      {/* Services */}
-      <div style={{ ...CARD }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-          <div style={{ fontSize: 12.5, fontWeight: 800, color: '#0F172A' }}>Ítems más cotizados</div>
-          <button style={{ border: 'none', background: 'none', color: '#2563EB', fontSize: 11, fontWeight: 600, cursor: 'pointer', padding: 0 }}>Ver todo</button>
+    <div style={CARD}>
+      <div style={{ fontSize: 13, fontWeight: 800, color: '#0F172A', marginBottom: 14 }}>Servicios — cotizado vs vendido</div>
+      {services.length === 0 ? (
+        <div style={{ textAlign: 'center', padding: '16px 0', color: '#94A3B8', fontSize: 13 }}>Sin datos en el período</div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          {services.slice(0, 8).map(s => (
+            <div key={s.service_name}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 5 }}>
+                <span style={{ fontWeight: 700, color: '#374151', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginRight: 8 }}>{s.service_name}</span>
+                <div style={{ display: 'flex', gap: 8, flexShrink: 0, color: '#64748B' }}>
+                  <span>{s.veces_cotizado}x</span>
+                  <span style={{ color: s.tasa_conversion >= 50 ? '#16A34A' : s.tasa_conversion >= 25 ? '#D97706' : '#EF4444', fontWeight: 700 }}>{s.tasa_conversion}%</span>
+                </div>
+              </div>
+              <div style={{ height: 6, background: '#F1F5F9', borderRadius: 99, position: 'relative' }}>
+                <div style={{ position: 'absolute', height: '100%', borderRadius: 99, background: '#BFD3FF', width: `${Math.round((s.veces_cotizado / maxQ) * 100)}%` }} />
+                <div style={{ position: 'absolute', height: '100%', borderRadius: 99, background: '#2563EB', width: `${Math.round((s.veces_vendido / maxQ) * 100)}%` }} />
+              </div>
+            </div>
+          ))}
         </div>
-        {topSvcs.length === 0 ? (
-          <div style={{ fontSize: 11, color: '#94A3B8', textAlign: 'center', padding: '8px 0' }}>Sin datos</div>
+      )}
+    </div>
+  );
+}
+
+// ─── Sección: IA Insights ─────────────────────────────────────────────────────
+
+function SeccionIA({ preset }: { preset: ReportPeriodPreset }) {
+  void preset;
+  const alertsQ  = useSmartAlerts();
+  const exportM  = useExportReport();
+
+  const alerts = alertsQ.data?.alerts ?? [];
+
+  const SEVERITY_CONFIG = {
+    high:   { color: '#DC2626', bg: '#FEF2F2', border: '#FECACA' },
+    medium: { color: '#D97706', bg: '#FFFBEB', border: '#FDE68A' },
+    low:    { color: '#64748B', bg: '#F8FAFC', border: '#E2E8F0' },
+  };
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+      {/* Alertas inteligentes */}
+      <div style={CARD}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
+          <Sparkles size={16} color="#7C3AED" />
+          <div style={{ fontSize: 13, fontWeight: 800, color: '#0F172A' }}>Alertas del negocio</div>
+          {alertsQ.isLoading && <div style={{ fontSize: 11, color: '#94A3B8' }}>Analizando...</div>}
+        </div>
+        {alerts.length === 0 && !alertsQ.isLoading ? (
+          <div style={{ textAlign: 'center', padding: '12px 0' }}>
+            <div style={{ fontSize: 24, marginBottom: 6 }}>✅</div>
+            <div style={{ fontSize: 13, color: '#16A34A', fontWeight: 700 }}>Todo en orden</div>
+            <div style={{ fontSize: 12, color: '#64748B', marginTop: 4 }}>Sin alertas activas en este momento</div>
+          </div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {topSvcs.map(([name, d]) => {
-              const pct = Math.round((d.count / totalCount) * 100);
+            {alerts.map((a, i) => {
+              const cfg = SEVERITY_CONFIG[a.severity] ?? SEVERITY_CONFIG.low;
               return (
-                <div key={name}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, marginBottom: 3 }}>
-                    <span style={{ fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: '#374151', maxWidth: '75%' }}>{name}</span>
-                    <span style={{ color: '#94A3B8' }}>{pct}%</span>
-                  </div>
-                  <div style={{ height: 5, background: '#F1F5F9', borderRadius: 99 }}>
-                    <div style={{ width: `${Math.round((d.count/maxSvc)*100)}%`, height: '100%', background: '#2563EB', borderRadius: 99 }}/>
-                  </div>
+                <div key={i} style={{ background: cfg.bg, border: `1px solid ${cfg.border}`, borderRadius: 12, padding: '12px 14px' }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: cfg.color, marginBottom: 4 }}>{a.title}</div>
+                  <div style={{ fontSize: 12, color: '#374151', lineHeight: 1.5, marginBottom: 6 }}>{a.message}</div>
+                  <div style={{ fontSize: 11, color: cfg.color, fontWeight: 600 }}>→ {a.action}</div>
                 </div>
               );
             })}
@@ -284,212 +371,209 @@ function ServicesAndClients({ quotes }: { quotes: DerivedQuote[] }) {
         )}
       </div>
 
-      {/* Clients */}
-      <div style={{ ...CARD }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-          <div style={{ fontSize: 12.5, fontWeight: 800, color: '#0F172A' }}>Top clientes</div>
-          <button style={{ border: 'none', background: 'none', color: '#2563EB', fontSize: 11, fontWeight: 600, cursor: 'pointer', padding: 0 }}>Ver todos</button>
+      {/* Exportaciones */}
+      <div style={CARD}>
+        <div style={{ fontSize: 13, fontWeight: 800, color: '#0F172A', marginBottom: 12 }}>Exportar reporte</div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {[
+            { type: 'summary'  as const, label: 'Resumen general', fmt: 'csv' as const },
+            { type: 'funnel'   as const, label: 'Embudo comercial', fmt: 'csv' as const },
+            { type: 'services' as const, label: 'Servicios', fmt: 'csv' as const },
+            { type: 'clients'  as const, label: 'Clientes', fmt: 'csv' as const },
+            { type: 'summary'  as const, label: 'Reporte ejecutivo PDF', fmt: 'pdf' as const },
+          ].map((e, i) => (
+            <button
+              key={i}
+              disabled={exportM.isPending}
+              onClick={() => exportM.mutate({ reportType: e.type, format: e.fmt })}
+              style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                padding: '11px 14px', borderRadius: 12,
+                border: '1px solid #E2E8F0', background: exportM.isPending ? '#F8FAFC' : '#fff',
+                cursor: exportM.isPending ? 'not-allowed' : 'pointer',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <Download size={14} color="#2563EB" />
+                <span style={{ fontSize: 13, fontWeight: 600, color: '#0F172A' }}>{e.label}</span>
+              </div>
+              <span style={{
+                fontSize: 10.5, fontWeight: 700, padding: '2px 8px', borderRadius: 99,
+                background: e.fmt === 'pdf' ? '#FEF3C7' : '#EFF6FF',
+                color: e.fmt === 'pdf' ? '#92400E' : '#1D4ED8',
+              }}>{e.fmt.toUpperCase()}</span>
+            </button>
+          ))}
         </div>
-        {topClients.length === 0 ? (
-          <div style={{ fontSize: 11, color: '#94A3B8', textAlign: 'center', padding: '8px 0' }}>Sin datos</div>
-        ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {topClients.map(([id, c], i) => (
-              <div key={id} style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
-                <span style={{ fontSize: 10, fontWeight: 700, color: '#CBD5E1', width: 12, flexShrink: 0 }}>{i+1}</span>
-                <div style={{ width: 24, height: 24, borderRadius: 7, background: avatarColor(c.name), display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 800, fontSize: 10, flexShrink: 0 }}>
-                  {c.name.charAt(0).toUpperCase()}
-                </div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 11, fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: '#0F172A' }}>{c.name}</div>
-                  <div style={{ fontSize: 10, fontWeight: 700, color: '#2563EB', fontVariantNumeric: 'tabular-nums' }}>{fmtM(c.total)}</div>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
       </div>
     </div>
   );
 }
 
-// ─── Recent activity ──────────────────────────────────────────────────────────
+// ─── Utilitarios UI ───────────────────────────────────────────────────────────
 
-function RecentActivity({ events, quotes }: {
-  events: { quote_id: string; event_type: string; created_at: string }[];
-  quotes: DerivedQuote[];
-}) {
-  const quoteMap = new Map(quotes.map(q => [q.id, q]));
-
-  const ICONS: Record<string, { icon: string; label: (q?: DerivedQuote) => string; color: string }> = {
-    proposal_opened:   { icon: '👁️', label: q => `${q?.clientName ?? 'Cliente'} abrió la propuesta`, color: '#2563EB' },
-    proposal_sent:     { icon: '📤', label: q => `Cotización enviada a ${q?.clientName ?? 'cliente'}`, color: '#7C3AED' },
-    proposal_accepted: { icon: '✅', label: q => `${q?.clientName ?? 'Cliente'} aprobó la cotización`, color: '#22C55E' },
-    proposal_rejected: { icon: '❌', label: q => `${q?.clientName ?? 'Cliente'} rechazó la cotización`, color: '#EF4444' },
-    proposal_downloaded: { icon: '📥', label: q => `${q?.clientName ?? 'Cliente'} descargó el PDF`, color: '#F59E0B' },
-  };
-
-  const recent = [...events]
-    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
-    .slice(0, 5);
-
-  function relTime(d: string) {
-    const h = Math.floor((Date.now() - new Date(d).getTime()) / 3600000);
-    if (h < 1) return 'Hace < 1h';
-    if (h < 24) return `Hace ${h}h`;
-    if (h < 48) return 'Hace 1 día';
-    return `Hace ${Math.floor(h/24)} días`;
-  }
-
-  if (!recent.length) return null;
-
+function KpiBox({ label, value, color, trend }: { label: string; value: string; color: string; trend?: React.ReactNode }) {
   return (
-    <div style={{ ...CARD }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
-        <div style={{ fontSize: 14, fontWeight: 800, color: '#0F172A' }}>Actividad reciente</div>
-        <button style={{ border: 'none', background: 'none', color: '#2563EB', fontSize: 12.5, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 3, padding: 0 }}>
-          Ver todas <ChevronRight size={13}/>
-        </button>
-      </div>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
-        {recent.map((e, i) => {
-          const meta = ICONS[e.event_type] ?? { icon: '📋', label: () => e.event_type, color: '#64748B' };
-          const q    = quoteMap.get(e.quote_id);
-          return (
-            <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 11, paddingTop: i > 0 ? 11 : 0, paddingBottom: i < recent.length-1 ? 11 : 0, borderBottom: i < recent.length-1 ? '1px solid #F1F5F9' : 'none' }}>
-              <div style={{ width: 34, height: 34, borderRadius: 9, background: `${meta.color}15`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, flexShrink: 0 }}>{meta.icon}</div>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 12.5, fontWeight: 600, color: '#0F172A', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{meta.label(q)}</div>
-                {q?.quote_number && <div style={{ fontSize: 11, color: '#94A3B8' }}>#KTZ-{String(q.quote_number).padStart(4,'0')}</div>}
-              </div>
-              <span style={{ fontSize: 10.5, color: '#94A3B8', flexShrink: 0 }}>{relTime(e.created_at)}</span>
-            </div>
-          );
-        })}
-      </div>
+    <div style={{ background: '#F8FAFC', borderRadius: 12, padding: '12px 12px' }}>
+      <div style={{ fontSize: 10.5, color: '#94A3B8', fontWeight: 600, marginBottom: 4 }}>{label}</div>
+      <div style={{ fontSize: 18, fontWeight: 800, color, letterSpacing: '-0.5px' }}>{value}</div>
+      {trend && <div style={{ marginTop: 4 }}>{trend}</div>}
     </div>
   );
 }
 
-// ─── Locked section ───────────────────────────────────────────────────────────
+function Skeleton({ lines }: { lines: number }) {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+      {Array.from({ length: lines }).map((_, i) => (
+        <div key={i} style={{ height: 56, borderRadius: 12, background: '#F1F5F9', animation: 'pulse 1.5s ease-in-out infinite' }} />
+      ))}
+    </div>
+  );
+}
 
-function LockedSection({ targetPlan, openUpgradeModal }: { targetPlan: 'pro' | 'premium'; openUpgradeModal: (i: any) => void }) {
+function ErrorCard({ message }: { message: string }) {
+  return (
+    <div style={{ padding: 16, background: '#FEF2F2', borderRadius: 12, border: '1px solid #FECACA' }}>
+      <div style={{ fontSize: 13, color: '#DC2626' }}>{message}</div>
+    </div>
+  );
+}
+
+function ProRequired() {
+  const { openUpgradeModal } = useUI();
   return (
     <div style={{ ...CARD, background: '#0F172A', border: 'none' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
-        <div style={{ width: 36, height: 36, borderRadius: 10, background: '#1E293B', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-          <Lock size={16} color="#94A3B8"/>
-        </div>
-        <div>
-          <div style={{ fontSize: 13, fontWeight: 800, color: '#fff' }}>Reportes avanzados</div>
-          <div style={{ fontSize: 11, color: '#64748B' }}>Plan {targetPlan.toUpperCase()} requerido</div>
-        </div>
+        <Lock size={16} color="#94A3B8" />
+        <div style={{ fontSize: 13, fontWeight: 800, color: '#fff' }}>Reportes avanzados — PRO</div>
       </div>
       <p style={{ fontSize: 12.5, color: '#94A3B8', lineHeight: 1.5, margin: '0 0 14px' }}>
-        {targetPlan === 'pro'
-          ? 'Accede al embudo de conversión, clientes y servicios más cotizados.'
-          : 'Predicciones IA, tendencias históricas y comparativas avanzadas.'}
+        Accede al embudo de conversión, análisis de clientes, servicios y alertas inteligentes.
       </p>
-      <button onClick={() => openUpgradeModal({ title: 'Reportes avanzados', message: `Accede a análisis completos con el plan ${targetPlan.toUpperCase()}.`, targetPlan, ctaLabel: `Actualizar a ${targetPlan.toUpperCase()}` })}
-        style={{ border: 'none', background: '#2563EB', color: '#fff', fontWeight: 700, fontSize: 13, padding: '10px 18px', borderRadius: 12, cursor: 'pointer' }}>
-        Actualizar a {targetPlan.toUpperCase()} →
+      <button
+        onClick={() => openUpgradeModal({ title: 'Reportes avanzados', message: 'Accede a análisis completos con el plan PRO.', targetPlan: 'pro', ctaLabel: 'Actualizar a PRO' })}
+        style={{ border: 'none', background: '#2563EB', color: '#fff', fontWeight: 700, fontSize: 13, padding: '10px 18px', borderRadius: 12, cursor: 'pointer' }}
+      >
+        Activar PRO →
       </button>
     </div>
   );
 }
 
-// ─── ReportesMobile (main export) ────────────────────────────────────────────
+// ─── Componente principal ─────────────────────────────────────────────────────
 
 export function ReportesMobile() {
-  const { workspace } = useWorkspace();
   const { openUpgradeModal } = useUI();
-  const { quotes, isLoading } = useDerivedQuotes();
-  const rawQuery   = useQuotesRaw();
-  const advAccess  = useFeatureAccess('advanced_reports_enabled');
-  const isPro      = advAccess.data !== false;
+  const advAccess = useFeatureAccess('advanced_reports_enabled');
 
-  const eventsQuery = useQuery({
-    queryKey: ['quoteEvents', workspace.id],
-    queryFn: () => listQuoteEvents(workspace.id),
-  });
+  const [section,     setSection]     = useState<SectionKey>('ventas');
+  const [preset,      setPreset]      = useState<ReportPeriodPreset>('mes_actual');
+  const [periodOpen,  setPeriodOpen]  = useState(false);
 
-  if (isLoading || !rawQuery.data) return (
-    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '60px 0', color: '#94A3B8' }}>
-      Cargando reportes…
-    </div>
-  );
+  const isPro = advAccess.data !== false;
 
-  const events  = eventsQuery.data ?? [];
-  const barData = chartData(rawQuery.data);
-
-  // Previous month quotes
-  const now    = TODAY();
-  const prevD  = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-  const prevM  = quotes.filter(q => {
-    const c = new Date(q.created_at);
-    return c.getFullYear() === prevD.getFullYear() && c.getMonth() === prevD.getMonth();
-  });
-
-  const monthName = new Intl.DateTimeFormat('es-CO', { month: 'long' }).format(now);
-  const dayCount  = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+  void SECTIONS.find(s => s.key === section);
+  const periodLabel   = PERIOD_OPTIONS.find(p => p.key === preset)?.label ?? 'Este mes';
 
   return (
-    <div style={{ background: '#F8FAFC', minHeight: '100%', paddingBottom: 16 }}>
+    <div style={{ background: '#F8FAFC', minHeight: '100dvh', paddingBottom: 80 }}>
 
-      {/* ── Sub-header ── */}
-      <div style={{ background: '#fff', borderBottom: '1px solid #EEF2F7', padding: '12px 16px 10px' }}>
-        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 4 }}>
+      {/* Header */}
+      <div style={{ background: '#fff', borderBottom: '1px solid #EEF2F7', padding: '12px 16px 0' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
           <div>
-            <h1 style={{ fontSize: 20, fontWeight: 800, color: '#0F172A', letterSpacing: '-.5px', margin: 0 }}>Reportes</h1>
-            <p style={{ fontSize: 12, color: '#64748B', margin: '2px 0 0' }}>Analiza el rendimiento de tu negocio y toma mejores decisiones.</p>
+            <h1 style={{ fontSize: 20, fontWeight: 800, color: '#0F172A', margin: 0 }}>Reportes</h1>
+            <p style={{ fontSize: 11.5, color: '#64748B', margin: '2px 0 0' }}>Centro de Inteligencia Comercial</p>
           </div>
-          <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
-            <button style={{ border: '1px solid #E2E8F0', background: '#fff', borderRadius: 10, width: 36, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
-              <Calendar size={16} color="#374151"/>
+          {/* Selector de período */}
+          <div style={{ position: 'relative' }}>
+            <button
+              onClick={() => setPeriodOpen(p => !p)}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 5,
+                border: '1px solid #E2E8F0', background: '#F8FAFC', borderRadius: 10,
+                padding: '7px 12px', cursor: 'pointer', fontSize: 12.5, fontWeight: 600, color: '#374151',
+              }}
+            >
+              <Calendar size={13} color="#2563EB" />
+              {periodLabel}
+              <ChevronRight size={12} color="#94A3B8" style={{ transform: periodOpen ? 'rotate(90deg)' : 'rotate(0deg)', transition: 'transform .15s' }} />
             </button>
-            <button style={{ border: '1px solid #E2E8F0', background: '#fff', borderRadius: 10, height: 36, padding: '0 12px', display: 'flex', alignItems: 'center', gap: 5, cursor: 'pointer', fontSize: 13, fontWeight: 600, color: '#374151' }}>
-              <Filter size={14}/> Filtros
-            </button>
+            {periodOpen && (
+              <>
+                <div onClick={() => setPeriodOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 20 }} />
+                <div style={{
+                  position: 'absolute', top: '110%', right: 0, zIndex: 30,
+                  background: '#fff', borderRadius: 12, border: '1px solid #E2E8F0',
+                  boxShadow: '0 8px 24px rgba(15,23,42,0.12)', overflow: 'hidden', minWidth: 160,
+                }}>
+                  {PERIOD_OPTIONS.map(opt => (
+                    <button
+                      key={opt.key}
+                      onClick={() => { setPreset(opt.key); setPeriodOpen(false); }}
+                      disabled={opt.key !== 'mes_actual' && !isPro}
+                      style={{
+                        width: '100%', padding: '11px 14px', border: 'none',
+                        background: preset === opt.key ? '#EFF6FF' : 'transparent',
+                        cursor: opt.key !== 'mes_actual' && !isPro ? 'not-allowed' : 'pointer',
+                        fontSize: 13, fontWeight: preset === opt.key ? 700 : 500,
+                        color: preset === opt.key ? '#2563EB' : '#0F172A',
+                        textAlign: 'left', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                        opacity: opt.key !== 'mes_actual' && !isPro ? 0.5 : 1,
+                      }}
+                    >
+                      {opt.label}
+                      {opt.key !== 'mes_actual' && !isPro && <Lock size={11} color="#94A3B8" />}
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
           </div>
         </div>
-        {/* Date pill */}
-        <button style={{ display: 'inline-flex', alignItems: 'center', gap: 6, border: '1px solid #E2E8F0', background: '#F8FAFC', borderRadius: 10, padding: '6px 12px', cursor: 'pointer', fontSize: 12.5, fontWeight: 600, color: '#374151', marginTop: 8 }}>
-          <Calendar size={13} color="#2563EB"/>
-          1 - {dayCount} {monthName.charAt(0).toUpperCase() + monthName.slice(1)} {now.getFullYear()}
-          <ChevronRight size={13} color="#94A3B8" style={{ transform: 'rotate(90deg)' }}/>
-        </button>
+
+        {/* Tabs de sección */}
+        <div style={{ display: 'flex', overflowX: 'auto', gap: 4, paddingBottom: 1 }}>
+          {SECTIONS.map(s => {
+            const isActive  = section === s.key;
+            const blocked   = s.pro && !isPro;
+            return (
+              <button
+                key={s.key}
+                onClick={() => {
+                  if (blocked) {
+                    openUpgradeModal({ title: `${s.label} — PRO`, message: 'Accede a reportes avanzados con el plan PRO.', targetPlan: 'pro', ctaLabel: 'Ver planes' });
+                    return;
+                  }
+                  setSection(s.key);
+                }}
+                style={{
+                  flexShrink: 0, display: 'flex', alignItems: 'center', gap: 5,
+                  padding: '8px 12px', borderRadius: '8px 8px 0 0', border: 'none',
+                  background: isActive ? '#EFF6FF' : 'transparent',
+                  borderBottom: isActive ? '2px solid #2563EB' : '2px solid transparent',
+                  cursor: 'pointer', position: 'relative',
+                }}
+              >
+                <s.icon size={13} color={isActive ? '#2563EB' : '#94A3B8'} />
+                <span style={{ fontSize: 12, fontWeight: isActive ? 700 : 500, color: isActive ? '#2563EB' : '#64748B' }}>
+                  {s.label}
+                </span>
+                {blocked && <Lock size={9} color="#94A3B8" />}
+              </button>
+            );
+          })}
+        </div>
       </div>
 
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 12, padding: '14px 16px 0' }}>
-
-        {/* 1. KPIs */}
-        <KpiGrid quotes={quotes} prevM={prevM}/>
-
-        {/* 2. Bar chart */}
-        <BarChart rawData={barData}/>
-
-        {/* 3. Funnel + Conversión */}
-        {isPro ? (
-          <FunnelCard quotes={quotes} events={events}/>
-        ) : (
-          <LockedSection targetPlan="pro" openUpgradeModal={openUpgradeModal}/>
-        )}
-
-        {/* 4. Services + Clients */}
-        {isPro ? (
-          <ServicesAndClients quotes={quotes}/>
-        ) : null}
-
-        {/* 5. Recent activity */}
-        {events.length > 0 && (
-          <RecentActivity events={events} quotes={quotes}/>
-        )}
-
-        {/* 6. Premium upsell */}
-        {isPro && advAccess.data !== true && (
-          <LockedSection targetPlan="premium" openUpgradeModal={openUpgradeModal}/>
-        )}
-
+      {/* Contenido de sección activa */}
+      <div style={{ padding: '14px 16px 0' }}>
+        {section === 'ventas'     && <SeccionVentas     preset={preset} />}
+        {section === 'conversion' && (isPro ? <SeccionConversion preset={preset} /> : <ProRequired />)}
+        {section === 'clientes'   && (isPro ? <SeccionClientes   preset={preset} /> : <ProRequired />)}
+        {section === 'servicios'  && (isPro ? <SeccionServicios  preset={preset} /> : <ProRequired />)}
+        {section === 'ia'         && (isPro ? <SeccionIA         preset={preset} /> : <ProRequired />)}
       </div>
     </div>
   );

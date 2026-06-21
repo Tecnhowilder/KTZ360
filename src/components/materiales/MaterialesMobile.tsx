@@ -334,7 +334,7 @@ export function MaterialesMobile() {
           ))}
         </div>
 
-        {/* Consejo KTZ360 IA */}
+        {/* Consejo Shelwi IA */}
         <div style={{ background: '#F0FDF4', borderRadius: 16, padding: '14px', border: '1px solid #BBF7D0' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
             <span style={{ fontSize: 16 }}>💡</span>

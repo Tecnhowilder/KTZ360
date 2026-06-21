@@ -85,10 +85,8 @@ function KtzIADesktop() {
     let prompt = `Extrae el área en metros cuadrados y el tipo de servicio de esta descripción para generar una cotización: "${txt}". Responde solo con texto plano.`;
 
     try {
-      const resp = await generate(prompt, { model: 'gemini-1.5', max_tokens: 200, temperature: 0.2 });
-      const content = typeof resp === 'string'
-        ? resp
-        : resp.output_text || resp?.candidates?.[0]?.content?.[0]?.text || resp?.choices?.[0]?.message?.content || JSON.stringify(resp);
+      const resp = await generate(prompt, 'generate_description', { max_tokens: 200, temperature: 0.2 });
+      const content = resp.text || JSON.stringify(resp);
 
       const num = content.match(/(\d{2,4})/);
       const area = num ? parseInt(num[1], 10) : 120;

@@ -2,8 +2,6 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ShieldCheck } from 'lucide-react';
 import { useSubscriptionStatus } from '../hooks/usePermissions';
-import { useAuth } from '../features/auth/AuthProvider';
-import { useWorkspace } from '../features/auth/WorkspaceProvider';
 import { useToast } from '../components/ui/Toast';
 import { startSubscriptionCheckout } from '../services/billing';
 import { BillingToggle, type BillingCycle } from '../components/plans/BillingToggle';
@@ -17,14 +15,13 @@ export function Planes() {
   const [billing, setBilling] = useState<BillingCycle>('monthly');
   const statusQuery = useSubscriptionStatus();
   const currentPlan = statusQuery.data?.plan_code ?? 'free';
-  const { user } = useAuth();
-  const { workspace } = useWorkspace();
   const { showToast } = useToast();
 
-  async function handleUpgrade(planCode: 'pro' | 'premium') {
+  async function handleUpgrade(planCode: 'pro' | 'premium', isFounder = false) {
     const cycle = billing === 'yearly' ? 'annual' : 'monthly';
     try {
-      await startSubscriptionCheckout(workspace.id, user?.id ?? null, planCode, cycle);
+      // workspaceId y userId se obtienen del JWT en la edge function (Zero Trust)
+      await startSubscriptionCheckout(planCode, cycle, isFounder);
     } catch {
       showToast('No se pudo iniciar el pago. Intenta nuevamente en unos minutos.');
     }

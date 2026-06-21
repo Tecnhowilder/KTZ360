@@ -135,7 +135,7 @@ export function ConfiguracionMobile() {
     { icon: <FileText size={18} color="#7C3AED" />,   iconBg: '#F5F3FF', label: 'Propuestas',        sub: 'Términos y validez',            onClick: () => navigate('/app/empresa') },
     { icon: <Package size={18} color="#16A34A" />,    iconBg: '#F0FDF4', label: 'Materiales',        sub: 'Catálogo y márgenes',           onClick: () => navigate('/app/materiales') },
     { icon: <Users size={18} color="#0891B2" />,      iconBg: '#ECFEFF', label: 'Usuarios',          sub: 'Accesos y roles',               onClick: () => navigate('/app/team') },
-    { icon: <Plug size={18} color="#EF4444" />,       iconBg: '#FEF2F2', label: 'Integraciones',     sub: 'Conectar herramientas',         onClick: () => {} },
+    { icon: <Plug size={18} color="#EF4444" />,       iconBg: '#FEF2F2', label: 'Integraciones',     sub: 'WhatsApp, Calendar y más',     onClick: () => navigate('/app/config/integraciones') },
   ];
 
   const PREF_ITEMS = [

@@ -134,7 +134,7 @@ export function OnboardingPage() {
       setCurrent(c => c + 1);
     } else {
       completeOnboarding();
-      navigate('/login', { replace: true });
+      navigate('/app/dashboard', { replace: true });
     }
   }, [current, navigate]);
 
@@ -175,7 +175,7 @@ export function OnboardingPage() {
       <div style={{ display: 'flex', justifyContent: 'flex-end', padding: '16px 20px 0', flexShrink: 0 }}>
         {current < TOTAL - 1 && (
           <button
-            onClick={() => { completeOnboarding(); navigate('/login', { replace: true }); }}
+            onClick={() => { completeOnboarding(); navigate('/app/dashboard', { replace: true }); }}
             style={{ border: 'none', background: 'none', color: '#94A3B8', fontSize: 14, fontWeight: 600, cursor: 'pointer', padding: '4px 8px' }}
           >
             Omitir

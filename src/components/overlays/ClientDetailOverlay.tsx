@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useUI, defaultQConfig } from '../../features/app/UIProvider';
 import { useWorkspace } from '../../features/auth/WorkspaceProvider';
@@ -5,6 +6,8 @@ import { useClients, useDerivedQuotes } from '../../hooks/useQuotes';
 import { fmt, fmtM, statusStyle, daysAgo, followMessage, openWhats } from '../../lib/calc';
 import { getLatestClientConsent } from '../../services/events';
 import { getOrCreateQuoteToken, registerQuoteEvent } from '../../services/publicPortal';
+import { ClientTimelineView } from '../crm/ClientTimelineView';
+import { SeguimientoSheet } from '../crm/SeguimientoSheet';
 
 const CONSENT_BADGE: Record<string, { icon: string; label: string; c: string; b: string }> = {
   accepted: { icon: '🟢', label: 'Autorizado', c: '#15803D', b: '#F0FDF4' },
@@ -25,6 +28,9 @@ export function ClientDetailOverlay() {
     queryFn: () => getLatestClientConsent(detailClientId!),
     enabled: !!detailClientId,
   });
+
+  const [activeTab, setActiveTab] = useState<'cotizaciones' | 'timeline' | 'seguimiento'>('cotizaciones');
+  const [showSeguimiento, setShowSeguimiento] = useState(false);
 
   if (!detailClientId) return null;
   if (!client) return null;
@@ -110,41 +116,79 @@ export function ClientDetailOverlay() {
             </div>
           </div>
 
-          <div style={{ fontSize: 12, fontWeight: 700, color: '#475569', marginBottom: 9 }}>Historial de cotizaciones</div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
-            {clQuotes.map((q) => {
-              const ss = statusStyle(q.status);
-              return (
-                <button
-                  key={q.id}
-                  onClick={() => { closeClientDetail(); openQuoteDetail(q.id); }}
-                  style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, border: '1px solid #E2E8F0', background: '#fff', borderRadius: 14, padding: 13, cursor: 'pointer', textAlign: 'left' }}
-                >
-                  <div style={{ minWidth: 0 }}>
-                    <div style={{ fontSize: 13.5, fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{q.title}</div>
-                    <div style={{ fontSize: 11.5, color: '#64748B', marginTop: 2 }}>{q.dateLabel} · {fmt(q.calc.total)}</div>
-                  </div>
-                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 11.5, fontWeight: 700, color: ss.c, background: ss.b, padding: '5px 11px', borderRadius: 99, flexShrink: 0 }}>
-                    <span style={{ width: 6, height: 6, borderRadius: '50%', background: ss.dot }} />
-                    {q.status}
-                  </span>
-                </button>
-              );
-            })}
-            {clQuotes.length === 0 && <div style={{ fontSize: 12.5, color: '#94A3B8' }}>Sin cotizaciones todavía.</div>}
+          {/* Tabs */}
+          <div style={{ display: 'flex', borderBottom: '1px solid #F1F5F9', marginBottom: 14 }}>
+            {([
+              { key: 'cotizaciones', label: `Cotizaciones (${clQuotes.length})` },
+              { key: 'timeline',     label: 'Timeline CRM' },
+            ] as const).map(t => (
+              <button
+                key={t.key}
+                onClick={() => setActiveTab(t.key)}
+                style={{
+                  flex: 1, padding: '8px 0', border: 'none', background: 'none', cursor: 'pointer',
+                  fontSize: 12.5, fontWeight: activeTab === t.key ? 700 : 500,
+                  color: activeTab === t.key ? '#2563EB' : '#64748B',
+                  borderBottom: activeTab === t.key ? '2px solid #2563EB' : '2px solid transparent',
+                }}
+              >
+                {t.label}
+              </button>
+            ))}
           </div>
+
+          {activeTab === 'cotizaciones' ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
+              {clQuotes.map((q) => {
+                const ss = statusStyle(q.status);
+                return (
+                  <button
+                    key={q.id}
+                    onClick={() => { closeClientDetail(); openQuoteDetail(q.id); }}
+                    style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, border: '1px solid #E2E8F0', background: '#fff', borderRadius: 14, padding: 13, cursor: 'pointer', textAlign: 'left' }}
+                  >
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ fontSize: 13.5, fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{q.title}</div>
+                      <div style={{ fontSize: 11.5, color: '#64748B', marginTop: 2 }}>{q.dateLabel} · {fmt(q.calc.total)}</div>
+                    </div>
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 11.5, fontWeight: 700, color: ss.c, background: ss.b, padding: '5px 11px', borderRadius: 99, flexShrink: 0 }}>
+                      <span style={{ width: 6, height: 6, borderRadius: '50%', background: ss.dot }} />
+                      {q.status}
+                    </span>
+                  </button>
+                );
+              })}
+              {clQuotes.length === 0 && <div style={{ fontSize: 12.5, color: '#94A3B8' }}>Sin cotizaciones todavía.</div>}
+            </div>
+          ) : (
+            <ClientTimelineView clientId={client.id} workspaceId={client.workspace_id} />
+          )}
         </div>
 
-        <div style={{ background: '#fff', borderTop: '1px solid #EEF2F7', padding: '14px 20px calc(14px + env(safe-area-inset-bottom))', display: 'flex', gap: 10 }}>
+        <div style={{ background: '#fff', borderTop: '1px solid #EEF2F7', padding: '14px 20px calc(14px + env(safe-area-inset-bottom))', display: 'flex', gap: 8 }}>
           {client.phone && (
-            <button onClick={whatsapp} style={{ border: 'none', background: '#22C55E', color: '#fff', fontWeight: 700, fontSize: 14, padding: '14px 18px', borderRadius: 13, cursor: 'pointer' }}>
+            <button onClick={whatsapp} style={{ border: 'none', background: '#22C55E', color: '#fff', fontWeight: 700, fontSize: 13, padding: '14px 14px', borderRadius: 13, cursor: 'pointer', flexShrink: 0 }}>
               WhatsApp
             </button>
           )}
-          <button onClick={newQuote} style={{ flex: 1, border: 'none', background: '#2563EB', color: '#fff', fontWeight: 700, fontSize: 14.5, padding: 14, borderRadius: 13, cursor: 'pointer', boxShadow: '0 8px 18px -8px rgba(37,99,235,.6)' }}>
-            + Nueva cotización para {client.name}
+          <button
+            onClick={() => setShowSeguimiento(true)}
+            style={{ border: '1px solid #E2E8F0', background: '#F8FAFC', color: '#374151', fontWeight: 700, fontSize: 13, padding: '14px 14px', borderRadius: 13, cursor: 'pointer', flexShrink: 0 }}
+          >
+            + Seguimiento
+          </button>
+          <button onClick={newQuote} style={{ flex: 1, border: 'none', background: '#2563EB', color: '#fff', fontWeight: 700, fontSize: 13.5, padding: 14, borderRadius: 13, cursor: 'pointer', boxShadow: '0 8px 18px -8px rgba(37,99,235,.6)' }}>
+            + Cotización
           </button>
         </div>
+
+        {showSeguimiento && (
+          <SeguimientoSheet
+            clientId={client.id}
+            quoteName={client.name}
+            onClose={() => setShowSeguimiento(false)}
+          />
+        )}
       </div>
     </div>
   );

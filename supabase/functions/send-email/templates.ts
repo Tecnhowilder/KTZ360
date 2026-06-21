@@ -9,7 +9,7 @@ const BRAND = {
   white: '#FFFFFF',
 };
 
-const APP_NAME = 'KTZ360';
+const APP_NAME = 'Shelwi';
 
 export type TemplateId =
   | 'team_invite'

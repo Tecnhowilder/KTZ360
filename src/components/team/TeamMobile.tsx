@@ -28,10 +28,14 @@ const EXTRA_USER_PRICE = 11900;
 const INCLUDED_USERS   = 5;
 
 const ROLE_META: Record<string, { label: string; bg: string; color: string }> = {
-  owner:        { label: 'Propietario',   bg: '#1E40AF', color: '#fff' },
-  admin:        { label: 'Administrador', bg: '#7C3AED', color: '#fff' },
-  employee:     { label: 'Colaborador',   bg: '#F97316', color: '#fff' },
-  super_admin:  { label: 'Super admin',   bg: '#0F172A', color: '#fff' },
+  owner:         { label: 'Propietario',   bg: '#1E40AF', color: '#fff' },
+  admin:         { label: 'Administrador', bg: '#7C3AED', color: '#fff' },
+  supervisor:    { label: 'Supervisor',    bg: '#0891B2', color: '#fff' },
+  comercial:     { label: 'Comercial',     bg: '#D97706', color: '#fff' },
+  operario:      { label: 'Operario',      bg: '#16A34A', color: '#fff' },
+  employee:      { label: 'Operario',      bg: '#16A34A', color: '#fff' }, // legacy alias
+  super_admin:   { label: 'Super admin',   bg: '#0F172A', color: '#fff' },
+  support_admin: { label: 'Soporte',       bg: '#64748B', color: '#fff' },
 };
 
 const AV_COLORS = ['#6366F1','#F97316','#8B5CF6','#22C55E','#EF4444','#0EA5E9','#F59E0B','#EC4899'];
@@ -174,12 +178,12 @@ function PendingRow({ inv, onRevoke, onResend }: {
 
 function InviteDrawer({ open, onClose, onInvite, loading, linkFallback, onCopyLink }: {
   open: boolean; onClose: () => void; loading: boolean;
-  onInvite: (email: string, name: string, role: 'admin' | 'employee') => void;
+  onInvite: (email: string, name: string, role: 'admin' | 'supervisor' | 'comercial' | 'operario') => void;
   linkFallback: string | null; onCopyLink: () => void;
 }) {
   const [name,  setName]  = useState('');
   const [email, setEmail] = useState('');
-  const [role,  setRole]  = useState<'admin' | 'employee'>('employee');
+  const [role,  setRole]  = useState<'admin' | 'supervisor' | 'comercial' | 'operario'>('operario');
 
   function submit() {
     if (!isValidEmail(email)) return;
@@ -241,12 +245,17 @@ function InviteDrawer({ open, onClose, onInvite, loading, linkFallback, onCopyLi
             {/* Role */}
             <div style={{ marginBottom: 20 }}>
               <div style={{ fontSize: 11.5, fontWeight: 600, color: '#64748B', marginBottom: 8 }}>ROL</div>
-              <div style={{ display: 'flex', gap: 10 }}>
-                {([['admin', 'Administrador', 'Gestión operativa completa'], ['employee', 'Colaborador', 'Crear y editar cotizaciones']] as const).map(([r, label, desc]) => (
-                  <button key={r} onClick={() => setRole(r)} style={{ flex: 1, border: `2px solid ${role === r ? '#2563EB' : '#E2E8F0'}`, background: role === r ? '#EFF6FF' : '#fff', borderRadius: 14, padding: '12px 10px', cursor: 'pointer', textAlign: 'left', transition: 'all .15s' }}>
-                    <div style={{ fontSize: 13.5, fontWeight: 700, color: role === r ? '#2563EB' : '#0F172A', marginBottom: 3 }}>{label}</div>
-                    <div style={{ fontSize: 11.5, color: '#64748B', lineHeight: 1.3 }}>{desc}</div>
-                    {role === r && <Check size={14} color="#2563EB" style={{ marginTop: 6 }}/>}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                {([
+                  ['admin',      'Administrador', 'Gestión operativa completa'],
+                  ['supervisor', 'Supervisor',    'Supervisión de equipos y OTs'],
+                  ['comercial',  'Comercial',     'Gestión de clientes y cotizaciones'],
+                  ['operario',   'Operario',      'Ejecución de órdenes de trabajo'],
+                ] as const).map(([r, label, desc]) => (
+                  <button key={r} onClick={() => setRole(r)} style={{ border: `2px solid ${role === r ? '#2563EB' : '#E2E8F0'}`, background: role === r ? '#EFF6FF' : '#fff', borderRadius: 12, padding: '10px', cursor: 'pointer', textAlign: 'left', transition: 'all .15s' }}>
+                    <div style={{ fontSize: 12.5, fontWeight: 700, color: role === r ? '#2563EB' : '#0F172A', marginBottom: 3 }}>{label}</div>
+                    <div style={{ fontSize: 11, color: '#64748B', lineHeight: 1.3 }}>{desc}</div>
+                    {role === r && <Check size={12} color="#2563EB" style={{ marginTop: 4 }}/>}
                   </button>
                 ))}
               </div>
@@ -270,7 +279,7 @@ function InviteDrawer({ open, onClose, onInvite, loading, linkFallback, onCopyLi
 
 function ActionDrawer({ member, open, onClose, onRoleChange, onDeactivate, onRemove, loading }: {
   member: ProfileRow | null; open: boolean; onClose: () => void;
-  onRoleChange: (role: 'admin' | 'employee') => void;
+  onRoleChange: (role: 'admin' | 'supervisor' | 'comercial' | 'operario') => void;
   onDeactivate: () => void; onRemove: () => void; loading: boolean;
 }) {
   if (!member) return null;
@@ -303,9 +312,9 @@ function ActionDrawer({ member, open, onClose, onRoleChange, onDeactivate, onRem
               <Shield size={18} color="#7C3AED"/> Cambiar a Administrador
             </button>
           )}
-          {member.role !== 'employee' && (
-            <button onClick={() => onRoleChange('employee')} disabled={loading} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 12, padding: '13px 12px', border: 'none', background: 'none', cursor: 'pointer', borderRadius: 12, fontSize: 14, fontWeight: 500, color: '#0F172A' }}>
-              <User size={18} color="#F97316"/> Cambiar a Colaborador
+          {member.role !== 'operario' && (
+            <button onClick={() => onRoleChange('operario')} disabled={loading} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 12, padding: '13px 12px', border: 'none', background: 'none', cursor: 'pointer', borderRadius: 12, fontSize: 14, fontWeight: 500, color: '#0F172A' }}>
+              <User size={18} color="#16A34A"/> Cambiar a Operario
             </button>
           )}
           {member.status !== 'inactive' && (
@@ -367,7 +376,7 @@ export function TeamMobile() {
   const pendingQuery = usePendingInvitations();
   const historyQuery = useInvitationHistory();
 
-  const [tab,          setTab]          = useState<'all' | 'admin' | 'employee'>('all');
+  const [tab,          setTab]          = useState<'all' | 'admin' | 'operario'>('all');
   const [inviteOpen,   setInviteOpen]   = useState(false);
   const [actionMember, setActionMember] = useState<ProfileRow | null>(null);
   const [actionOpen,   setActionOpen]   = useState(false);
@@ -386,7 +395,7 @@ export function TeamMobile() {
   const inviterName    = profile.full_name || profile.email || 'Un administrador';
   const workspaceName  = workspace.name;
 
-  async function handleInvite(email: string, name: string, role: 'admin' | 'employee') {
+  async function handleInvite(email: string, name: string, role: 'admin' | 'supervisor' | 'comercial' | 'operario') {
     setInviteLoading(true);
     try {
       const result = await inviteTeamMember({ workspaceId: workspace.id, email, role, fullName: name || undefined, inviterName, workspaceName });
@@ -405,7 +414,7 @@ export function TeamMobile() {
   }
 
   const roleMutation = useMutation({
-    mutationFn: ({ profileId, role }: { profileId: string; role: 'admin' | 'employee' }) =>
+    mutationFn: ({ profileId, role }: { profileId: string; role: 'admin' | 'supervisor' | 'comercial' | 'operario' }) =>
       updateMemberRole(profileId, role),
     onSuccess: () => { invalidateAll(); showToast('Rol actualizado'); setActionOpen(false); },
     onError: (err) => showToast(translateError(err, 'No se pudo actualizar el rol')),
@@ -448,14 +457,15 @@ export function TeamMobile() {
   const history = historyQuery.data ?? [];
 
   const admins      = members.filter(m => m.role === 'admin');
-  const employees   = members.filter(m => m.role === 'employee');
+  const operarios   = members.filter(m => ['operario','supervisor','comercial'].includes(m.role));
   const seatsPct    = seats.seats_limit > 0 ? Math.min(100, Math.round((seats.seats_used / seats.seats_limit) * 100)) : 0;
   const seatsFull   = seats.seats_used >= seats.seats_limit;
   const extraSeats  = Math.max(0, seats.seats_used - INCLUDED_USERS);
+  void operarios;
 
   const filteredMembers = members.filter(m => {
-    if (tab === 'admin')    return m.role === 'admin';
-    if (tab === 'employee') return m.role === 'employee';
+    if (tab === 'admin')   return m.role === 'admin';
+    if (tab === 'operario') return ['operario','supervisor','comercial'].includes(m.role);
     return true;
   });
 
@@ -520,7 +530,7 @@ export function TeamMobile() {
             { icon: <div style={{ fontSize: 20 }}>👥</div>, value: `${seats.seats_used}/${seats.seats_limit}`, label: 'Usuarios activos', sub: 'Límite incluido', subColor: '#22C55E', subIcon: <Check size={10} color="#22C55E"/> },
             { icon: <div style={{ fontSize: 20 }}>⏰</div>, value: String(pending.length), label: 'Invitaciones pendientes', sub: pending.length === 0 ? 'No hay pendientes' : `${pending.length} pendiente${pending.length > 1 ? 's' : ''}`, subColor: pending.length > 0 ? '#F59E0B' : '#22C55E', subIcon: pending.length === 0 ? <Check size={10} color="#22C55E"/> : null },
             { icon: <div style={{ fontSize: 20 }}>🛡️</div>, value: String(admins.length), label: 'Administradores', sub: 'Con permisos totales', subColor: '#7C3AED', subIcon: null },
-            { icon: <div style={{ fontSize: 20 }}>👤</div>, value: String(employees.length), label: 'Colaboradores', sub: 'Acceso limitado', subColor: '#F97316', subIcon: null },
+            { icon: <div style={{ fontSize: 20 }}>👤</div>, value: String(filteredMembers.filter(m => ['operario','supervisor','comercial'].includes(m.role)).length), label: 'Operativos', sub: 'Supervisor/Comercial/Operario', subColor: '#16A34A', subIcon: null },
           ].map(k => (
             <div key={k.label} style={{ ...CARD, padding: '14px 14px' }}>
               {k.icon}
@@ -535,7 +545,7 @@ export function TeamMobile() {
 
         {/* ── Filter tabs ── */}
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-          {([['all', `Todos ${members.length}`], ['admin', `Administradores ${admins.length}`], ['employee', `Colaboradores ${employees.length}`]] as const).map(([key, label]) => (
+          {([['all', `Todos ${members.length}`], ['admin', `Admins ${admins.length}`], ['operario', `Operativos`]] as const).map(([key, label]) => (
             <button key={key} onClick={() => setTab(key)} style={{ flexShrink: 0, border: `1.5px solid ${tab === key ? '#2563EB' : '#E2E8F0'}`, background: tab === key ? '#2563EB' : '#fff', color: tab === key ? '#fff' : '#64748B', fontWeight: tab === key ? 700 : 500, fontSize: 12.5, padding: '7px 12px', borderRadius: 99, cursor: 'pointer', transition: 'all .15s' }}>
               {label}
             </button>

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, Copy, MessageCircle, MoreVertical, Download, Mail, Pencil } from 'lucide-react';
+import { ArrowLeft, Copy, MessageCircle, MoreVertical, Download, Mail, Pencil, Package } from 'lucide-react';
 import { getQuote, updateQuoteStatus } from '../services/quotes';
 import { listQuoteItems } from '../services/quoteItems';
 import { listClients } from '../services/clients';
@@ -13,6 +13,7 @@ import { useFeatureAccess } from '../hooks/usePermissions';
 import { useToast } from '../components/ui/Toast';
 import { formatCurrencyCOP } from '../lib/currency';
 import { shareByEmail, openWhatsAppShare } from '../lib/shareUtils';
+import { useCreateOrder } from '../hooks/useOrders';
 import type { QuoteStatus } from '../lib/types';
 import type { QuoteItemRow } from '../services/quoteItems';
 
@@ -30,10 +31,13 @@ export function QuoteDetailPage() {
   const { openDocument } = useUI();
   const { showToast } = useToast();
   const qc = useQueryClient();
-  const editAccess = useFeatureAccess('quote_editing_enabled');
+  const editAccess   = useFeatureAccess('quote_editing_enabled');
+  const ordersAccess = useFeatureAccess('orders_enabled');
   const { openUpgradeModal } = useUI();
   const [statusMenuOpen, setStatusMenuOpen] = useState(false);
   const [sharing, setSharing] = useState(false);
+  const [creatingOrder, setCreatingOrder] = useState(false);
+  const createOrderMut = useCreateOrder();
 
   const quoteQ  = useQuery({ queryKey: ['quote', id],          queryFn: () => getQuote(id!),               enabled: !!id });
   const itemsQ  = useQuery({ queryKey: ['quoteItems', id],     queryFn: () => listQuoteItems(id!),          enabled: !!id });
@@ -232,6 +236,47 @@ export function QuoteDetailPage() {
             <span style={{ fontSize: 11, fontWeight: 700, color: '#D97706', background: '#FEF3C7', padding: '3px 8px', borderRadius: 99 }}>PRO</span>
           )}
         </button>
+
+        {/* Crear Pedido — solo si cotización Aprobada */}
+        {q.status === 'Aprobada' && (
+          <button
+            onClick={async () => {
+              if (ordersAccess.data === false) {
+                openUpgradeModal({ title: 'Pedidos operativos en PREMIUM', message: 'Convierte cotizaciones aprobadas en pedidos ejecutables con órdenes de trabajo.', targetPlan: 'premium', ctaLabel: 'Actualizar a PREMIUM' });
+                return;
+              }
+              setCreatingOrder(true);
+              try {
+                const { orderId } = await createOrderMut.mutateAsync({ quoteId: id! });
+                showToast('Pedido creado ✓');
+                navigate(`/app/pedidos/${orderId}`);
+              } catch (e: any) {
+                showToast(e.message?.includes('Ya existe') ? 'Ya existe un pedido activo para esta cotización' : e.message);
+              } finally { setCreatingOrder(false); }
+            }}
+            disabled={creatingOrder}
+            style={{
+              width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+              padding: '14px 16px', background: '#F0FDF4', border: '2px solid #BBF7D0',
+              borderRadius: 16, cursor: 'pointer', fontFamily: 'inherit', opacity: creatingOrder ? .7 : 1,
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <div style={{ width: 34, height: 34, borderRadius: 9, background: '#DCFCE7', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <Package size={15} color="#16A34A" />
+              </div>
+              <div style={{ textAlign: 'left' }}>
+                <div style={{ fontSize: 14, fontWeight: 700, color: '#166534' }}>
+                  {creatingOrder ? 'Creando pedido...' : 'Crear Pedido'}
+                </div>
+                <div style={{ fontSize: 12, color: '#4ADE80' }}>Generar pedido operativo desde esta cotización</div>
+              </div>
+            </div>
+            {ordersAccess.data === false && (
+              <span style={{ fontSize: 11, fontWeight: 700, color: '#7C3AED', background: '#F3E8FF', padding: '3px 8px', borderRadius: 99 }}>PREMIUM</span>
+            )}
+          </button>
+        )}
 
         {/* Cambiar estado */}
         <div style={{ background: '#fff', border: '1px solid #E2E8F0', borderRadius: 16, overflow: 'hidden', position: 'relative' }}>

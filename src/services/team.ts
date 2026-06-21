@@ -55,7 +55,7 @@ export async function listInvitationHistory(workspaceId: string): Promise<Worksp
 export interface InviteTeamMemberInput {
   workspaceId: string;
   email: string;
-  role: 'admin' | 'employee';
+  role: 'admin' | 'supervisor' | 'comercial' | 'operario';
   fullName?: string;
   inviterName: string;
   workspaceName: string;
@@ -96,7 +96,7 @@ export async function revokeInvitation(invitationId: string): Promise<void> {
   if (error) throw error;
 }
 
-export async function updateMemberRole(profileId: string, role: 'admin' | 'employee'): Promise<void> {
+export async function updateMemberRole(profileId: string, role: 'admin' | 'supervisor' | 'comercial' | 'operario'): Promise<void> {
   const { error } = await supabase.rpc('update_team_member_role', { p_profile_id: profileId, p_role: role });
   if (error) throw error;
 }

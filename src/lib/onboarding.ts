@@ -1,3 +1,5 @@
+import { supabase } from './supabaseClient';
+
 const ONBOARDING_KEY = 'shelwi_onboarding_completed';
 
 export function hasSeenOnboarding(): boolean {
@@ -14,4 +16,6 @@ export function completeOnboarding(): void {
   } catch {
     // modo privado o cuota llena — continuar sin persistir
   }
+  // Zero Trust: persistir también en DB (fire-and-forget)
+  void (supabase as any).rpc('mark_onboarding_seen');
 }

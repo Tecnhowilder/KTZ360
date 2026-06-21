@@ -40,6 +40,7 @@ export type WorkspaceRow = {
   created_at: string;
   updated_at: string;
   status: string;
+  storage_used_bytes: number;
 };
 
 export type SubscriptionRow = {
@@ -82,17 +83,29 @@ export type WorkspaceFeaturesRow = {
   updated_at: string;
 };
 
+export type UserRole =
+  | 'owner' | 'admin' | 'supervisor' | 'comercial' | 'operario'
+  | 'super_admin' | 'support_admin';
+
+export type OperationalStatus = 'off' | 'disponible' | 'en_ruta' | 'en_sitio' | 'finalizado';
+
 export type ProfileRow = {
   id: string;
   workspace_id: string;
-  role: 'owner' | 'admin' | 'employee' | 'super_admin' | 'support_admin';
+  role: UserRole;
   full_name: string | null;
   email: string | null;
+  phone: string | null;
   avatar_path: string | null;
   email_verified: boolean;
   status: 'active' | 'inactive' | 'invited' | 'removed';
+  operational_status: OperationalStatus;
+  gps_consent_at: string | null;
   created_at: string;
   updated_at: string;
+  onboarding_seen: boolean;
+  onboarding_card_collapsed: boolean;
+  onboarding_card_hidden_at: string | null;
 };
 
 export type PlanFeaturesRow = {
@@ -106,6 +119,13 @@ export type PlanFeaturesRow = {
   multiuser_enabled: boolean;
   quote_editing_enabled: boolean;
   pdf_tier: 'free' | 'pro';
+  pipeline_enabled: boolean;
+  orders_enabled: boolean;
+  work_orders_enabled: boolean;
+  gps_enabled: boolean;
+  ai_credits_enabled: boolean;
+  founder_eligible: boolean;
+  storage_enabled: boolean;
   updated_at: string;
 };
 
@@ -113,6 +133,8 @@ export type PlanLimitsRow = {
   plan_code: string;
   max_quotes_month: number | null;
   max_clients: number | null;
+  max_catalog_items: number | null;
+  max_storage_gb: number | null;
   included_users: number;
   extra_user_price: number;
   ai_credits_monthly: number;
@@ -147,6 +169,30 @@ export type AdminSettingRow = {
   key: string;
   value: Json;
   updated_at: string;
+};
+
+// ─── Sprint 9: tipos backoffice ───────────────────────────────────────────────
+
+export type FounderPromotionRow = {
+  id:                  string;
+  plan_code:           string;
+  name:                string;
+  founder_price:       number;
+  regular_price:       number;
+  duration_months:     number;
+  max_redemptions:     number | null;
+  current_redemptions: number;
+  active:              boolean;
+  valid_until:         string | null;
+  created_at:          string;
+  updated_at:          string;
+};
+
+export type AiOperationCostRow = {
+  operation:    string;
+  credits_cost: number;
+  description:  string | null;
+  active:       boolean;
 };
 
 export type ClientRow = {
@@ -234,6 +280,132 @@ export type WorkspaceQuoteCounterRow = {
   last_number: number;
 };
 
+// ─── Sprint 6: Operaciones ────────────────────────────────────────────────────
+
+export type OrderStatus =
+  | 'pendiente' | 'programado' | 'en_ejecucion'
+  | 'pausado'   | 'finalizado' | 'cancelado';
+
+export type WorkOrderStatus =
+  | 'pendiente' | 'asignada' | 'en_progreso'
+  | 'pausada'   | 'finalizada' | 'cancelada';
+
+export type WorkOrderPriority = 'baja' | 'media' | 'alta' | 'urgente';
+
+export type WorkLogEventType =
+  | 'order_created' | 'order_status_changed' | 'order_assigned'
+  | 'work_order_created' | 'work_order_status_changed' | 'work_order_assigned'
+  | 'comment' | 'completed'
+  | 'evidence_uploaded' | 'evidence_deleted';
+
+export type OrderRow = {
+  id:             string;
+  workspace_id:   string;
+  quote_id:       string | null;
+  client_id:      string | null;
+  created_by:     string;
+  assigned_to:    string | null;
+  order_number:   string;
+  title:          string;
+  description:    string | null;
+  status:         OrderStatus;
+  order_snapshot: Json;
+  total_amount:   number;
+  scheduled_at:   string | null;
+  started_at:     string | null;
+  finished_at:    string | null;
+  notes:          string | null;
+  created_at:     string;
+  updated_at:     string;
+  deleted_at:     string | null;
+};
+
+export type WorkOrderRow = {
+  id:                string;
+  workspace_id:      string;
+  order_id:          string;
+  created_by:        string;
+  assigned_to:       string | null;
+  work_order_number: string;
+  title:             string;
+  description:       string | null;
+  status:            WorkOrderStatus;
+  priority:          WorkOrderPriority;
+  sequence_num:      number;
+  scheduled_at:      string | null;
+  started_at:        string | null;
+  finished_at:       string | null;
+  notes:             string | null;
+  created_at:        string;
+  updated_at:        string;
+};
+
+export type WorkLogRow = {
+  id:            string;
+  workspace_id:  string;
+  order_id:      string | null;
+  work_order_id: string | null;
+  user_id:       string;
+  event_type:    WorkLogEventType;
+  from_status:   string | null;
+  to_status:     string | null;
+  note:          string | null;
+  metadata:      Json;
+  created_at:    string;
+};
+
+export type WorkspaceOrderCounterRow = {
+  workspace_id:           string;
+  last_order_number:      number;
+  last_work_order_number: number;
+};
+
+// ─── Tipos derivados para UI ──────────────────────────────────────────────────
+
+export interface OrderWithRelations extends OrderRow {
+  client_name:        string | null;
+  assigned_name:      string | null;
+  creator_name:       string | null;
+  work_order_count:   number;
+  work_orders_done:   number;
+}
+
+export interface WorkOrderWithRelations extends WorkOrderRow {
+  order_number: string;
+  order_title:  string;
+  client_name:  string | null;
+  assigned_name: string | null;
+}
+
+export interface WorkLogWithUser extends WorkLogRow {
+  user_name: string | null;
+}
+
+export interface OperationsDashboard {
+  orders: {
+    total: number;
+    pendiente: number;
+    programado: number;
+    en_ejecucion: number;
+    pausado: number;
+    finalizado: number;
+    cancelado: number;
+    activos: number;
+  };
+  work_orders: {
+    total: number;
+    pendiente: number;
+    asignada: number;
+    en_progreso: number;
+    pausada: number;
+    finalizada: number;
+    cancelada: number;
+    activas: number;
+  };
+  recent_orders: OrderWithRelations[];
+  recent_work_orders: WorkOrderWithRelations[];
+}
+
 export type QuoteStatusDb = 'Borrador' | 'Enviada' | 'Aprobada' | 'Rechazada' | 'Vencida';
 
 export type QuoteRow = {
@@ -257,6 +429,7 @@ export type QuoteRow = {
   valid_days: number;
   currency_code: string;
   status: QuoteStatusDb;
+  commercial_status: CommercialStatus;
   calc_snapshot: Json;
   doc_items: Json;
   service_lines: Json;
@@ -294,6 +467,12 @@ export type CompanySettingsRow = {
   color_primary: string;
   color_secondary: string;
   color_accent: string;
+  // Sprint 10: portal del cliente
+  portal_enabled: boolean;
+  portal_show_evidences: boolean;
+  portal_show_responsible: boolean;
+  portal_show_comments: boolean;
+  portal_show_timeline: boolean;
   created_at: string;
   updated_at: string;
 };
@@ -355,6 +534,327 @@ export type AuditLogRow = {
   entity_type: string;
   entity_id: string | null;
   metadata: Json;
+  created_at: string;
+};
+
+// ---------------------------------------------------------------------------
+// CRM Sprint 4
+// ---------------------------------------------------------------------------
+
+export type CommercialStatus =
+  | 'borrador' | 'enviada' | 'vista' | 'negociacion'
+  | 'aprobada' | 'rechazada' | 'vencida';
+
+export type SeguimientoType =
+  | 'llamada' | 'whatsapp' | 'correo' | 'visita' | 'reunion' | 'nota';
+
+export type RecordatorioStatus = 'pendiente' | 'completado' | 'cancelado';
+
+export type QuoteCommercialHistoryRow = {
+  id: string;
+  quote_id: string;
+  workspace_id: string;
+  from_status: CommercialStatus | null;
+  to_status: CommercialStatus;
+  changed_by: string | null;
+  observacion: string | null;
+  created_at: string;
+};
+
+export type SeguimientoRow = {
+  id: string;
+  workspace_id: string;
+  quote_id: string | null;
+  client_id: string | null;
+  created_by: string;
+  type: SeguimientoType;
+  resultado: string | null;
+  comentario: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type RecordatorioRow = {
+  id: string;
+  workspace_id: string;
+  created_by: string;
+  quote_id: string | null;
+  client_id: string | null;
+  scheduled_at: string;
+  type: SeguimientoType;
+  note: string | null;
+  status: RecordatorioStatus;
+  created_at: string;
+  updated_at: string;
+};
+
+export type ClientTimelineEventType =
+  | 'quote_created' | 'quote_sent' | 'quote_viewed' | 'quote_approved'
+  | 'quote_rejected' | 'quote_expired' | 'status_changed'
+  | 'seguimiento' | 'nota' | 'recordatorio_created' | 'recordatorio_done';
+
+// ---------------------------------------------------------------------------
+// Portal del Cliente Sprint 10
+// ---------------------------------------------------------------------------
+
+export type PortalAccessAction =
+  | 'portal_opened' | 'quote_viewed' | 'order_viewed'
+  | 'ot_viewed' | 'evidence_viewed' | 'timeline_viewed';
+
+export type ClientPortalTokenRow = {
+  id: string;
+  workspace_id: string;
+  client_id: string;
+  token: string;
+  created_by: string | null;
+  expires_at: string;
+  revoked_at: string | null;
+  last_access_at: string | null;
+  created_at: string;
+};
+
+export type PortalAccessLogRow = {
+  id: string;
+  workspace_id: string;
+  client_id: string | null;
+  token_id: string | null;
+  ip: string | null;
+  user_agent: string | null;
+  action: PortalAccessAction;
+  entity_id: string | null;
+  created_at: string;
+};
+
+export interface PortalConfig {
+  show_evidences:   boolean;
+  show_responsible: boolean;
+  show_comments:    boolean;
+  show_timeline:    boolean;
+}
+
+export interface PortalCompany {
+  name:            string;
+  logo_path:       string | null;
+  color_primary:   string;
+  color_secondary: string;
+  color_accent:    string;
+  phone:           string | null;
+  email:           string | null;
+  city:            string | null;
+}
+
+export interface PortalClient {
+  id:    string;
+  name:  string;
+  email: string | null;
+  phone: string | null;
+}
+
+export interface PortalSummary {
+  total_quotes:    number;
+  approved_quotes: number;
+  pending_quotes:  number;
+  total_value:     number;
+}
+
+export interface PortalOrder {
+  id:               string;
+  order_number:     string;
+  title:            string;
+  description:      string | null;
+  status:           string;
+  total_amount:     number;
+  scheduled_at:     string | null;
+  started_at:       string | null;
+  finished_at:      string | null;
+  created_at:       string;
+  updated_at:       string;
+  assigned_name:    string | null;
+  work_order_count: number;
+  work_orders_done: number;
+}
+
+export interface PortalWorkOrder {
+  id:                string;
+  work_order_number: string;
+  title:             string;
+  description:       string | null;
+  status:            string;
+  priority:          string;
+  sequence_num:      number;
+  scheduled_at:      string | null;
+  started_at:        string | null;
+  finished_at:       string | null;
+  assigned_name:     string | null;
+  comments:          Array<{ note: string; created_at: string }>;
+}
+
+export interface PortalEvidence {
+  id:            string;
+  file_name:     string;
+  file_size:     number;
+  file_type:     string;
+  mime_type:     string;
+  storage_path:  string;
+  caption:       string | null;
+  is_signature:  boolean;
+  order_id:      string | null;
+  work_order_id: string | null;
+  created_at:    string;
+}
+
+export interface PortalTimelineEvent {
+  type:       string;
+  event_type: string;
+  title:      string;
+  description:string | null;
+  entity_id:  string;
+  amount?:    number;
+  created_at: string;
+}
+
+export interface ClientPortalData {
+  client:        PortalClient;
+  company:       PortalCompany;
+  config:        PortalConfig;
+  summary:       PortalSummary;
+  active_orders: PortalOrder[];
+  recent_quote:  { id: string; quote_number: string; title: string; status: string; total: number; sent_at: string | null; updated_at: string } | null;
+}
+
+export interface PortalAnalytics {
+  portal_enabled:      boolean;
+  total_tokens:        number;
+  active_tokens:       number;
+  clientes_con_acceso: number;
+  accesos_totales:     number;
+  accesos_7d:          number;
+  portal_openings_hoy: number;
+  clientes_activos_hoy:number;
+  by_action:           Partial<Record<PortalAccessAction, number>>;
+  recent_accesses:     Array<{ client_name: string | null; action: string; created_at: string }>;
+}
+
+// ---------------------------------------------------------------------------
+// GPS Sprint 8
+// ---------------------------------------------------------------------------
+
+export type GpsEventType = 'check_in' | 'check_out' | 'status_change' | 'manual_update';
+
+export type MemberLocationRow = {
+  id: string;
+  workspace_id: string;
+  user_id: string;
+  latitude: number;
+  longitude: number;
+  accuracy_meters: number | null;
+  source: 'check_in' | 'check_out' | 'status_change' | 'manual';
+  order_id: string | null;
+  work_order_id: string | null;
+  recorded_at: string;
+};
+
+export type GpsEventRow = {
+  id: string;
+  workspace_id: string;
+  user_id: string;
+  event_type: GpsEventType;
+  latitude: number | null;
+  longitude: number | null;
+  accuracy_meters: number | null;
+  operational_status: OperationalStatus | null;
+  order_id: string | null;
+  work_order_id: string | null;
+  metadata: Json;
+  created_at: string;
+};
+
+export interface TeamMapMember {
+  user_id: string;
+  full_name: string | null;
+  email: string | null;
+  phone: string | null;
+  role: UserRole;
+  operational_status: OperationalStatus;
+  gps_consent: boolean;
+  latitude: number | null;
+  longitude: number | null;
+  accuracy_meters: number | null;
+  location_source: string | null;
+  location_updated: string | null;
+  work_order_id: string | null;
+  work_order_number: string | null;
+  work_order_title: string | null;
+  work_order_status: string | null;
+  order_id: string | null;
+  order_number: string | null;
+  order_title: string | null;
+}
+
+export interface OperationalDashboard {
+  team_status: Partial<Record<OperationalStatus, number>>;
+  total_miembros: number;
+  en_campo: number;
+  checkins_hoy: number;
+  checkouts_hoy: number;
+  ot_activas: number;
+  ot_finalizadas_hoy: number;
+  miembros_en_campo: TeamMapMember[];
+}
+
+// ---------------------------------------------------------------------------
+// Evidencias Sprint 7
+// ---------------------------------------------------------------------------
+
+export type EvidenceFileType = 'image' | 'video' | 'audio' | 'document' | 'signature';
+
+export type EvidenceFileRow = {
+  id: string;
+  workspace_id: string;
+  order_id: string | null;
+  work_order_id: string | null;
+  uploaded_by: string;
+  file_name: string;
+  file_size: number;
+  mime_type: string;
+  storage_path: string;
+  file_type: EvidenceFileType;
+  caption: string | null;
+  is_signature: boolean;
+  duration_sec: number | null;
+  thumbnail_path: string | null;
+  metadata: Json;
+  deleted_at: string | null;
+  created_at: string;
+};
+
+export type EvidenceFileWithUploader = EvidenceFileRow & {
+  uploader_name: string | null;
+};
+
+export interface StorageUsage {
+  used_bytes: number;
+  max_bytes: number;
+  available_bytes: number;
+  pct_used: number;
+  has_storage: boolean;
+  by_type: Partial<Record<EvidenceFileType, { count: number; bytes: number }>>;
+  recent_files: Array<{ id: string; file_name: string; file_type: EvidenceFileType; file_size: number; created_at: string }>;
+}
+
+export type ClientTimelineEventRow = {
+  id: string;
+  workspace_id: string;
+  client_id: string;
+  quote_id: string | null;
+  seguimiento_id: string | null;
+  recordatorio_id: string | null;
+  type: ClientTimelineEventType;
+  title: string;
+  description: string | null;
+  icon: string | null;
+  metadata: Json;
+  created_by: string | null;
   created_at: string;
 };
 
@@ -597,6 +1097,18 @@ export interface Database {
       admin_settings: Table<AdminSettingRow, 'key'>;
       workspace_invitations: Table<WorkspaceInvitationRow, 'workspace_id' | 'email' | 'role' | 'invited_by'>;
       additional_user_licenses: Table<AdditionalUserLicenseRow, 'workspace_id'>;
+      quote_commercial_history: Table<QuoteCommercialHistoryRow, 'quote_id' | 'workspace_id' | 'to_status'>;
+      seguimientos: Table<SeguimientoRow, 'workspace_id' | 'created_by' | 'type'>;
+      recordatorios: Table<RecordatorioRow, 'workspace_id' | 'created_by' | 'scheduled_at'>;
+      client_timeline_events: Table<ClientTimelineEventRow, 'workspace_id' | 'client_id' | 'type' | 'title'>;
+      evidence_files: Table<EvidenceFileRow, 'workspace_id' | 'uploaded_by' | 'file_name' | 'file_size' | 'mime_type' | 'storage_path' | 'file_type'>;
+      member_locations: Table<MemberLocationRow, 'workspace_id' | 'user_id' | 'latitude' | 'longitude'>;
+      gps_events: Table<GpsEventRow, 'workspace_id' | 'user_id' | 'event_type'>;
+      client_portal_tokens: Table<ClientPortalTokenRow, 'workspace_id' | 'client_id'>;
+      portal_access_log: Table<PortalAccessLogRow, 'workspace_id' | 'action'>;
+      integration_invoices: Table<Record<string, unknown>, 'workspace_id' | 'provider' | 'external_invoice_id'>;
+      integration_entity_refs: Table<Record<string, unknown>, 'workspace_id' | 'entity_type' | 'entity_id' | 'provider' | 'external_id'>;
+      communication_log: Table<Record<string, unknown>, 'workspace_id' | 'provider' | 'channel'>;
     };
     Views: Record<string, never>;
     Functions: {
@@ -675,6 +1187,254 @@ export interface Database {
       transfer_ownership: {
         Args: { p_new_owner_profile_id: string };
         Returns: undefined;
+      };
+      update_commercial_status: {
+        Args: { p_quote_id: string; p_new_status: string; p_observacion?: string | null };
+        Returns: Json;
+      };
+      get_pipeline: {
+        Args: { p_workspace_id: string };
+        Returns: Json;
+      };
+      create_seguimiento: {
+        Args: { p_workspace_id: string; p_quote_id?: string | null; p_client_id?: string | null; p_type?: string; p_resultado?: string | null; p_comentario?: string | null };
+        Returns: Json;
+      };
+      create_recordatorio: {
+        Args: { p_workspace_id: string; p_scheduled_at: string; p_type?: string; p_note?: string | null; p_quote_id?: string | null; p_client_id?: string | null };
+        Returns: Json;
+      };
+      get_client_timeline: {
+        Args: { p_workspace_id: string; p_client_id: string; p_limit?: number };
+        Returns: Json;
+      };
+      get_crm_dashboard: {
+        Args: { p_workspace_id: string };
+        Returns: Json;
+      };
+      get_quote_commercial_history: {
+        Args: { p_quote_id: string };
+        Returns: Json;
+      };
+      get_reports_summary: {
+        Args: { p_workspace_id: string; p_period_start?: string | null; p_period_end?: string | null };
+        Returns: Json;
+      };
+      get_funnel_report: {
+        Args: { p_workspace_id: string; p_period_start?: string | null; p_period_end?: string | null };
+        Returns: Json;
+      };
+      get_services_report: {
+        Args: { p_workspace_id: string; p_period_start?: string | null; p_period_end?: string | null };
+        Returns: Json;
+      };
+      get_clients_report: {
+        Args: { p_workspace_id: string; p_period_start?: string | null; p_period_end?: string | null };
+        Returns: Json;
+      };
+      get_executive_dashboard: {
+        Args: { p_workspace_id: string };
+        Returns: Json;
+      };
+      get_smart_alerts: {
+        Args: { p_workspace_id: string };
+        Returns: Json;
+      };
+      check_evidence_upload_allowed: {
+        Args: { p_order_id?: string | null; p_work_order_id?: string | null; p_file_name?: string; p_file_size?: number; p_mime_type?: string };
+        Returns: Json;
+      };
+      register_evidence_file: {
+        Args: { p_storage_path: string; p_order_id?: string | null; p_work_order_id?: string | null; p_file_name?: string; p_file_size?: number; p_mime_type?: string; p_caption?: string | null; p_is_signature?: boolean; p_duration_sec?: number | null; p_thumbnail_path?: string | null };
+        Returns: Json;
+      };
+      delete_evidence_file: {
+        Args: { p_evidence_id: string };
+        Returns: Json;
+      };
+      get_evidence_gallery: {
+        Args: { p_order_id?: string | null; p_work_order_id?: string | null; p_file_type?: string | null; p_limit?: number };
+        Returns: Json;
+      };
+      get_storage_usage: {
+        Args: { p_workspace_id: string };
+        Returns: Json;
+      };
+      check_evidence_quota: {
+        Args: { p_workspace_id: string; p_additional_bytes?: number };
+        Returns: Json;
+      };
+      recalculate_workspace_storage: {
+        Args: { p_workspace_id?: string | null };
+        Returns: number;
+      };
+      initiate_oauth: {
+        Args: { p_workspace_id: string; p_provider: string; p_redirect_to?: string };
+        Returns: Json;
+      };
+      get_integration_status: {
+        Args: { p_workspace_id: string };
+        Returns: Json;
+      };
+      disconnect_integration: {
+        Args: { p_workspace_id: string; p_provider: string };
+        Returns: Json;
+      };
+      configure_whatsapp: {
+        Args: { p_workspace_id: string; p_config: Json };
+        Returns: Json;
+      };
+      queue_integration_event: {
+        Args: { p_workspace_id: string; p_provider: string; p_event_type: string; p_payload?: Json };
+        Returns: string | null;
+      };
+      get_whatsapp_message: {
+        Args: { p_workspace_id: string; p_event_type: string; p_entity_id?: string | null; p_extra_params?: Json };
+        Returns: Json;
+      };
+      get_integrations_admin_overview: {
+        Args: Record<string, never>;
+        Returns: Json;
+      };
+      store_alegra_credentials: {
+        Args: { p_workspace_id: string; p_encrypted_data: string; p_encryption_iv: string; p_expires_at?: string | null };
+        Returns: Json;
+      };
+      upsert_entity_ref: {
+        Args: { p_workspace_id: string; p_entity_type: string; p_entity_id: string; p_provider: string; p_external_id: string; p_external_url?: string | null; p_metadata?: Json };
+        Returns: string;
+      };
+      get_entity_refs: {
+        Args: { p_workspace_id: string; p_entity_type: string; p_entity_id: string };
+        Returns: Json;
+      };
+      log_communication: {
+        Args: { p_workspace_id: string; p_entity_type?: string | null; p_entity_id?: string | null; p_provider?: string; p_channel?: string; p_recipient?: string | null; p_subject?: string | null; p_content_preview?: string | null; p_status?: string; p_metadata?: Json };
+        Returns: string;
+      };
+      get_communication_history: {
+        Args: { p_workspace_id: string; p_entity_type?: string | null; p_entity_id?: string | null; p_provider?: string | null; p_limit?: number };
+        Returns: Json;
+      };
+      queue_invoice_generation: {
+        Args: { p_order_id: string };
+        Returns: Json;
+      };
+      queue_email_send: {
+        Args: { p_quote_id: string; p_provider?: string };
+        Returns: Json;
+      };
+      get_invoice_history: {
+        Args: { p_workspace_id: string; p_limit?: number };
+        Returns: Json;
+      };
+      evaluate_and_queue_automations: {
+        Args: { p_workspace_id: string; p_trigger_event: string; p_entity_type: string; p_entity_id: string; p_payload?: Json; p_execution_depth?: number; p_parent_event_id?: string | null };
+        Returns: number;
+      };
+      install_automation_templates: {
+        Args: { p_workspace_id: string; p_template_keys?: string[] | null };
+        Returns: Json;
+      };
+      toggle_automation_rule: {
+        Args: { p_rule_id: string; p_enabled: boolean };
+        Returns: Json;
+      };
+      create_automation_rule: {
+        Args: { p_workspace_id: string; p_name: string; p_trigger_event: string; p_action_type: string; p_action_payload?: Json; p_delay_hours?: number; p_conditions?: Json; p_description?: string | null };
+        Returns: Json;
+      };
+      list_automation_rules: {
+        Args: { p_workspace_id: string };
+        Returns: Json;
+      };
+      evaluate_periodic_automations: {
+        Args: { p_workspace_id?: string | null };
+        Returns: number;
+      };
+      evaluate_automation_conditions: {
+        Args: { p_conditions: Json; p_entity_type: string; p_entity_id: string; p_extra_data?: Json };
+        Returns: boolean;
+      };
+      cleanup_automation_logs: {
+        Args: Record<string, never>;
+        Returns: number;
+      };
+      cleanup_processed_integration_events: {
+        Args: Record<string, never>;
+        Returns: number;
+      };
+      grant_gps_consent: {
+        Args: Record<string, never>;
+        Returns: Json;
+      };
+      record_check_in: {
+        Args: { p_latitude: number; p_longitude: number; p_accuracy?: number | null; p_order_id?: string | null; p_work_order_id?: string | null };
+        Returns: Json;
+      };
+      record_check_out: {
+        Args: { p_latitude: number; p_longitude: number; p_accuracy?: number | null; p_order_id?: string | null; p_work_order_id?: string | null };
+        Returns: Json;
+      };
+      update_operational_status: {
+        Args: { p_new_status: string };
+        Returns: Json;
+      };
+      update_location_manual: {
+        Args: { p_latitude: number; p_longitude: number; p_accuracy?: number | null };
+        Returns: Json;
+      };
+      get_team_map: {
+        Args: { p_workspace_id: string };
+        Returns: Json;
+      };
+      get_member_detail: {
+        Args: { p_user_id: string; p_workspace_id: string };
+        Returns: Json;
+      };
+      get_operational_dashboard: {
+        Args: { p_workspace_id: string };
+        Returns: Json;
+      };
+      can_view_full_team: {
+        Args: { p_workspace_id: string };
+        Returns: boolean;
+      };
+      create_client_portal_token: {
+        Args: { p_workspace_id: string; p_client_id: string; p_days_valid?: number };
+        Returns: Json;
+      };
+      revoke_client_portal_token: {
+        Args: { p_workspace_id: string; p_client_id: string };
+        Returns: Json;
+      };
+      get_client_portal: {
+        Args: { p_token: string };
+        Returns: Json;
+      };
+      get_portal_quotes: {
+        Args: { p_token: string };
+        Returns: Json;
+      };
+      get_portal_orders: {
+        Args: { p_token: string };
+        Returns: Json;
+      };
+      get_portal_work_orders: {
+        Args: { p_token: string; p_order_id: string };
+        Returns: Json;
+      };
+      get_portal_evidences: {
+        Args: { p_token: string; p_order_id?: string | null };
+        Returns: Json;
+      };
+      get_portal_timeline: {
+        Args: { p_token: string };
+        Returns: Json;
+      };
+      get_portal_analytics: {
+        Args: { p_workspace_id: string };
+        Returns: Json;
       };
       log_access_denied: {
         Args: { p_route: string };

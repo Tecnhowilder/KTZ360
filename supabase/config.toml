@@ -11,3 +11,12 @@ verify_jwt = true
 
 [functions.mp-webhook]
 verify_jwt = false
+
+[functions.oauth-callback]
+verify_jwt = false
+
+[functions.integration-worker]
+verify_jwt = true
+
+[functions.generate-report]
+verify_jwt = true

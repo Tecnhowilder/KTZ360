@@ -69,7 +69,7 @@ serve(async (req) => {
 
     const { subject, html } = templates[template](data ?? {});
 
-    const fromName = config.from_name || 'KTZ360';
+    const fromName = config.from_name || 'Shelwi';
     const fromEmail = config.from_email || `no-reply@${config.domain || 'example.com'}`;
 
     const resendResponse = await fetch('https://api.resend.com/emails', {

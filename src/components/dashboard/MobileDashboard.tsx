@@ -13,6 +13,10 @@ import {
   Bot, Phone, Wallet,
 } from 'lucide-react';
 import { MobileDrawer } from '../layout/MobileDrawer';
+import { OnboardingCard } from './OnboardingCard';
+import { CrmMetricsCard } from './CrmMetricsCard';
+import { StorageWidget } from './StorageWidget';
+import { OperationalDashboardWidget } from './OperationalDashboardWidget';
 import { useWorkspace }      from '../../features/auth/WorkspaceProvider';
 import { useUI, defaultQConfig } from '../../features/app/UIProvider';
 import { useDerivedQuotes }  from '../../hooks/useQuotes';
@@ -757,6 +761,9 @@ export function MobileDashboard() {
         planName={planName}
       />
 
+      {/* Tarjeta de activación guiada — solo visible mientras progreso < 100% o recompensa pendiente de ocultar */}
+      <OnboardingCard />
+
       {/* 3. Mini KPI Grid */}
       <MiniKpiGrid quotes={quotes} thisM={thisM} prevM={prevM} />
 
@@ -785,7 +792,16 @@ export function MobileDashboard() {
       {/* 10. Próximos vencimientos */}
       <UpcomingExpiries quotes={quotes} openQuoteDetail={openQuoteDetail} />
 
-      {/* 11. Shelwi IA */}
+      {/* 11. CRM Metrics */}
+      <CrmMetricsCard />
+
+      {/* 11b. Equipo Operativo GPS (PREMIUM) */}
+      <OperationalDashboardWidget />
+
+      {/* 11c. Storage (PREMIUM) */}
+      <StorageWidget />
+
+      {/* 12. Shelwi IA */}
       <ShelwiIACard
         quotes={thisM}
         prevQuotes={prevM}
@@ -794,10 +810,10 @@ export function MobileDashboard() {
         navigate={navigate}
       />
 
-      {/* 12. Ítems más cotizados */}
+      {/* 13. Ítems más cotizados */}
       <TopItemsCard quotes={quotes} />
 
-      {/* 13. Acciones rápidas */}
+      {/* 14. Acciones rápidas */}
       <QuickActionsGrid
         quotes={quotes}
         company={company}

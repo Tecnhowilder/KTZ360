@@ -1,7 +1,14 @@
 /**
- * Utilidades de compartición profesional para Shelwi.
- * Mensajes diferenciados por canal: WhatsApp (cercano), Email (corporativo), Link (corto).
- * Nunca usa fmtM() — siempre formatCurrencyCOP() para mostrar el valor completo.
+ * shareUtils.ts — Utilidades de compartición profesional para Shelwi.
+ *
+ * FUENTE DE VERDAD:
+ *   - WhatsApp: usar services/whatsapp.ts (Sprint 11 unificó todo)
+ *   - Email API (Gmail/Outlook): usar services/integrations.ts + integration-worker
+ *   - Email fallback (mailto/native): usar shareByEmail() de ESTE archivo
+ *
+ * Este archivo mantiene únicamente:
+ *   - Email (mailto/navigator.share) — fallback browser nativo
+ *   - Copy link
  */
 import { formatCurrencyCOP } from './currency';
 
@@ -12,47 +19,28 @@ export interface ShareParams {
   publicUrl: string;
   total?: number;
   phone?: string;
-  clientEmail?: string;   // Para precompletar destinatario en mailto:
+  clientEmail?: string;
   quoteNumber?: string;
 }
 
-// ─── WhatsApp: cercano, emojis, negrita ─────────────────────────────────────
-
-export function buildWhatsAppMessage(params: ShareParams): string {
+/**
+ * @deprecated Usar services/whatsapp.ts → openWhatsApp() o getWhatsAppMessage()
+ * Se mantiene solo para compatibilidad. Será eliminado en Sprint 13.
+ */
+export function openWhatsAppShare(params: ShareParams): void {
   const { clientName, projectName, companyName, publicUrl, total } = params;
   const firstName = clientName ? clientName.split(' ')[0] : '';
   const valorFmt  = total != null ? formatCurrencyCOP(total) : null;
-
   const lines = [
-    `Hola ${firstName} 👋`,
-    '',
-    'Preparé una propuesta personalizada para el proyecto:',
-    '',
+    `Hola ${firstName} 👋`, '',
+    'Preparé una propuesta personalizada para:', '',
     `📌 ${projectName || 'tu proyecto'}`,
-  ];
-
-  if (valorFmt) {
-    lines.push('', `💰 Valor estimado:\n${valorFmt}`);
-  }
-
-  lines.push(
-    '',
-    'Puedes revisarla aquí:',
-    '',
-    `🔗 ${publicUrl}`,
-    '',
-    'Si deseas realizar algún ajuste o tienes preguntas estaré atento para ayudarte.',
-    '',
-    'Muchas gracias por tu tiempo.',
-    '',
+    ...(valorFmt ? ['', `💰 Valor estimado:\n${valorFmt}`] : []),
+    '', 'Puedes revisarla aquí:', '', `🔗 ${publicUrl}`, '',
+    'Quedo atento a cualquier consulta.', '',
     companyName || 'El equipo',
-  );
-
-  return lines.join('\n');
-}
-
-export function openWhatsAppShare(params: ShareParams): void {
-  const msg   = buildWhatsAppMessage(params);
+  ];
+  const msg   = lines.join('\n');
   const phone = params.phone?.replace(/\D/g, '') ?? '';
   const base  = phone ? `https://wa.me/${phone}` : 'https://wa.me/';
   window.open(`${base}?text=${encodeURIComponent(msg)}`, '_blank');

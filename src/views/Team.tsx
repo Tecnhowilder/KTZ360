@@ -19,10 +19,13 @@ import { isValidEmail } from '../lib/validation';
 import type { ProfileRow, WorkspaceInvitationRow } from '../lib/database.types';
 
 const ROLE_LABELS: Record<string, string> = {
-  owner: 'Propietario',
-  admin: 'Administrador',
-  employee: 'Empleado',
-  super_admin: 'Super admin',
+  owner:         'Propietario',
+  admin:         'Administrador',
+  supervisor:    'Supervisor',
+  comercial:     'Comercial',
+  operario:      'Operario',
+  employee:      'Operario',      // legacy alias
+  super_admin:   'Super admin',
   support_admin: 'Soporte',
 };
 
@@ -85,11 +88,11 @@ function TeamDesktop() {
   const historyQuery = useInvitationHistory();
 
   const [search, setSearch] = useState('');
-  const [roleFilter, setRoleFilter] = useState<'all' | 'owner' | 'admin' | 'employee'>('all');
+  const [roleFilter, setRoleFilter] = useState<'all' | 'owner' | 'admin' | 'supervisor' | 'comercial' | 'operario'>('all');
   const [inviteOpen, setInviteOpen] = useState(false);
   const [inviteName, setInviteName] = useState('');
   const [inviteEmail, setInviteEmail] = useState('');
-  const [inviteRole, setInviteRole] = useState<'admin' | 'employee'>('employee');
+  const [inviteRole, setInviteRole] = useState<'admin' | 'supervisor' | 'comercial' | 'operario'>('operario');
   const [inviteLinkFallback, setInviteLinkFallback] = useState<string | null>(null);
   const [showHistory, setShowHistory] = useState(false);
 
@@ -146,7 +149,7 @@ function TeamDesktop() {
   });
 
   const roleMutation = useMutation({
-    mutationFn: ({ profileId, role }: { profileId: string; role: 'admin' | 'employee' }) => updateMemberRole(profileId, role),
+    mutationFn: ({ profileId, role }: { profileId: string; role: 'admin' | 'supervisor' | 'comercial' | 'operario' }) => updateMemberRole(profileId, role),
     onSuccess: () => {
       invalidateAll();
       showToast('Rol actualizado');
@@ -177,7 +180,7 @@ function TeamDesktop() {
     setInviteOpen(false);
     setInviteName('');
     setInviteEmail('');
-    setInviteRole('employee');
+    setInviteRole('operario');
     setInviteLinkFallback(null);
   }
 
@@ -450,8 +453,10 @@ function TeamDesktop() {
                 </div>
                 <div style={{ marginBottom: 16 }}>
                   <label style={labelStyle}>Rol</label>
-                  <select value={inviteRole} onChange={(e) => setInviteRole(e.target.value as 'admin' | 'employee')} style={inputFieldStyle}>
-                    <option value="employee">Empleado</option>
+                  <select value={inviteRole} onChange={(e) => setInviteRole(e.target.value as 'admin' | 'supervisor' | 'comercial' | 'operario')} style={inputFieldStyle}>
+                    <option value="operario">Operario</option>
+                    <option value="comercial">Comercial</option>
+                    <option value="supervisor">Supervisor</option>
                     <option value="admin">Administrador</option>
                   </select>
                 </div>
@@ -503,7 +508,7 @@ function MemberRow({
   member: ProfileRow;
   isSelf: boolean;
   isOwner: boolean;
-  onRoleChange: (role: 'admin' | 'employee') => void;
+  onRoleChange: (role: 'admin' | 'supervisor' | 'comercial' | 'operario') => void;
   onStatusChange: (status: 'active' | 'inactive' | 'removed') => void;
   onTransfer: () => void;
 }) {
@@ -543,8 +548,10 @@ function MemberRow({
       <td style={tdStyle}>{member.email}</td>
       <td style={tdStyle}>
         {canEditRole ? (
-          <select value={member.role} onChange={(e) => onRoleChange(e.target.value as 'admin' | 'employee')} style={{ border: '1.5px solid #E2E8F0', borderRadius: 9, padding: '5px 8px', fontSize: 12.5, outline: 'none' }}>
-            <option value="employee">Empleado</option>
+          <select value={member.role} onChange={(e) => onRoleChange(e.target.value as 'admin' | 'supervisor' | 'comercial' | 'operario')} style={{ border: '1.5px solid #E2E8F0', borderRadius: 9, padding: '5px 8px', fontSize: 12.5, outline: 'none' }}>
+            <option value="operario">Operario</option>
+            <option value="comercial">Comercial</option>
+            <option value="supervisor">Supervisor</option>
             <option value="admin">Administrador</option>
           </select>
         ) : (

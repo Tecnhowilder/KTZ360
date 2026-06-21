@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import { Navigate } from 'react-router-dom';
 import { useAuth } from './AuthProvider';
 import { WorkspaceProvider, useWorkspaceMaybe } from './WorkspaceProvider';
+import { hasSeenOnboarding } from '../../lib/onboarding';
 
 function FullScreenSpinner() {
   return (
@@ -23,6 +24,12 @@ function FullScreenSpinner() {
 function WorkspaceGate({ children }: { children: ReactNode }) {
   const ws = useWorkspaceMaybe();
   if (ws.loading) return <FullScreenSpinner />;
+  // Zero Trust: la fuente de verdad es DB (onboarding_seen).
+  // localStorage actúa como desempate post-onboarding para evitar el race condition
+  // entre el RPC fire-and-forget y la carga del perfil desde caché.
+  if (!ws.profile.onboarding_seen && !hasSeenOnboarding()) {
+    return <Navigate to="/onboarding" replace />;
+  }
   return <>{children}</>;
 }
 

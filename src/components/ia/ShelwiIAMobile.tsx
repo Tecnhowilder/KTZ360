@@ -1,6 +1,6 @@
 /**
  * ShelwiIAMobile — Copiloto comercial IA premium mobile-first.
- * Referencia: imagen adjunta KTZ360 IA / ChatGPT / Perplexity.
+ * Referencia: imagen adjunta Shelwi IA / ChatGPT / Perplexity.
  * Todos los datos provienen de Supabase — cero datos mockeados.
  * Desktop NO se modifica.
  */
@@ -9,14 +9,25 @@ import { useNavigate } from 'react-router-dom';
 import {
   MessageCircle, Phone, ChevronRight, FileText,
   Users, TrendingUp, Lightbulb, Clock, AlertTriangle,
-  Sparkles, Lock,
+  Sparkles, Lock, RefreshCw,
 } from 'lucide-react';
 import { useWorkspace } from '../../features/auth/WorkspaceProvider';
 import { useDerivedQuotes, useClients } from '../../hooks/useQuotes';
 import { useFeatureAccess } from '../../hooks/usePermissions';
+import { useAICredits } from '../../hooks/useAICredits';
 import { daysAgo } from '../../lib/calc';
 import { formatCurrencyCOP } from '../../lib/currency';
 import { NotificationBell } from '../ui/NotificationBell';
+import {
+  getCommercialRecommendations,
+  generateBusinessSummary,
+  forecastSales,
+  analyzeClientsAtRisk,
+} from '../../services/aiCommercial';
+import {
+  isAICreditsExhausted,
+  isAIPlanNotIncluded,
+} from '../../services/aiStudio';
 import type { DerivedQuote } from '../../lib/types';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -163,6 +174,29 @@ export function ShelwiIAMobile() {
   ];
 
   const isPro = aiAccess.data === true;
+  const creditsQ = useAICredits();
+  const credits  = creditsQ.data;
+
+  const [aiLoading, setAiLoading]       = useState(false);
+  const [aiResult,  setAiResult]        = useState<string | null>(null);
+  const [aiError,   setAiError]         = useState<string | null>(null);
+  const [activeAIOp, setActiveAIOp]     = useState<string | null>(null);
+
+  async function runAI(opName: string, fn: () => Promise<{ text: string }>) {
+    setAiLoading(true);
+    setAiError(null);
+    setActiveAIOp(opName);
+    try {
+      const result = await fn();
+      setAiResult(result.text);
+    } catch (e: unknown) {
+      if (isAICreditsExhausted(e))   setAiError('Créditos IA agotados este mes. Actualiza a PREMIUM para 2000 créditos.');
+      else if (isAIPlanNotIncluded(e)) setAiError('La IA no está incluida en tu plan. Actualiza a PRO o PREMIUM.');
+      else setAiError('Error al generar análisis. Intenta de nuevo.');
+    } finally {
+      setAiLoading(false);
+    }
+  }
 
   return (
     <div style={{ background: '#F8FAFC', minHeight: '100vh' }}>
@@ -333,6 +367,93 @@ export function ShelwiIAMobile() {
                 action={{ label: 'Ver oportunidad', style: 'link', onClick: () => navigate(`/app/cotizaciones/${q.id}`) }}
               />
             ))}
+          </div>
+
+          {/* ── CRÉDITOS IA ── */}
+          {credits && (
+            <div style={{ margin: '0 16px 12px', background: '#fff', border: '1px solid #F1F5F9', borderRadius: 16, padding: '14px 16px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+                <span style={{ fontSize: 13.5, fontWeight: 800, color: '#0F172A' }}>Créditos IA este mes</span>
+                <button onClick={() => creditsQ.refetch()} style={{ border: 'none', background: 'none', cursor: 'pointer', color: '#94A3B8' }}>
+                  <RefreshCw size={14} />
+                </button>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+                <div style={{ flex: 1, height: 8, background: '#F1F5F9', borderRadius: 99, overflow: 'hidden' }}>
+                  <div style={{ height: '100%', width: `${Math.min(100, credits.pct_used)}%`, background: credits.pct_used >= 90 ? '#EF4444' : credits.pct_used >= 80 ? '#F59E0B' : '#2563EB', borderRadius: 99, transition: 'width .3s' }} />
+                </div>
+                <span style={{ fontSize: 12, fontWeight: 700, color: '#64748B', flexShrink: 0 }}>
+                  {credits.credits_used} / {credits.credits_max ?? '∞'}
+                </span>
+              </div>
+              <div style={{ fontSize: 12, color: credits.pct_used >= 90 ? '#EF4444' : '#64748B' }}>
+                {credits.credits_remaining !== null
+                  ? `${credits.credits_remaining} créditos restantes`
+                  : 'Créditos ilimitados'}
+                {credits.pct_used >= 80 && credits.pct_used < 100 && (
+                  <span style={{ marginLeft: 6, fontWeight: 700, color: '#D97706' }}>⚠️ Próximo al límite</span>
+                )}
+                {credits.pct_used >= 100 && (
+                  <span style={{ marginLeft: 6, fontWeight: 700, color: '#EF4444' }}>🔴 Agotados</span>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* ── ANÁLISIS IA REAL ── */}
+          <div style={{ margin: '0 16px 12px', background: '#fff', border: '1px solid #F1F5F9', borderRadius: 16, overflow: 'hidden' }}>
+            <div style={{ padding: '12px 16px 8px', fontSize: 13.5, fontWeight: 800, color: '#0F172A' }}>Análisis con IA</div>
+            {[
+              {
+                label: 'Resumen del negocio',
+                sub: '2 créditos',
+                icon: '📊',
+                fn: () => runAI('summary', () => generateBusinessSummary(quotes, 'mi empresa')),
+              },
+              {
+                label: 'Recomendaciones comerciales',
+                sub: '3 créditos',
+                icon: '💡',
+                fn: () => runAI('recommendations', () => getCommercialRecommendations(quotes, [])),
+              },
+              {
+                label: 'Forecast de ventas (PREMIUM)',
+                sub: '3 créditos',
+                icon: '📈',
+                fn: () => runAI('forecast', () => forecastSales(quotes, 3)),
+              },
+              {
+                label: 'Clientes en riesgo (PREMIUM)',
+                sub: '3 créditos',
+                icon: '⚠️',
+                fn: () => runAI('risk', () => analyzeClientsAtRisk(quotes, [])),
+              },
+            ].map(op => (
+              <button key={op.label} onClick={op.fn} disabled={aiLoading && activeAIOp !== op.label}
+                style={{ display: 'flex', alignItems: 'center', gap: 12, width: '100%', padding: '11px 16px', border: 'none', background: 'none', cursor: aiLoading ? 'default' : 'pointer', borderTop: '1px solid #F8FAFC', textAlign: 'left', fontFamily: 'inherit', opacity: aiLoading && activeAIOp !== op.label ? .4 : 1 }}>
+                <span style={{ fontSize: 18 }}>{aiLoading && activeAIOp === op.label.slice(0, 8) ? '⋯' : op.icon}</span>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 13.5, fontWeight: 600, color: '#0F172A' }}>{op.label}</div>
+                  <div style={{ fontSize: 11, color: '#94A3B8' }}>{op.sub}</div>
+                </div>
+                <ChevronRight size={14} color="#CBD5E1" />
+              </button>
+            ))}
+
+            {/* Resultado IA */}
+            {aiResult && (
+              <div style={{ margin: '0 12px 12px', padding: '12px', background: '#F0FDF4', borderRadius: 10, border: '1px solid #BBF7D0' }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: '#16A34A', marginBottom: 6 }}>✨ Análisis Shelwi IA</div>
+                <div style={{ fontSize: 12.5, color: '#166534', lineHeight: 1.5 }}>{aiResult}</div>
+                <button onClick={() => setAiResult(null)} style={{ marginTop: 8, fontSize: 11, color: '#94A3B8', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit' }}>✕ Cerrar</button>
+              </div>
+            )}
+            {aiError && (
+              <div style={{ margin: '0 12px 12px', padding: '10px 12px', background: '#FEF2F2', borderRadius: 10, border: '1px solid #FECACA' }}>
+                <div style={{ fontSize: 12.5, color: '#DC2626' }}>{aiError}</div>
+                <button onClick={() => setAiError(null)} style={{ marginTop: 6, fontSize: 11, color: '#94A3B8', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit' }}>✕ Cerrar</button>
+              </div>
+            )}
           </div>
 
           {/* ── ACCIONES RÁPIDAS ── */}
