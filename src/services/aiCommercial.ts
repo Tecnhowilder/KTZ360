@@ -14,6 +14,7 @@ import type { DerivedQuote } from '../lib/types';
 import type { Client } from '../lib/types';
 import { formatCurrencyCOP } from '../lib/currency';
 import type { WorkspaceProfitability } from './finance';
+import type { BIExecutiveKPIs, BISalesKPIs, BICustomerKPIs, BIMarketingKPIs } from './bi';
 
 // ─── Helpers de formateo de contexto ────────────────────────────────────────
 
@@ -363,4 +364,149 @@ Responde ÚNICAMENTE en JSON:
 }`;
 
   return callAistudio({ prompt, operation: 'forecast_finance', max_tokens: 600, temperature: 0.2 });
+}
+
+// ─── PREMIUM: BI Analítica — 4 funciones Sprint 19 (3 créditos c/u) ──────────
+
+/**
+ * Resumen ejecutivo IA del estado del negocio basado en KPIs reales.
+ * Operación: bi_executive_summary → 3 créditos (PREMIUM)
+ */
+export async function generateExecutiveSummary(kpis: BIExecutiveKPIs): Promise<AIResponse> {
+  const prompt = `Eres el analista de negocio IA de Shelwi. Analiza los KPIs ejecutivos reales y genera un resumen ejecutivo.
+
+DATOS REALES DEL PERÍODO ${kpis.period_start} al ${kpis.period_end}:
+- Ingresos: ${formatCurrencyCOP(kpis.revenue)} (cambio: ${kpis.revenue_change_pct !== null ? kpis.revenue_change_pct + '%' : 'sin datos prev.'})
+- Utilidad estimada: ${formatCurrencyCOP(kpis.profit)} | Margen: ${kpis.margin_pct}%
+- Margen bruto: ${kpis.gross_margin_pct}%
+- Cotizaciones aprobadas: ${kpis.quotes_approved} | Pedidos finalizados: ${kpis.orders_finalized}
+- Pipeline activo: ${formatCurrencyCOP(kpis.pipeline_value)} (${kpis.pipeline_count} oportunidades)
+- Tasa conversión 30d: ${kpis.conversion_rate_30d}%
+- Clientes VIP: ${kpis.vip_clients} | En riesgo: ${kpis.at_risk_clients}
+- Salud financiera: ${kpis.financial_health}
+
+Responde ÚNICAMENTE en JSON:
+{
+  "estado_general": "<Excelente|Bueno|Regular|Crítico>",
+  "resumen": "<2-3 oraciones del estado del negocio>",
+  "logros": ["<logro 1>", "<logro 2>"],
+  "areas_atencion": ["<área 1>", "<área 2>"],
+  "recomendacion_principal": "<1 acción concreta a tomar esta semana>"
+}`;
+
+  return callAistudio({ prompt, operation: 'bi_executive_summary', max_tokens: 500, temperature: 0.3 });
+}
+
+/**
+ * Forecast de negocio IA basado en KPIs de ventas y finanzas.
+ * Operación: bi_business_forecast → 3 créditos (PREMIUM)
+ */
+export async function generateBusinessForecast(
+  salesKpis: BISalesKPIs,
+  profitability: WorkspaceProfitability,
+): Promise<AIResponse> {
+  const trend = profitability.monthly_trend.slice(-3)
+    .map(m => `${m.label}: ${formatCurrencyCOP(m.revenue)} ingresos, ${m.margin_pct}% margen`)
+    .join('\n');
+
+  const prompt = `Eres el analista financiero IA de Shelwi. Proyecta el negocio para los próximos 3 meses.
+
+TENDENCIA RECIENTE:
+${trend}
+
+KPIs COMERCIALES ACTUALES:
+- Valor cotizado: ${formatCurrencyCOP(salesKpis.total_quoted)}
+- Tasa de conversión: ${salesKpis.conversion_rate}%
+- Ticket promedio aprobado: ${formatCurrencyCOP(profitability.avg_quote_value)}
+- Pipeline activo: ${salesKpis.funnel_summary ? JSON.stringify(salesKpis.funnel_summary) : 'sin datos'}
+
+RENTABILIDAD:
+- Margen estimado: ${profitability.estimated_margin_pct}%
+- Costo directo promedio: ${formatCurrencyCOP(profitability.total_direct_cost)}
+
+Responde ÚNICAMENTE en JSON:
+{
+  "forecast": [
+    {"month": "<nombre mes>", "revenue_min": <número>, "revenue_max": <número>, "confidence": "<alta|media|baja>"},
+    {"month": "<nombre mes>", "revenue_min": <número>, "revenue_max": <número>, "confidence": "<alta|media|baja>"},
+    {"month": "<nombre mes>", "revenue_min": <número>, "revenue_max": <número>, "confidence": "<alta|media|baja>"}
+  ],
+  "supuestos": ["<supuesto 1>", "<supuesto 2>"],
+  "escenario_optimista": "<descripción>",
+  "escenario_pesimista": "<descripción>",
+  "factor_critico": "<el factor más importante que determinará el resultado>"
+}`;
+
+  return callAistudio({ prompt, operation: 'bi_business_forecast', max_tokens: 600, temperature: 0.2 });
+}
+
+/**
+ * Evaluación de riesgos del negocio basada en CS + finanzas.
+ * Operación: bi_risk_assessment → 3 créditos (PREMIUM)
+ */
+export async function generateRiskAssessment(
+  customerKpis: BICustomerKPIs,
+  profitability: WorkspaceProfitability,
+): Promise<AIResponse> {
+  const prompt = `Eres el analista de riesgos IA de Shelwi. Evalúa los riesgos del negocio.
+
+CUSTOMER SUCCESS:
+- Clientes en riesgo: ${customerKpis.at_risk_clients ? JSON.stringify(customerKpis.at_risk_clients).slice(0, 200) : 'sin datos'}
+- NPS: ${customerKpis.nps_score ?? 'sin datos'} (${customerKpis.nps_label})
+- Rating promedio: ${customerKpis.avg_rating ?? 'sin datos'}/5
+
+FINANZAS:
+- Margen bruto: ${profitability.gross_margin_pct}%
+- Margen neto estimado: ${profitability.estimated_margin_pct}%
+- ${profitability.has_real_costs ? 'Margen real: ' + profitability.real_margin_pct + '%' : 'Sin costos reales registrados'}
+- Clientes VIP: ${customerKpis.health_summary ? (customerKpis.health_summary as Record<string, unknown>).vip ?? 0 : 0}
+
+Responde ÚNICAMENTE en JSON:
+{
+  "nivel_riesgo": "<Alto|Medio|Bajo>",
+  "riesgos": [
+    {"categoria": "<Financiero|Operativo|Comercial|Clientes>", "riesgo": "<descripción>", "probabilidad": "<Alta|Media|Baja>", "impacto": "<Alto|Medio|Bajo>"}
+  ],
+  "mitigaciones": ["<acción de mitigación 1>", "<acción de mitigación 2>"],
+  "alerta_critica": "<si hay algo urgente, describir aquí; sino null>"
+}`;
+
+  return callAistudio({ prompt, operation: 'bi_risk_assessment', max_tokens: 500, temperature: 0.3 });
+}
+
+/**
+ * Recomendaciones de crecimiento basadas en marketing + ventas.
+ * Operación: bi_growth_recs → 3 créditos (PREMIUM)
+ */
+export async function generateGrowthRecommendations(
+  marketingKpis: BIMarketingKPIs,
+  salesKpis: BISalesKPIs,
+): Promise<AIResponse> {
+  const topChannel = marketingKpis.revenue_by_channel?.[0];
+  const topRep = salesKpis.by_rep?.[0];
+
+  const prompt = `Eres el estratega de crecimiento IA de Shelwi. Genera recomendaciones de crecimiento.
+
+MARKETING:
+- Clientes nuevos adquiridos: ${marketingKpis.new_clients}
+- Canal principal: ${topChannel ? topChannel.source + ' (' + topChannel.clients + ' clientes, $' + topChannel.revenue_from_clients.toLocaleString('es-CO') + ')' : 'sin datos'}
+- Referidos convertidos: ${marketingKpis.referral_conversions}
+- UTM total visitas: ${marketingKpis.utm_visits}
+
+COMERCIAL:
+- Tasa de cierre del equipo: ${salesKpis.conversion_rate}%
+- Mejor comercial: ${topRep ? topRep.full_name + ' ($' + topRep.approved_value.toLocaleString('es-CO') + ' aprobado)' : 'sin datos'}
+- Cotizaciones activas en pipeline: ${salesKpis.funnel_summary ? JSON.stringify(salesKpis.funnel_summary).slice(0, 200) : 'sin datos'}
+
+Responde ÚNICAMENTE en JSON:
+{
+  "potencial_crecimiento": "<Alto|Medio|Bajo>",
+  "oportunidades": [
+    {"area": "<Marketing|Ventas|Retención|Producto>", "oportunidad": "<descripción>", "impacto_estimado": "<descripción del impacto>", "esfuerzo": "<Alto|Medio|Bajo>"}
+  ],
+  "quick_wins": ["<acción rápida 1>", "<acción rápida 2>", "<acción rápida 3>"],
+  "estrategia_recomendada": "<estrategia principal de crecimiento para los próximos 90 días>"
+}`;
+
+  return callAistudio({ prompt, operation: 'bi_growth_recs', max_tokens: 600, temperature: 0.4 });
 }

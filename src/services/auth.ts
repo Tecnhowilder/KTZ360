@@ -37,3 +37,32 @@ export async function updatePassword(password: string) {
   const { error } = await supabase.auth.updateUser({ password });
   if (error) throw error;
 }
+
+/**
+ * Reenvía el email de confirmación de cuenta.
+ * Rate limit: Supabase limita internamente (2/hora por defecto).
+ * El frontend añade un cooldown adicional de 60s en localStorage.
+ */
+export async function resendConfirmationEmail(email: string): Promise<void> {
+  const { error } = await supabase.auth.resend({
+    type: 'signup',
+    email,
+  });
+  if (error) throw error;
+}
+
+/** Clave localStorage para el cooldown de reenvío */
+export const RESEND_COOLDOWN_KEY = 'shelwi_resend_last_at';
+export const RESEND_COOLDOWN_MS  = 60_000; // 60 segundos
+
+export function getResendCooldownRemaining(): number {
+  try {
+    const last = parseInt(localStorage.getItem(RESEND_COOLDOWN_KEY) ?? '0', 10);
+    const elapsed = Date.now() - last;
+    return Math.max(0, RESEND_COOLDOWN_MS - elapsed);
+  } catch { return 0; }
+}
+
+export function markResendSent(): void {
+  try { localStorage.setItem(RESEND_COOLDOWN_KEY, String(Date.now())); } catch { /* noop */ }
+}

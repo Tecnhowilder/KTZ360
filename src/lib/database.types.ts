@@ -1480,6 +1480,42 @@ export interface Database {
         Args: { p_days?: number };
         Returns: Json;
       };
+      get_sales_by_rep: {
+        Args: { p_workspace_id: string; p_period_start?: string | null; p_period_end?: string | null };
+        Returns: Json;
+      };
+      get_ops_productivity: {
+        Args: { p_workspace_id: string; p_period_start?: string | null; p_period_end?: string | null };
+        Returns: Json;
+      };
+      get_bi_executive_kpis: {
+        Args: { p_workspace_id: string; p_period_start?: string | null; p_period_end?: string | null };
+        Returns: Json;
+      };
+      get_bi_sales_kpis: {
+        Args: { p_workspace_id: string; p_period_start?: string | null; p_period_end?: string | null };
+        Returns: Json;
+      };
+      get_bi_operations_kpis: {
+        Args: { p_workspace_id: string; p_period_start?: string | null; p_period_end?: string | null };
+        Returns: Json;
+      };
+      get_bi_marketing_kpis: {
+        Args: { p_workspace_id: string; p_period_start?: string | null; p_period_end?: string | null };
+        Returns: Json;
+      };
+      get_bi_customer_kpis: {
+        Args: { p_workspace_id: string; p_period_start?: string | null; p_period_end?: string | null };
+        Returns: Json;
+      };
+      get_client_cohorts: {
+        Args: { p_workspace_id: string; p_months?: number };
+        Returns: Json;
+      };
+      get_full_funnel: {
+        Args: { p_workspace_id: string; p_period_start?: string | null; p_period_end?: string | null };
+        Returns: Json;
+      };
       store_alegra_credentials: {
         Args: { p_workspace_id: string; p_encrypted_data: string; p_encryption_iv: string; p_expires_at?: string | null };
         Returns: Json;

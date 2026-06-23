@@ -46,6 +46,7 @@ import { MapaOperativoPage } from './views/MapaOperativoPage';
 import { GrowthPage } from './views/GrowthPage';
 import { ReferralRedirect } from './views/public/ReferralRedirect';
 import { FinancePage } from './views/FinancePage';
+import { BIPage } from './views/BIPage';
 
 export const router = createBrowserRouter([
   {
@@ -103,6 +104,7 @@ export const router = createBrowserRouter([
       { path: 'mapa-operativo', element: <MapaOperativoPage /> },
       { path: 'growth',    element: <GrowthPage /> },
       { path: 'finanzas', element: <FinancePage /> },
+      { path: 'bi',       element: <BIPage /> },
     ],
   },
   { path: '*', element: <Navigate to="/" replace /> },

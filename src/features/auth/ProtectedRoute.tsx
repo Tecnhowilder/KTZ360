@@ -3,6 +3,7 @@ import { Navigate } from 'react-router-dom';
 import { useAuth } from './AuthProvider';
 import { WorkspaceProvider, useWorkspaceMaybe } from './WorkspaceProvider';
 import { hasSeenOnboarding } from '../../lib/onboarding';
+import { shouldSkipOnboarding } from '../../lib/roleOnboarding';
 
 function FullScreenSpinner() {
   return (
@@ -24,6 +25,12 @@ function FullScreenSpinner() {
 function WorkspaceGate({ children }: { children: ReactNode }) {
   const ws = useWorkspaceMaybe();
   if (ws.loading) return <FullScreenSpinner />;
+
+  // Roles del sistema (super_admin, support_admin) saltan el onboarding
+  if (shouldSkipOnboarding(ws.profile.role)) {
+    return <>{children}</>;
+  }
+
   // Zero Trust: la fuente de verdad es DB (onboarding_seen).
   // localStorage actúa como desempate post-onboarding para evitar el race condition
   // entre el RPC fire-and-forget y la carga del perfil desde caché.

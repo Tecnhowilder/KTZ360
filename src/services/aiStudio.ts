@@ -12,8 +12,12 @@ export type AIOperation =
   | 'recommendations'       // 3 créditos
   | 'photo_quote'           // 5 créditos
   | 'forecast'              // 3 créditos
-  | 'forecast_finance'      // 3 créditos — Sprint 18
-  | 'risk_analysis';        // 3 créditos
+  | 'forecast_finance'       // 3 créditos — Sprint 18
+  | 'risk_analysis'          // 3 créditos
+  | 'bi_executive_summary'   // 3 créditos — Sprint 19
+  | 'bi_business_forecast'   // 3 créditos — Sprint 19
+  | 'bi_risk_assessment'     // 3 créditos — Sprint 19
+  | 'bi_growth_recs';        // 3 créditos — Sprint 19
 
 export type AIRequest = {
   prompt:      string;
