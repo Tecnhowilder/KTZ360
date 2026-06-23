@@ -74,7 +74,7 @@ async function generateCodeChallenge(verifier: string): Promise<string> {
 
 export async function initiateOAuth(
   workspaceId: string,
-  provider: 'google_calendar' | 'outlook_calendar',
+  provider: 'google_calendar' | 'outlook_calendar' | 'drive' | 'onedrive' | 'teams',
   redirectTo?: string
 ): Promise<{ authorizationUrl: string }> {
   const { data, error } = await supabase.rpc('initiate_oauth', {
@@ -101,12 +101,24 @@ export async function initiateOAuth(
   // Construir URL de autorización del proveedor
   let authorizationUrl: string;
 
-  if (provider === 'google_calendar') {
+  // Scopes por proveedor: mínimo privilegio necesario
+  const GOOGLE_SCOPES: Record<string, string> = {
+    google_calendar: 'https://www.googleapis.com/auth/calendar.events',
+    drive:           'https://www.googleapis.com/auth/drive.file',
+  };
+  const OUTLOOK_SCOPES: Record<string, string> = {
+    outlook_calendar: 'Calendars.ReadWrite offline_access',
+    outlook_mail:     'Mail.Send offline_access',
+    onedrive:         'Files.ReadWrite offline_access',
+    teams:            'ChannelMessage.Send offline_access',
+  };
+
+  if (provider === 'google_calendar' || provider === 'drive') {
     const params = new URLSearchParams({
       client_id:             import.meta.env.VITE_GOOGLE_CLIENT_ID ?? '',
       redirect_uri:          fullCallbackUrl,
       response_type:         'code',
-      scope:                 'https://www.googleapis.com/auth/calendar.events',
+      scope:                 GOOGLE_SCOPES[provider] ?? '',
       access_type:           'offline',
       prompt:                'consent',
       state,
@@ -119,7 +131,7 @@ export async function initiateOAuth(
       client_id:             import.meta.env.VITE_OUTLOOK_CLIENT_ID ?? '',
       redirect_uri:          fullCallbackUrl,
       response_type:         'code',
-      scope:                 'Calendars.ReadWrite offline_access',
+      scope:                 OUTLOOK_SCOPES[provider] ?? 'offline_access',
       state,
       code_challenge:        codeChallenge,
       code_challenge_method: 'S256',
@@ -190,6 +202,32 @@ export async function triggerIntegrationWorker(workspaceId?: string): Promise<{
 
 // ─── Provider metadata ────────────────────────────────────────────────────────
 
+// ─── Toggle auto_sync — persiste en backend, nunca en localStorage ───────────
+
+export async function updateIntegrationAutoSync(
+  workspaceId: string,
+  provider: IntegrationProvider,
+  autoSync: boolean
+): Promise<void> {
+  // Lee la config actual y solo modifica auto_sync
+  const { data: statusData, error: statusErr } = await supabase.rpc('get_integration_status', {
+    p_workspace_id: workspaceId,
+  });
+  if (statusErr) throw statusErr;
+
+  const statusRes = statusData as unknown as { ok: boolean; integrations?: Array<{ provider: string; config: Record<string, unknown> }> };
+  const existing = statusRes.integrations?.find(i => i.provider === provider);
+  const newConfig = { ...(existing?.config ?? {}), auto_sync: autoSync };
+
+  // Upsert la integración con la nueva config
+  const { error } = await supabase
+    .from('integrations')
+    .update({ config: newConfig, updated_at: new Date().toISOString() } as never)
+    .eq('workspace_id', workspaceId)
+    .eq('provider', provider);
+  if (error) throw error;
+}
+
 export const PROVIDER_META: Record<string, {
   label:       string;
   description: string;
@@ -228,6 +266,22 @@ export const PROVIDER_META: Record<string, {
   outlook_mail: {
     label: 'Outlook Mail', description: 'Enviar cotizaciones desde Outlook / Microsoft 365',
     icon: '📧', color: '#7C3AED', bg: '#F5F3FF',
+    category: 'messaging', available: true, oauth: true,
+  },
+  // Sprint 14 — Storage + Colaboración
+  drive: {
+    label: 'Google Drive', description: 'Respaldo y colaboración de evidencias en Drive',
+    icon: '💾', color: '#1D6F42', bg: '#F0FDF4',
+    category: 'storage', available: true, oauth: true,
+  },
+  onedrive: {
+    label: 'OneDrive', description: 'Respaldo y colaboración de evidencias en OneDrive',
+    icon: '☁️', color: '#0078D4', bg: '#EFF6FF',
+    category: 'storage', available: true, oauth: true,
+  },
+  teams: {
+    label: 'Microsoft Teams', description: 'Notificaciones de OTs y operaciones en Teams',
+    icon: '👥', color: '#6264A7', bg: '#F5F3FF',
     category: 'messaging', available: true, oauth: true,
   },
 };

@@ -39,7 +39,13 @@ import { BillingFailure } from './views/billing/BillingFailure';
 import { Team } from './views/Team';
 import { Pipeline } from './views/Pipeline';
 import { IntegracionesPage } from './views/config/IntegracionesPage';
+import { AlmacenamientoPage } from './views/config/AlmacenamientoPage';
 import { AutomatizacionesPage } from './views/AutomatizacionesPage';
+import { CustomerSuccessPage } from './views/CustomerSuccessPage';
+import { MapaOperativoPage } from './views/MapaOperativoPage';
+import { GrowthPage } from './views/GrowthPage';
+import { ReferralRedirect } from './views/public/ReferralRedirect';
+import { FinancePage } from './views/FinancePage';
 
 export const router = createBrowserRouter([
   {
@@ -53,6 +59,7 @@ export const router = createBrowserRouter([
   { path: '/p/:token', element: <PublicQuotePortal /> },
   { path: '/portal/:token', element: <ClientPortalPage /> },
   { path: '/invite/:token', element: <AcceptInvite /> },
+  { path: '/ref/:refCode', element: <ReferralRedirect /> },
   { path: '/terminos', element: <Terms /> },
   { path: '/politica-privacidad', element: <PrivacyPolicy /> },
   {
@@ -90,7 +97,12 @@ export const router = createBrowserRouter([
       { path: 'proyectos', element: <SimpleEmpty variant="proyectos" /> },
       { path: 'config', element: <ConfiguracionPage /> },
       { path: 'config/integraciones', element: <IntegracionesPage /> },
+      { path: 'config/almacenamiento', element: <AlmacenamientoPage /> },
       { path: 'automatizaciones', element: <AutomatizacionesPage /> },
+      { path: 'customer-success', element: <CustomerSuccessPage /> },
+      { path: 'mapa-operativo', element: <MapaOperativoPage /> },
+      { path: 'growth',    element: <GrowthPage /> },
+      { path: 'finanzas', element: <FinancePage /> },
     ],
   },
   { path: '*', element: <Navigate to="/" replace /> },

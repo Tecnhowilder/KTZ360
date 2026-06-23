@@ -7,12 +7,13 @@
  *
  * PRO:     generate_description (1), improve_proposal (2), ai_summary (2),
  *          close_probability (3), recommendations (3)
- * PREMIUM: forecast (3), risk_analysis (3), prioritize_opportunities (3), next_best_action (3)
+ * PREMIUM: forecast (3), forecast_finance (3), risk_analysis (3), prioritize_opportunities (3), next_best_action (3)
  */
 import { callAistudio, type AIResponse } from './aiStudio';
 import type { DerivedQuote } from '../lib/types';
 import type { Client } from '../lib/types';
 import { formatCurrencyCOP } from '../lib/currency';
+import type { WorkspaceProfitability } from './finance';
 
 // ─── Helpers de formateo de contexto ────────────────────────────────────────
 
@@ -309,4 +310,57 @@ JSON:
 }`;
 
   return callAistudio({ prompt, operation: 'recommendations', max_tokens: 300, temperature: 0.3 });
+}
+
+// ─── PREMIUM: Forecast financiero (3 créditos) ────────────────────────────────
+
+/**
+ * Proyecta ingresos, utilidad y riesgos financieros basado en el histórico real.
+ * Reutiliza la operación 'forecast_finance' (3 créditos, solo PREMIUM).
+ * Datos: get_workspace_profitability() → WorkspaceProfitability.
+ */
+export async function forecastFinance(
+  profitability: WorkspaceProfitability,
+  activeOrders = 0,
+  activeClients = 0,
+): Promise<AIResponse> {
+  const { monthly_trend, total_revenue, estimated_profit, estimated_margin_pct,
+    gross_margin_pct, avg_quote_value, quotes_count, orders_finalized } = profitability;
+
+  const trendLines = monthly_trend
+    .map(m => `${m.label}: Ingresos ${formatCurrencyCOP(m.revenue)} | Utilidad ${formatCurrencyCOP(m.util_amount)} | Margen ${m.margin_pct}%`)
+    .join('\n');
+
+  const prompt = `Eres un analista financiero de Shelwi. Analiza los datos reales de un contratista colombiano.
+
+PERÍODO ANALIZADO:
+${trendLines}
+
+RESUMEN EJECUTIVO:
+- Ingresos totales del período: ${formatCurrencyCOP(total_revenue)}
+- Utilidad estimada: ${formatCurrencyCOP(estimated_profit)} (${estimated_margin_pct}%)
+- Margen bruto: ${gross_margin_pct}%
+- Cotizaciones aprobadas: ${quotes_count}
+- Pedidos finalizados: ${orders_finalized}
+- Valor promedio por cotización: ${formatCurrencyCOP(avg_quote_value)}
+- Pedidos activos ahora: ${activeOrders}
+- Clientes activos: ${activeClients}
+
+Con base en estos datos reales, proyecta los próximos 3 meses y evalúa la salud financiera.
+
+Responde ÚNICAMENTE en JSON:
+{
+  "forecast": [
+    {"month": "Jul 2026", "projected_revenue": <número>, "projected_profit": <número>, "projected_margin_pct": <número>, "confidence": "<alta|media|baja>"},
+    {"month": "Ago 2026", "projected_revenue": <número>, "projected_profit": <número>, "projected_margin_pct": <número>, "confidence": "<alta|media|baja>"},
+    {"month": "Sep 2026", "projected_revenue": <número>, "projected_profit": <número>, "projected_margin_pct": <número>, "confidence": "<alta|media|baja>"}
+  ],
+  "trend": "<creciente|estable|decreciente>",
+  "financial_health": "<saludable|atención|crítico>",
+  "risks": ["<riesgo financiero 1>", "<riesgo financiero 2>"],
+  "opportunities": ["<oportunidad de mejora 1>", "<oportunidad de mejora 2>"],
+  "insight": "<1 oración con el diagnóstico financiero más importante>"
+}`;
+
+  return callAistudio({ prompt, operation: 'forecast_finance', max_tokens: 600, temperature: 0.2 });
 }

@@ -4,9 +4,10 @@
  * Datos desde get_storage_usage RPC (Zero Trust).
  */
 import { useNavigate } from 'react-router-dom';
-import { HardDrive, Lock, Camera, Film, Music, FileText, PenLine } from 'lucide-react';
+import { HardDrive, Lock, Camera, Film, Music, FileText, PenLine, Package } from 'lucide-react';
 import { useStorageUsage } from '../../hooks/useEvidences';
 import { useFeatureAccess } from '../../hooks/usePermissions';
+import { useWorkspaceStorageAddons } from '../../hooks/useStorageAddons';
 import { useUI } from '../../features/app/UIProvider';
 import { formatBytes } from '../../services/evidences';
 
@@ -71,6 +72,9 @@ export function StorageWidget() {
   const d         = storageQ.data;
   const pct       = Math.min(100, d.pct_used);
   const barColor  = pct >= 90 ? '#DC2626' : pct >= 80 ? '#D97706' : '#2563EB';
+  const addonsQ   = useWorkspaceStorageAddons();
+  const addons    = addonsQ.data ?? [];
+  const activeAddons = addons.filter(a => a.status === 'active');
 
   return (
     <div style={{ ...CARD, margin: '0 16px' }}>
@@ -125,6 +129,16 @@ export function StorageWidget() {
               </div>
             );
           })}
+        </div>
+      )}
+
+      {/* Paquetes adicionales activos */}
+      {activeAddons.length > 0 && (
+        <div style={{ marginTop: 12, display: 'flex', alignItems: 'center', gap: 6, background: '#F0FDF4', borderRadius: 10, padding: '8px 12px' }}>
+          <Package size={14} color="#16A34A" />
+          <span style={{ fontSize: 12, color: '#166534', fontWeight: 600 }}>
+            +{activeAddons.reduce((s, a) => s + a.gb, 0)} GB adicionales activos
+          </span>
         </div>
       )}
 

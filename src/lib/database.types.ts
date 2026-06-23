@@ -126,6 +126,8 @@ export type PlanFeaturesRow = {
   ai_credits_enabled: boolean;
   founder_eligible: boolean;
   storage_enabled: boolean;
+  // Sprint 13
+  automation_enabled: boolean;
   updated_at: string;
 };
 
@@ -138,6 +140,9 @@ export type PlanLimitsRow = {
   included_users: number;
   extra_user_price: number;
   ai_credits_monthly: number;
+  // Sprint 13
+  max_automations: number | null;
+  automation_ai_credits_pct: number;
   updated_at: string;
 };
 
@@ -473,6 +478,10 @@ export type CompanySettingsRow = {
   portal_show_responsible: boolean;
   portal_show_comments: boolean;
   portal_show_timeline: boolean;
+  // Sprint 16
+  portal_show_reviews: boolean;
+  portal_show_loyalty: boolean;
+  loyalty_enabled: boolean;
   created_at: string;
   updated_at: string;
 };
@@ -630,6 +639,40 @@ export interface PortalConfig {
   show_responsible: boolean;
   show_comments:    boolean;
   show_timeline:    boolean;
+  // Sprint 16
+  show_reviews:    boolean;
+  show_loyalty:    boolean;
+  loyalty_enabled: boolean;
+  active_survey:   { id: string; title: string } | null;
+}
+
+// Sprint 18 — order_cost_entries table
+export type OrderCostType = 'materials' | 'labor' | 'equipment' | 'overhead' | 'subcontractor' | 'transport';
+export type CostRateType  = 'hourly' | 'fixed' | 'commission';
+
+export interface OrderCostEntryRow {
+  id:              string;
+  workspace_id:    string;
+  order_id:        string;
+  work_order_id:   string | null;
+  type:            OrderCostType;
+  description:     string;
+  amount:          number;
+  recorded_by:     string | null;
+  recorded_at:     string;
+}
+
+// Sprint 17 — Referral info returned from get_portal_referral_info()
+export interface PortalReferralInfo {
+  active:          boolean;
+  ref_code?:       string;
+  ref_url?:        string;
+  visits?:         number;
+  conversions?:    number;
+  referrer_points?: number;
+  referee_points?:  number;
+  program_name?:   string;
+  error?:          string;
 }
 
 export interface PortalCompany {
@@ -856,6 +899,50 @@ export type ClientTimelineEventRow = {
   metadata: Json;
   created_by: string | null;
   created_at: string;
+};
+
+// ---------------------------------------------------------------------------
+// Almacenamiento — paquetes adicionales Sprint 14
+// ---------------------------------------------------------------------------
+
+export type StorageAddonStatus = 'active' | 'cancelled';
+
+export type WorkspaceStorageAddonRow = {
+  id: string;
+  workspace_id: string;
+  gb: 10 | 25 | 50;
+  unit_price: number;
+  status: StorageAddonStatus;
+  activated_at: string;
+  cancelled_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export const STORAGE_ADDON_TIERS: Array<{ gb: 10 | 25 | 50; price: number; label: string }> = [
+  { gb: 10,  price: 14900, label: '+10 GB'  },
+  { gb: 25,  price: 24900, label: '+25 GB'  },
+  { gb: 50,  price: 35900, label: '+50 GB'  },
+];
+
+export type StorageAddonListResult = {
+  ok: boolean;
+  error?: string;
+  addons: WorkspaceStorageAddonRow[];
+};
+
+export type ActivateAddonResult = {
+  ok: boolean;
+  error?: string;
+  addon_id?: string;
+  gb?: number;
+  message?: string;
+};
+
+export type CancelAddonResult = {
+  ok: boolean;
+  error?: string;
+  message?: string;
 };
 
 // ---------------------------------------------------------------------------
@@ -1097,6 +1184,7 @@ export interface Database {
       admin_settings: Table<AdminSettingRow, 'key'>;
       workspace_invitations: Table<WorkspaceInvitationRow, 'workspace_id' | 'email' | 'role' | 'invited_by'>;
       additional_user_licenses: Table<AdditionalUserLicenseRow, 'workspace_id'>;
+      workspace_storage_addons: Table<WorkspaceStorageAddonRow, 'workspace_id' | 'gb' | 'unit_price'>;
       quote_commercial_history: Table<QuoteCommercialHistoryRow, 'quote_id' | 'workspace_id' | 'to_status'>;
       seguimientos: Table<SeguimientoRow, 'workspace_id' | 'created_by' | 'type'>;
       recordatorios: Table<RecordatorioRow, 'workspace_id' | 'created_by' | 'scheduled_at'>;
@@ -1296,6 +1384,102 @@ export interface Database {
         Args: Record<string, never>;
         Returns: Json;
       };
+      create_referral_link: {
+        Args: { p_workspace_id: string; p_client_id?: string | null };
+        Returns: Json;
+      };
+      track_referral_visit: {
+        Args: { p_ref_code: string; p_utm_source?: string | null; p_utm_medium?: string | null; p_utm_campaign?: string | null; p_utm_content?: string | null; p_utm_term?: string | null; p_landing_url?: string | null; p_referrer_url?: string | null };
+        Returns: Json;
+      };
+      register_referral_conversion: {
+        Args: { p_ref_code: string; p_referee_client_id: string; p_trigger_event?: string };
+        Returns: Json;
+      };
+      validate_coupon: {
+        Args: { p_workspace_id: string; p_code: string; p_quote_total?: number };
+        Returns: Json;
+      };
+      apply_promotion: {
+        Args: { p_workspace_id: string; p_code: string; p_quote_id: string };
+        Returns: Json;
+      };
+      track_utm: {
+        Args: { p_workspace_id: string; p_utm_source?: string | null; p_utm_medium?: string | null; p_utm_campaign?: string | null; p_utm_content?: string | null; p_utm_term?: string | null; p_lead_id?: string | null; p_client_id?: string | null };
+        Returns: string;
+      };
+      get_referral_dashboard: {
+        Args: { p_workspace_id: string };
+        Returns: Json;
+      };
+      get_utm_analytics: {
+        Args: { p_workspace_id: string; p_days?: number };
+        Returns: Json;
+      };
+      get_growth_dashboard: {
+        Args: { p_workspace_id: string };
+        Returns: Json;
+      };
+      install_growth_templates: {
+        Args: { p_workspace_id: string };
+        Returns: number;
+      };
+      get_portal_referral_info: {
+        Args: { p_portal_token: string };
+        Returns: Json;
+      };
+      get_order_cost_entries: {
+        Args: { p_workspace_id: string; p_order_id: string };
+        Returns: Json;
+      };
+      add_order_cost_entry: {
+        Args: { p_workspace_id: string; p_order_id: string; p_type: string; p_description: string; p_amount: number; p_work_order_id?: string | null };
+        Returns: Json;
+      };
+      get_order_profit: {
+        Args: { p_workspace_id: string; p_order_id: string };
+        Returns: Json;
+      };
+      get_client_profit: {
+        Args: { p_workspace_id: string; p_client_id: string; p_period_start?: string | null; p_period_end?: string | null };
+        Returns: Json;
+      };
+      get_service_profit: {
+        Args: { p_workspace_id: string; p_period_start?: string | null; p_period_end?: string | null };
+        Returns: Json;
+      };
+      get_workspace_profitability: {
+        Args: { p_workspace_id: string; p_period_start?: string | null; p_period_end?: string | null };
+        Returns: Json;
+      };
+      get_finance_dashboard: {
+        Args: { p_workspace_id: string; p_period_start?: string | null; p_period_end?: string | null };
+        Returns: Json;
+      };
+      get_admin_finance_summary: {
+        Args: Record<string, never>;
+        Returns: Json;
+      };
+      update_invoice_status: {
+        Args: { p_workspace_id: string; p_external_invoice_id: string; p_new_status: string; p_pdf_url?: string | null; p_xml_url?: string | null; p_paid_at?: string | null };
+        Returns: Json;
+      };
+      void_invoice: {
+        Args: { p_workspace_id: string; p_invoice_id: string };
+        Returns: Json;
+      };
+      get_invoice_detail: {
+        Args: { p_workspace_id: string; p_invoice_id: string };
+        Returns: Json;
+      };
+      register_saas_invoice: {
+        Args: { p_payment_event_id: string; p_workspace_id: string; p_user_id: string; p_plan_code: string; p_billing_cycle: string; p_amount: number; p_currency?: string };
+        Returns: Json;
+      };
+      get_saas_invoice_reconciliation: {
+        Args: { p_days?: number };
+        Returns: Json;
+      };
       store_alegra_credentials: {
         Args: { p_workspace_id: string; p_encrypted_data: string; p_encryption_iv: string; p_expires_at?: string | null };
         Returns: Json;
@@ -1363,6 +1547,42 @@ export interface Database {
       cleanup_processed_integration_events: {
         Args: Record<string, never>;
         Returns: number;
+      };
+      calculate_customer_health: {
+        Args: { p_workspace_id: string; p_client_id?: string | null };
+        Returns: number;
+      };
+      get_customer_success_dashboard: {
+        Args: { p_workspace_id: string };
+        Returns: Json;
+      };
+      get_clients_at_risk: {
+        Args: { p_workspace_id: string };
+        Returns: Json;
+      };
+      get_vip_clients: {
+        Args: { p_workspace_id: string };
+        Returns: Json;
+      };
+      get_repurchase_opportunities: {
+        Args: { p_workspace_id: string };
+        Returns: Json;
+      };
+      recalculate_all_health_scores: {
+        Args: { p_workspace_id?: string | null };
+        Returns: number;
+      };
+      get_workspace_storage_addons: {
+        Args: { p_workspace_id: string };
+        Returns: Json;
+      };
+      activate_storage_addon: {
+        Args: { p_workspace_id: string; p_gb: number; p_unit_price: number };
+        Returns: Json;
+      };
+      cancel_storage_addon: {
+        Args: { p_addon_id: string };
+        Returns: Json;
       };
       grant_gps_consent: {
         Args: Record<string, never>;

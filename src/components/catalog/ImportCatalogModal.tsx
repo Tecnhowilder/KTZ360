@@ -1,5 +1,12 @@
 import { useState, useRef } from 'react';
-import * as XLSX from 'xlsx';
+// Sprint 16.3 Performance: dynamic import evita +800KB en bundle inicial.
+// xlsx se carga solo cuando el usuario abre este modal.
+type XLSXModule = typeof import('xlsx');
+let _xlsx: XLSXModule | null = null;
+async function getXLSX(): Promise<XLSXModule> {
+  if (!_xlsx) _xlsx = await import('xlsx');
+  return _xlsx;
+}
 import { X, Download, Upload, Check, AlertCircle } from 'lucide-react';
 import { useWorkspace } from '../../features/auth/WorkspaceProvider';
 import { useAuth } from '../../features/auth/AuthProvider';
@@ -33,7 +40,8 @@ function parseRows(raw: unknown[][]): ParsedRow[] {
   }).filter(r => r.name); // excluir filas completamente vacías
 }
 
-function downloadTemplate() {
+async function downloadTemplate() {
+  const XLSX = await getXLSX();
   const ws = XLSX.utils.aoa_to_sheet([
     TEMPLATE_HEADERS,
     ['Diseño de logo', 'Incluye 3 propuestas', 'SERVICE', 'und', 250000],
@@ -63,11 +71,11 @@ export function ImportCatalogModal({ onClose, onImported }: Props) {
 
   function handleFile(file: File) {
     const reader = new FileReader();
-    reader.onload = (e) => {
+    reader.onload = async (e) => {
+      const XLSX = await getXLSX();
       const wb = XLSX.read(e.target?.result, { type: 'binary' });
       const ws = wb.Sheets[wb.SheetNames[0]];
       const data = XLSX.utils.sheet_to_json<unknown[]>(ws, { header: 1 }) as unknown[][];
-      // Saltar primera fila (headers)
       const parsed = parseRows(data.slice(1));
       setRows(parsed);
     };

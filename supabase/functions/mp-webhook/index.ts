@@ -244,6 +244,57 @@ serve(async (req) => {
         },
       }).then(() => {}).catch(() => {});
 
+      // ── 6f. Registrar factura SaaS pendiente en saas_invoices ────────────
+      // No genera factura real — registra el pending para conciliación.
+      // La factura real requiere configuración de cuenta Alegra de Shelwi (Sprint 20).
+      if (receivedAmount && receivedAmount > 0) {
+        await supabase.rpc('register_saas_invoice', {
+          p_payment_event_id: String(paymentId),
+          p_workspace_id:     workspaceId,
+          p_user_id:          userId,
+          p_plan_code:        planCode,
+          p_billing_cycle:    billingCycle,
+          p_amount:           receivedAmount,
+          p_currency:         currency,
+        }).then(() => {}).catch((e: unknown) => {
+          console.error('[mp-webhook] register_saas_invoice error:', e);
+        });
+      }
+
+      // ── 6g. Email de confirmación de pago al cliente ──────────────────────
+      // Envía template 'payment_approved' via send-email Edge Function (Resend).
+      // Falla silenciosamente para no bloquear la activación.
+      try {
+        const userEmail = payment.payer?.email ?? null;
+        if (userEmail) {
+          const planLabel = isFounder
+            ? `${planCode.toUpperCase()} Founder`
+            : planCode.toUpperCase();
+          const cycleLabel = billingCycle === 'annual' ? 'Anual' : 'Mensual';
+          const siteUrl   = Deno.env.get('SITE_URL') || 'https://app.shelwi.com';
+
+          await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/send-email`, {
+            method:  'POST',
+            headers: {
+              'Content-Type':  'application/json',
+              'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
+            },
+            body: JSON.stringify({
+              template: 'payment_approved',
+              to:       userEmail,
+              data: {
+                planName: `${planLabel} (${cycleLabel})`,
+                amount:   `$${(receivedAmount ?? 0).toLocaleString('es-CO')} COP`,
+                appUrl:   siteUrl,
+              },
+            }),
+          });
+          console.log(`[mp-webhook] Confirmation email sent to ${userEmail}`);
+        }
+      } catch (emailErr) {
+        console.error('[mp-webhook] send-email error (non-blocking):', emailErr);
+      }
+
       console.log(`[mp-webhook] Plan activated: workspace=${workspaceId} plan=${planCode} founder=${isFounder}`);
     }
 

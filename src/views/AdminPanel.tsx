@@ -34,6 +34,8 @@ import type { SubscriptionRow, SystemConfigurationRow, AdminSettingRow } from '.
 import { useToast } from '../components/ui/Toast';
 import { fmt } from '../lib/calc';
 import { BRAND_COLORS } from '../lib/brand';
+import { useAdminFinanceSummary } from '../hooks/useFinance';
+import { formatCurrencyCOPCompact } from '../lib/currency';
 
 // ─── Estilos compartidos ──────────────────────────────────────────────────────
 
@@ -47,7 +49,7 @@ const tdStyle:     React.CSSProperties = { padding: '10px 12px', verticalAlign: 
 // ─── Tabs ─────────────────────────────────────────────────────────────────────
 
 type Tab = 'dashboard' | 'subscriptions' | 'plans' | 'founder' | 'ia' | 'storage'
-         | 'users' | 'workspaces' | 'audit' | 'system' | 'support';
+         | 'users' | 'workspaces' | 'audit' | 'system' | 'support' | 'finanzas';
 
 const TAB_LABELS: Record<Tab, string> = {
   dashboard:     'Dashboard',
@@ -61,6 +63,7 @@ const TAB_LABELS: Record<Tab, string> = {
   audit:         'Auditoría',
   system:        'Configuración',
   support:       'Soporte',
+  finanzas:      'Finanzas Shelwi',
 };
 
 // ─── AdminPanel root ──────────────────────────────────────────────────────────
@@ -85,7 +88,7 @@ export function AdminPanel() {
   // Para distinguir, consultamos el perfil directamente.
   const canEdit = adminQuery.data === true; // true siempre que is_support_admin() = true
   // Para acciones solo super_admin, usaremos un query separado
-  const tabs: Tab[] = ['dashboard','subscriptions','plans','founder','ia','storage','users','workspaces','audit','system','support'];
+  const tabs: Tab[] = ['dashboard','subscriptions','plans','founder','ia','storage','users','workspaces','audit','system','support','finanzas'];
 
   return (
     <div>
@@ -117,6 +120,7 @@ export function AdminPanel() {
       {tab === 'audit'         && <AuditTab />}
       {tab === 'system'        && <ConfigTab />}
       {tab === 'support'       && <SupportTab />}
+      {tab === 'finanzas'      && <FinanzasAdminTab />}
     </div>
   );
 }
@@ -723,6 +727,90 @@ function SupportTab() {
               ))}
             </tbody>
           </table>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── FinanzasAdminTab — Finanzas de Shelwi (MRR/ARR/Growth/Addons) ───────────
+
+function FinanzasAdminTab() {
+  const q = useAdminFinanceSummary();
+  if (q.isLoading) return <div style={{ fontSize: 13, color: '#94A3B8' }}>Calculando...</div>;
+  if (!q.data) return <div style={{ fontSize: 13, color: '#DC2626' }}>Error al cargar datos financieros</div>;
+  const d = q.data;
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      {/* KPIs SaaS */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: 10 }}>
+        {([
+          { label: 'MRR', value: formatCurrencyCOPCompact(d.saas.mrr), color: '#16A34A', bg: '#F0FDF4' },
+          { label: 'ARR', value: formatCurrencyCOPCompact(d.saas.arr), color: '#2563EB', bg: '#EFF6FF' },
+          { label: 'Workspaces activos', value: d.saas.active_workspaces, color: '#7C3AED', bg: '#F5F3FF' },
+          { label: 'Crecimiento neto 30d', value: (d.growth.net_growth_30d >= 0 ? '+' : '') + d.growth.net_growth_30d,
+            color: d.growth.net_growth_30d >= 0 ? '#16A34A' : '#DC2626', bg: '#FFF' },
+        ] as const).map(k => (
+          <div key={k.label} style={{ background: k.bg, borderRadius: 14, padding: '12px 14px', boxShadow: '0 1px 4px rgba(0,0,0,.05)' }}>
+            <div style={{ fontSize: 22, fontWeight: 900, color: k.color }}>{k.value}</div>
+            <div style={{ fontSize: 11, color: '#64748B', marginTop: 3 }}>{k.label}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Por plan */}
+      <div style={{ background: '#fff', borderRadius: 14, padding: 16, boxShadow: '0 1px 4px rgba(0,0,0,.05)' }}>
+        <div style={{ fontSize: 13, fontWeight: 800, color: '#0F172A', marginBottom: 10 }}>Distribución por plan</div>
+        {[
+          { plan: 'FREE',    count: d.saas.by_plan.free,    color: '#64748B', price: 0 },
+          { plan: 'PRO',     count: d.saas.by_plan.pro,     color: '#2563EB', price: 149000 },
+          { plan: 'PREMIUM', count: d.saas.by_plan.premium, color: '#7C3AED', price: 349000 },
+        ].map(p => (
+          <div key={p.plan} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: '1px solid #F1F5F9' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <div style={{ width: 10, height: 10, borderRadius: '50%', background: p.color }} />
+              <span style={{ fontSize: 13, fontWeight: 700, color: p.color }}>{p.plan}</span>
+            </div>
+            <div style={{ display: 'flex', gap: 16, alignItems: 'center' }}>
+              <span style={{ fontSize: 13, color: '#64748B' }}>{p.count} ws</span>
+              {p.price > 0 && <span style={{ fontSize: 13, fontWeight: 700, color: '#16A34A' }}>{formatCurrencyCOPCompact(p.count * p.price)}/mes</span>}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Addons */}
+      <div style={{ background: '#fff', borderRadius: 14, padding: 16, boxShadow: '0 1px 4px rgba(0,0,0,.05)' }}>
+        <div style={{ fontSize: 13, fontWeight: 800, color: '#0F172A', marginBottom: 10 }}>Ingresos por Addons</div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid #F1F5F9' }}>
+          <span style={{ fontSize: 13, color: '#374151' }}>🗄️ Storage addons</span>
+          <span style={{ fontSize: 13, fontWeight: 700, color: '#16A34A' }}>{formatCurrencyCOPCompact(d.addons.storage_monthly_revenue)}/mes</span>
+        </div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0' }}>
+          <span style={{ fontSize: 13, color: '#374151' }}>🤖 Costo IA (30d)</span>
+          <span style={{ fontSize: 13, fontWeight: 700, color: '#DC2626' }}>USD ${d.addons.ai_cost_usd_30d.toFixed(2)}</span>
+        </div>
+      </div>
+
+      {/* Growth */}
+      <div style={{ background: '#fff', borderRadius: 14, padding: 16, boxShadow: '0 1px 4px rgba(0,0,0,.05)' }}>
+        <div style={{ fontSize: 13, fontWeight: 800, color: '#0F172A', marginBottom: 10 }}>Crecimiento (últimos 30 días)</div>
+        <div style={{ display: 'flex', gap: 10 }}>
+          <div style={{ flex: 1, background: '#F0FDF4', borderRadius: 12, padding: '10px', textAlign: 'center' }}>
+            <div style={{ fontSize: 20, fontWeight: 800, color: '#16A34A' }}>+{d.growth.new_workspaces_30d}</div>
+            <div style={{ fontSize: 11, color: '#64748B' }}>Nuevos</div>
+          </div>
+          <div style={{ flex: 1, background: '#FEF2F2', borderRadius: 12, padding: '10px', textAlign: 'center' }}>
+            <div style={{ fontSize: 20, fontWeight: 800, color: '#DC2626' }}>{d.growth.churned_workspaces_30d}</div>
+            <div style={{ fontSize: 11, color: '#64748B' }}>Churn</div>
+          </div>
+          <div style={{ flex: 1, background: d.growth.net_growth_30d >= 0 ? '#F0FDF4' : '#FEF2F2', borderRadius: 12, padding: '10px', textAlign: 'center' }}>
+            <div style={{ fontSize: 20, fontWeight: 800, color: d.growth.net_growth_30d >= 0 ? '#16A34A' : '#DC2626' }}>
+              {d.growth.net_growth_30d >= 0 ? '+' : ''}{d.growth.net_growth_30d}
+            </div>
+            <div style={{ fontSize: 11, color: '#64748B' }}>Neto</div>
+          </div>
         </div>
       </div>
     </div>

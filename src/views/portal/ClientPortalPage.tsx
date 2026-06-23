@@ -10,8 +10,14 @@ import { useParams } from 'react-router-dom';
 import {
   LayoutDashboard, FileText, Package, Image, Clock,
   AlertTriangle, ExternalLink, ChevronRight, CheckCircle2,
-  XCircle, Download,
+  XCircle, Download, Star, Gift, ClipboardList, Share2, Copy, CheckCircle,
 } from 'lucide-react';
+import { supabase } from '../../lib/supabaseClient';
+import type { PortalReferralInfo } from '../../lib/database.types';
+import { submitReview, starLabel } from '../../services/reviews';
+import { submitSurveyResponse } from '../../services/surveys';
+import { getClientLoyalty, LOYALTY_TYPE_LABELS, type ClientLoyaltyData } from '../../services/loyalty';
+import { useState as useS, useEffect as useE } from 'react';
 import { useClientPortal, usePortalQuotes, usePortalOrders,
   usePortalWorkOrders, usePortalEvidences, usePortalTimeline } from '../../hooks/useClientPortal';
 import { getPortalEvidenceUrl } from '../../services/clientPortal';
@@ -24,7 +30,7 @@ import type { PortalOrder } from '../../lib/database.types';
 
 // ─── Tipos de tab ─────────────────────────────────────────────────────────────
 
-type Tab = 'dashboard' | 'cotizaciones' | 'pedidos' | 'evidencias' | 'timeline';
+type Tab = 'dashboard' | 'cotizaciones' | 'pedidos' | 'evidencias' | 'timeline' | 'resenas' | 'encuesta' | 'puntos' | 'referidos';
 
 // ─── Componente: branding header ─────────────────────────────────────────────
 
@@ -33,14 +39,18 @@ function PortalHeader({
 }: {
   companyName: string; logoPath: string | null; colorPrimary: string;
   clientName: string; activeTab: Tab; onTabChange: (t: Tab) => void;
-  config: { show_evidences: boolean; show_timeline: boolean };
+  config: { show_evidences: boolean; show_timeline: boolean; show_reviews?: boolean; show_loyalty?: boolean; active_survey?: { id: string; title: string } | null };
 }) {
   const tabs: { key: Tab; label: string; icon: React.ComponentType<{ size?: number }> }[] = [
     { key: 'dashboard',   label: 'Inicio',   icon: LayoutDashboard },
     { key: 'cotizaciones',label: 'Cotiz.',   icon: FileText },
     { key: 'pedidos',     label: 'Pedidos',  icon: Package },
-    ...(config.show_evidences  ? [{ key: 'evidencias' as Tab, label: 'Fotos',  icon: Image }] : []),
+    ...(config.show_evidences  ? [{ key: 'evidencias' as Tab, label: 'Fotos',    icon: Image }] : []),
     ...(config.show_timeline   ? [{ key: 'timeline'  as Tab, label: 'Historial', icon: Clock }] : []),
+    ...(config.show_reviews    ? [{ key: 'resenas'   as Tab, label: 'Reseña',    icon: Star }] : []),
+    ...(config.active_survey   ? [{ key: 'encuesta'  as Tab, label: 'Encuesta',  icon: ClipboardList }] : []),
+    ...(config.show_loyalty    ? [{ key: 'puntos'    as Tab, label: 'Puntos',    icon: Gift }] : []),
+    { key: 'referidos' as Tab, label: 'Invitar', icon: Share2 },
   ];
 
   return (
@@ -549,6 +559,344 @@ export function ClientPortalPage() {
       {activeTab === 'pedidos'      && <TabPedidos      token={token} />}
       {activeTab === 'evidencias'   && <TabEvidencias   token={token} />}
       {activeTab === 'timeline'     && <TabTimeline     token={token} />}
+      {activeTab === 'resenas'      && <TabResenas      token={token} colorPrimary={c.color_primary} />}
+      {activeTab === 'encuesta'     && d.config.active_survey && (
+        <TabEncuesta token={token} survey={d.config.active_survey} />
+      )}
+      {activeTab === 'puntos'       && <TabPuntos    token={token} colorPrimary={c.color_primary} />}
+      {activeTab === 'referidos'    && <TabReferidosPortal token={token} colorPrimary={c.color_primary} />}
+    </div>
+  );
+}
+
+// ─── Tab: Reseñas ─────────────────────────────────────────────────────────────
+
+function TabResenas({ token, colorPrimary }: { token: string; colorPrimary: string }) {
+  const [rating, setRating] = useS(0);
+  const [comment, setComment] = useS('');
+  const [orderId, setOrderId] = useS('');
+  const [submitted, setSubmitted] = useS(false);
+  const [error, setError] = useS<string | null>(null);
+  const [loading, setLoading] = useS(false);
+  const ordersQ = usePortalOrders(token);
+  const orders = ordersQ.data?.orders ?? [];
+
+  async function handleSubmit() {
+    if (!orderId || rating === 0) { setError('Selecciona un pedido y una calificación'); return; }
+    setLoading(true);
+    try {
+      await submitReview(token, orderId, rating, comment || undefined);
+      setSubmitted(true);
+    } catch (e: unknown) {
+      setError((e as Error).message ?? 'Error al enviar');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  if (submitted) return (
+    <div style={{ padding: '40px 24px', textAlign: 'center' }}>
+      <div style={{ fontSize: 48, marginBottom: 12 }}>🎉</div>
+      <div style={{ fontSize: 18, fontWeight: 800, color: '#0F172A', marginBottom: 8 }}>¡Gracias por tu reseña!</div>
+      <div style={{ fontSize: 14, color: '#64748B' }}>Tu opinión nos ayuda a mejorar.</div>
+      {starLabel(rating) && <div style={{ fontSize: 24, marginTop: 12, color: colorPrimary }}>{starLabel(rating)}</div>}
+    </div>
+  );
+
+  return (
+    <div style={{ padding: '16px 16px 0' }}>
+      <div style={{ fontSize: 16, fontWeight: 800, color: '#0F172A', marginBottom: 4 }}>Deja tu reseña</div>
+      <div style={{ fontSize: 13, color: '#64748B', marginBottom: 16 }}>¿Cómo fue tu experiencia?</div>
+
+      {/* Selector de pedido */}
+      <div style={{ marginBottom: 14 }}>
+        <div style={{ fontSize: 12, fontWeight: 700, color: '#64748B', marginBottom: 6 }}>PEDIDO A CALIFICAR</div>
+        <select value={orderId} onChange={e => setOrderId(e.target.value)}
+          style={{ width: '100%', padding: '11px 14px', borderRadius: 12, border: '1px solid #E2E8F0', fontSize: 14, boxSizing: 'border-box' as const, outline: 'none' }}>
+          <option value="">Selecciona un pedido...</option>
+          {orders.filter(o => o.status === 'finalizado').map(o => (
+            <option key={o.id} value={o.id}>{o.order_number} — {o.title}</option>
+          ))}
+        </select>
+      </div>
+
+      {/* Rating */}
+      <div style={{ marginBottom: 14 }}>
+        <div style={{ fontSize: 12, fontWeight: 700, color: '#64748B', marginBottom: 8 }}>CALIFICACIÓN</div>
+        <div style={{ display: 'flex', gap: 8 }}>
+          {[1,2,3,4,5].map(s => (
+            <button key={s} onClick={() => setRating(s)} style={{
+              fontSize: 32, border: 'none', background: 'none', cursor: 'pointer',
+              filter: s <= rating ? 'none' : 'grayscale(1)',
+              transform: s <= rating ? 'scale(1.1)' : 'scale(1)',
+              transition: 'all .15s',
+            }}>★</button>
+          ))}
+        </div>
+      </div>
+
+      {/* Comentario */}
+      <div style={{ marginBottom: 14 }}>
+        <div style={{ fontSize: 12, fontWeight: 700, color: '#64748B', marginBottom: 6 }}>COMENTARIO (OPCIONAL)</div>
+        <textarea value={comment} onChange={e => setComment(e.target.value)} rows={3}
+          placeholder="Cuéntanos tu experiencia..."
+          style={{ width: '100%', padding: '11px 14px', borderRadius: 12, border: '1px solid #E2E8F0', fontSize: 14, resize: 'none', boxSizing: 'border-box' as const, outline: 'none', fontFamily: 'inherit' }} />
+      </div>
+
+      {error && <div style={{ color: '#DC2626', fontSize: 13, marginBottom: 10 }}>{error}</div>}
+      <button onClick={handleSubmit} disabled={loading || !orderId || rating === 0} style={{
+        width: '100%', padding: 14, borderRadius: 14, border: 'none',
+        background: (!orderId || rating === 0) ? '#E2E8F0' : colorPrimary,
+        color: (!orderId || rating === 0) ? '#94A3B8' : '#fff',
+        fontWeight: 700, fontSize: 15, cursor: (!orderId || rating === 0) ? 'not-allowed' : 'pointer',
+      }}>
+        {loading ? 'Enviando...' : 'Enviar reseña'}
+      </button>
+    </div>
+  );
+}
+
+// ─── Tab: Encuesta ────────────────────────────────────────────────────────────
+
+function TabEncuesta({ token, survey }: { token: string; survey: { id: string; title: string } }) {
+  const [nps, setNps] = useS<number | null>(null);
+  const [submitted, setSubmitted] = useS(false);
+  const [loading, setLoading] = useS(false);
+  const [error, setError] = useS<string | null>(null);
+
+  async function handleSubmit() {
+    if (nps === null) { setError('Por favor selecciona una puntuación NPS'); return; }
+    setLoading(true);
+    try {
+      await submitSurveyResponse({ token, surveyId: survey.id, answers: {}, npsScore: nps });
+      setSubmitted(true);
+    } catch (e: unknown) {
+      setError((e as Error).message ?? 'Error');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  if (submitted) return (
+    <div style={{ padding: '40px 24px', textAlign: 'center' }}>
+      <div style={{ fontSize: 48, marginBottom: 12 }}>🙏</div>
+      <div style={{ fontSize: 18, fontWeight: 800, color: '#0F172A' }}>¡Gracias por tu respuesta!</div>
+    </div>
+  );
+
+  const npsColor = nps === null ? '#94A3B8' : nps >= 9 ? '#16A34A' : nps >= 7 ? '#D97706' : '#DC2626';
+
+  return (
+    <div style={{ padding: '16px 16px 0' }}>
+      <div style={{ fontSize: 16, fontWeight: 800, color: '#0F172A', marginBottom: 4 }}>{survey.title}</div>
+      <div style={{ fontSize: 13, color: '#64748B', marginBottom: 20 }}>
+        Del 0 al 10, ¿qué tan probable es que nos recomiendes?
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(11, 1fr)', gap: 6, marginBottom: 10 }}>
+        {[0,1,2,3,4,5,6,7,8,9,10].map(n => (
+          <button key={n} onClick={() => setNps(n)} style={{
+            padding: '10px 0', borderRadius: 10, border: 'none',
+            background: nps === n ? npsColor : '#F8FAFC',
+            color: nps === n ? '#fff' : '#374151',
+            fontWeight: nps === n ? 800 : 500, fontSize: 13.5, cursor: 'pointer',
+          }}>
+            {n}
+          </button>
+        ))}
+      </div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: '#94A3B8', marginBottom: 24 }}>
+        <span>Nada probable</span><span>Muy probable</span>
+      </div>
+      {nps !== null && (
+        <div style={{ textAlign: 'center', marginBottom: 14, fontSize: 13, color: npsColor, fontWeight: 700 }}>
+          {nps >= 9 ? '¡Excelente! Eres un promotor ⭐' : nps >= 7 ? 'Gracias por tu respuesta 👍' : 'Lamentamos tu experiencia. Mejoraremos 💪'}
+        </div>
+      )}
+      {error && <div style={{ color: '#DC2626', fontSize: 13, marginBottom: 10 }}>{error}</div>}
+      <button onClick={handleSubmit} disabled={loading || nps === null} style={{
+        width: '100%', padding: 14, borderRadius: 14, border: 'none',
+        background: nps === null ? '#E2E8F0' : '#2563EB',
+        color: nps === null ? '#94A3B8' : '#fff',
+        fontWeight: 700, fontSize: 15, cursor: nps === null ? 'not-allowed' : 'pointer',
+      }}>
+        {loading ? 'Enviando...' : 'Enviar respuesta'}
+      </button>
+    </div>
+  );
+}
+
+// ─── Tab: Puntos de Fidelidad ─────────────────────────────────────────────────
+
+function TabPuntos({ token, colorPrimary }: { token: string; colorPrimary: string }) {
+  const [data, setData] = useS<ClientLoyaltyData | null>(null);
+  const [loading, setLoading] = useS(true);
+  const [error, setError] = useS<string | null>(null);
+
+  useE(() => {
+    getClientLoyalty(token)
+      .then(setData)
+      .catch((e: Error) => setError(e.message))
+      .finally(() => setLoading(false));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token]);
+
+  if (loading) return <div style={{ padding: 32, textAlign: 'center', color: '#94A3B8' }}>Cargando puntos...</div>;
+  if (error) return <div style={{ padding: 16, color: '#DC2626', fontSize: 13 }}>{error}</div>;
+  if (!data)  return null;
+
+  const level = data.current_level;
+  const nextLevel = data.next_level;
+
+  return (
+    <div style={{ padding: '16px 16px 0', display: 'flex', flexDirection: 'column', gap: 14 }}>
+      {/* Score principal */}
+      <div style={{ background: `linear-gradient(135deg, ${colorPrimary} 0%, ${colorPrimary}CC 100%)`, borderRadius: 18, padding: '20px 20px', color: '#fff', textAlign: 'center' }}>
+        <div style={{ fontSize: 48, marginBottom: 4 }}>{level?.icon ?? '🎖️'}</div>
+        <div style={{ fontSize: 14, color: 'rgba(255,255,255,.8)' }}>Nivel</div>
+        <div style={{ fontSize: 22, fontWeight: 900, marginBottom: 8 }}>{level?.name ?? 'Bronce'}</div>
+        <div style={{ fontSize: 40, fontWeight: 900 }}>{data.total_points}</div>
+        <div style={{ fontSize: 13, color: 'rgba(255,255,255,.7)' }}>puntos acumulados</div>
+        {nextLevel && (
+          <div style={{ marginTop: 12, fontSize: 12, color: 'rgba(255,255,255,.8)' }}>
+            {data.points_to_next} puntos para {nextLevel.icon} {nextLevel.name}
+          </div>
+        )}
+      </div>
+
+      {/* Recompensas */}
+      {data.rewards.length > 0 && (
+        <div>
+          <div style={{ fontSize: 13, fontWeight: 700, color: '#64748B', textTransform: 'uppercase' as const, letterSpacing: .4, marginBottom: 10 }}>Recompensas</div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {data.rewards.map(r => (
+              <div key={r.id} style={{ background: '#fff', borderRadius: 14, padding: '13px 14px', display: 'flex', alignItems: 'center', gap: 12, boxShadow: '0 1px 4px rgba(0,0,0,.06)', opacity: r.available ? 1 : 0.6 }}>
+                <div style={{ fontSize: 24, flexShrink: 0 }}>🎁</div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 13.5, fontWeight: 700, color: '#0F172A' }}>{r.name}</div>
+                  {r.description && <div style={{ fontSize: 12, color: '#64748B', marginTop: 1 }}>{r.description}</div>}
+                  <div style={{ fontSize: 12, color: r.can_redeem ? '#16A34A' : '#94A3B8', marginTop: 3, fontWeight: 600 }}>
+                    {r.points_required} pts {r.can_redeem ? '✓ Puedes canjear' : `(te faltan ${r.points_required - data.total_points} pts)`}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Historial */}
+      {data.transactions.length > 0 && (
+        <div>
+          <div style={{ fontSize: 13, fontWeight: 700, color: '#64748B', textTransform: 'uppercase' as const, letterSpacing: .4, marginBottom: 10 }}>Historial</div>
+          <div style={{ background: '#fff', borderRadius: 14, overflow: 'hidden', boxShadow: '0 1px 4px rgba(0,0,0,.06)' }}>
+            {data.transactions.map((tx, i) => (
+              <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '11px 14px', borderBottom: i < data.transactions.length - 1 ? '1px solid #F1F5F9' : 'none' }}>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 12.5, fontWeight: 600, color: '#0F172A' }}>{LOYALTY_TYPE_LABELS[tx.type] ?? tx.type}</div>
+                  {tx.description && <div style={{ fontSize: 11.5, color: '#94A3B8' }}>{tx.description}</div>}
+                </div>
+                <span style={{ fontSize: 14, fontWeight: 800, color: tx.points > 0 ? '#16A34A' : '#DC2626', flexShrink: 0 }}>
+                  {tx.points > 0 ? '+' : ''}{tx.points}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Tab: Referidos (portal público — llama a get_portal_referral_info) ──────
+
+function TabReferidosPortal({ token, colorPrimary }: { token: string; colorPrimary: string }) {
+  const [info, setInfo] = useS<PortalReferralInfo | null>(null);
+  const [loading, setLoading] = useS(true);
+  const [copied, setCopied] = useS(false);
+
+  useE(() => {
+    (async () => {
+      const { data } = await supabase.rpc('get_portal_referral_info', { p_portal_token: token });
+      setInfo((data as unknown as PortalReferralInfo) ?? { active: false });
+      setLoading(false);
+    })();
+  }, [token]);
+
+  function copyLink() {
+    if (!info?.ref_url) return;
+    const fullUrl = window.location.origin + info.ref_url;
+    navigator.clipboard.writeText(fullUrl).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2500);
+    });
+  }
+
+  if (loading) return (
+    <div style={{ padding: 32, textAlign: 'center', color: '#94A3B8' }}>Cargando...</div>
+  );
+
+  if (!info?.active) return (
+    <div style={{ padding: '40px 20px', textAlign: 'center' }}>
+      <div style={{ fontSize: 36, marginBottom: 12 }}>🤝</div>
+      <div style={{ fontSize: 16, fontWeight: 700, color: '#0F172A', marginBottom: 6 }}>Programa de referidos no activo</div>
+      <div style={{ fontSize: 13, color: '#64748B' }}>La empresa todavía no ha habilitado el programa de referidos.</div>
+    </div>
+  );
+
+  const fullUrl = window.location.origin + (info.ref_url ?? '');
+
+  return (
+    <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+      {/* Hero */}
+      <div style={{ background: `linear-gradient(135deg, ${colorPrimary}, #8B5CF6)`, borderRadius: 16, padding: '20px 18px', color: '#fff', textAlign: 'center' }}>
+        <div style={{ fontSize: 32, marginBottom: 8 }}>🎁</div>
+        <div style={{ fontSize: 18, fontWeight: 800, marginBottom: 6 }}>{info.program_name}</div>
+        <div style={{ fontSize: 13, color: 'rgba(255,255,255,.85)' }}>
+          Gana <strong>{info.referrer_points} puntos</strong> por cada amigo que contrate.
+          Tu amigo recibe <strong>{info.referee_points} puntos</strong> de bienvenida.
+        </div>
+      </div>
+
+      {/* Link */}
+      <div style={{ background: '#fff', borderRadius: 14, padding: '14px 16px', boxShadow: '0 1px 4px rgba(0,0,0,.06)' }}>
+        <div style={{ fontSize: 13, fontWeight: 700, color: '#0F172A', marginBottom: 10 }}>Tu link único</div>
+        <div style={{ background: '#F8FAFC', borderRadius: 10, padding: '10px 12px', fontSize: 12, color: '#374151', wordBreak: 'break-all', marginBottom: 10 }}>{fullUrl}</div>
+        <button onClick={copyLink} style={{
+          width: '100%', padding: '11px 0', borderRadius: 12, border: 'none', cursor: 'pointer',
+          background: copied ? '#F0FDF4' : colorPrimary, color: '#fff', fontWeight: 700, fontSize: 14,
+          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+          transition: 'background .2s',
+        }}>
+          {copied ? <><CheckCircle size={16} /> ¡Copiado!</> : <><Copy size={16} /> Copiar link</>}
+        </button>
+      </div>
+
+      {/* Métricas */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+        <div style={{ background: '#EFF6FF', borderRadius: 14, padding: '12px', textAlign: 'center' }}>
+          <div style={{ fontSize: 24, fontWeight: 800, color: '#2563EB' }}>{info.visits ?? 0}</div>
+          <div style={{ fontSize: 11, color: '#64748B', marginTop: 2 }}>Visitas a tu link</div>
+        </div>
+        <div style={{ background: '#F0FDF4', borderRadius: 14, padding: '12px', textAlign: 'center' }}>
+          <div style={{ fontSize: 24, fontWeight: 800, color: '#16A34A' }}>{info.conversions ?? 0}</div>
+          <div style={{ fontSize: 11, color: '#64748B', marginTop: 2 }}>Referidos exitosos</div>
+        </div>
+      </div>
+
+      {/* Instrucciones */}
+      <div style={{ background: '#F8FAFC', borderRadius: 14, padding: '14px' }}>
+        <div style={{ fontSize: 12, fontWeight: 700, color: '#64748B', textTransform: 'uppercase' as const, marginBottom: 10 }}>Cómo funciona</div>
+        {[
+          { n: '1', text: 'Comparte tu link con amigos o familiares' },
+          { n: '2', text: 'Ellos visitan el link y solicitan una cotización' },
+          { n: '3', text: 'Cuando aprueban la cotización, ambos ganan puntos' },
+        ].map(step => (
+          <div key={step.n} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, marginBottom: 8 }}>
+            <div style={{ width: 22, height: 22, borderRadius: '50%', background: colorPrimary, color: '#fff', fontSize: 11, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>{step.n}</div>
+            <div style={{ fontSize: 13, color: '#374151', lineHeight: 1.4 }}>{step.text}</div>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

@@ -1,6 +1,6 @@
 /**
  * integration-worker — Edge Function Shelwi Sprint 11
- * Processes pending events from integration_events table.
+ * Sprint 16.3 Performance: batch size reducido + timeout safety guard.
  *
  * Adapters:
  *   - WhatsAppAdapter: generates wa.me URL (manual enriched flow)
@@ -9,17 +9,28 @@
  *
  * Called:
  *   - Manually from frontend (trigger sync)
- *   - Via Supabase pg_cron (Sprint 12)
+ *   - Via automation-scheduler (cada minuto)
  *   - POST /functions/v1/integration-worker
  *
  * Zero Trust: workspace_id always from DB, never from request body.
+ *
+ * Performance (Sprint 16.3):
+ *   - MAX_EVENTS_PER_RUN: 20 → 5 (evita timeout en eventos pesados Drive/Alegra)
+ *   - EXECUTION_BUDGET_MS: 25s safety guard (timeout Supabase = 30s)
+ *   - Procesa incrementalmente: el scheduler llama cada 1 min, cubre el resto
  */
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 const SUPABASE_URL     = Deno.env.get('SUPABASE_URL')!;
 const SUPABASE_SVC_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 const ENCRYPTION_KEY   = Deno.env.get('INTEGRATION_ENCRYPTION_KEY') ?? Deno.env.get('ENCRYPTION_KEY') ?? '';
-const MAX_EVENTS_PER_RUN = 20;
+
+// Sprint 16.3: reducido de 20 → 5 para evitar timeout con eventos Drive/Alegra/Teams
+// El scheduler llama cada minuto, así que procesamos 5 × 60 = 300 eventos/hora
+const MAX_EVENTS_PER_RUN = 5;
+
+// Safety budget: si llevamos >25s ejecutando, cortamos el loop (timeout Supabase = 30s)
+const EXECUTION_BUDGET_MS = 25_000;
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -544,6 +555,46 @@ async function processAlegraInvoice(
   return { invoice_id: invoiceId, invoice_number: invoiceNumber, status: 'issued' };
 }
 
+// ─── Alegra: Anular factura ───────────────────────────────────────────────────
+
+async function processAlegraVoidInvoice(
+  admin: ReturnType<typeof createClient>,
+  event: Record<string, unknown>
+): Promise<Record<string, unknown>> {
+  const payload    = event.payload as Record<string, unknown>;
+  const wsId       = event.workspace_id as string;
+  const externalId = payload.external_invoice_id as string;
+
+  const authHeader = await getAlegraAuth(admin, wsId);
+
+  // DELETE /invoices/:id en Alegra
+  const voidResp = await fetch(`${ALEGRA_BASE}/invoices/${externalId}`, {
+    method: 'DELETE',
+    headers: { 'Authorization': `Basic ${authHeader}`, 'Content-Type': 'application/json' },
+  });
+
+  if (!voidResp.ok) {
+    const errText = await voidResp.text();
+    // Alegra devuelve 404 si ya está anulada — tratar como éxito
+    if (voidResp.status === 404) {
+      await admin.rpc('update_invoice_status', {
+        p_workspace_id: wsId, p_external_invoice_id: externalId,
+        p_new_status: 'void',
+      });
+      return { status: 'void', note: 'already_void_in_alegra' };
+    }
+    throw new Error(`Alegra void invoice failed ${voidResp.status}: ${errText}`);
+  }
+
+  // Actualizar estado local
+  await admin.rpc('update_invoice_status', {
+    p_workspace_id: wsId, p_external_invoice_id: externalId,
+    p_new_status: 'void',
+  });
+
+  return { external_invoice_id: externalId, status: 'void' };
+}
+
 // ─── Gmail Adapter ────────────────────────────────────────────────────────────
 
 async function processGmailEmail(
@@ -694,6 +745,204 @@ async function storeCalendarRef(
   } as never);
 }
 
+// ─── Google Drive Adapter ─────────────────────────────────────────────────────
+// Shelwi es la fuente de verdad. Drive es respaldo/colaboración.
+
+const DRIVE_BASE = 'https://www.googleapis.com/upload/drive/v3/files';
+
+async function processDriveSync(
+  admin: ReturnType<typeof createClient>,
+  event: Record<string, unknown>
+): Promise<Record<string, unknown>> {
+  const payload     = event.payload as Record<string, unknown>;
+  const wsId        = event.workspace_id as string;
+  const evidenceId  = payload.evidence_id as string;
+  const storagePath = payload.storage_path as string;
+  const fileName    = payload.file_name as string;
+  const mimeType    = payload.mime_type as string;
+  const entityType  = payload.work_order_id ? 'work_order' : 'order';
+  const entityId    = (payload.work_order_id ?? payload.order_id) as string;
+
+  const accessToken = await getAccessToken(admin, wsId, 'google_calendar');
+  // Note: Drive uses same Google OAuth token but requires drive.file scope
+
+  // 1. Download file from Supabase Storage
+  const { data: fileData, error: dlErr } = await (admin.storage as ReturnType<typeof admin.storage>)
+    .from('evidences')
+    .download(storagePath);
+
+  if (dlErr || !fileData) {
+    throw new Error(`Cannot download evidence from Shelwi storage: ${dlErr?.message}`);
+  }
+
+  // 2. Get integration config (folder_id)
+  const { data: intRow } = await admin
+    .from('integrations').select('config')
+    .eq('workspace_id', wsId).eq('provider', 'drive').single();
+  const folderId = (intRow?.config as Record<string, string>)?.folder_id;
+
+  // 3. Upload to Drive (multipart)
+  const meta = JSON.stringify({ name: fileName, ...(folderId ? { parents: [folderId] } : {}) });
+  const boundary = '---shelwi_boundary';
+  const body = [
+    `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${meta}`,
+    `\r\n--${boundary}\r\nContent-Type: ${mimeType}\r\n\r\n`,
+  ].join('');
+
+  // Use Drive simple upload for reliability
+  const uploadResp = await fetch(
+    `https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart`,
+    {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': `multipart/related; boundary=${boundary}`,
+      },
+      body: new Blob([body, await fileData.arrayBuffer(), `\r\n--${boundary}--`]),
+    }
+  );
+
+  if (!uploadResp.ok) throw new Error(`Drive upload failed: ${await uploadResp.text()}`);
+  const driveFile = await uploadResp.json() as Record<string, string>;
+
+  // 4. Store Drive file ID in integration_entity_refs
+  await admin.rpc('upsert_entity_ref' as never, {
+    p_workspace_id: wsId,
+    p_entity_type: 'evidence',
+    p_entity_id: evidenceId,
+    p_provider: 'drive',
+    p_external_id: driveFile.id,
+    p_external_url: `https://drive.google.com/file/d/${driveFile.id}/view`,
+  } as never);
+
+  return { drive_file_id: driveFile.id, drive_url: `https://drive.google.com/file/d/${driveFile.id}/view` };
+}
+
+// ─── OneDrive Adapter ─────────────────────────────────────────────────────────
+// Shelwi es la fuente de verdad. OneDrive es respaldo/colaboración.
+
+async function processOneDriveSync(
+  admin: ReturnType<typeof createClient>,
+  event: Record<string, unknown>
+): Promise<Record<string, unknown>> {
+  const payload     = event.payload as Record<string, unknown>;
+  const wsId        = event.workspace_id as string;
+  const evidenceId  = payload.evidence_id as string;
+  const storagePath = payload.storage_path as string;
+  const fileName    = payload.file_name as string;
+
+  const accessToken = await getAccessToken(admin, wsId, 'outlook_calendar');
+  // Note: OneDrive uses same Microsoft Graph token but requires Files.ReadWrite scope
+
+  // 1. Download from Shelwi Storage
+  const { data: fileData, error: dlErr } = await (admin.storage as ReturnType<typeof admin.storage>)
+    .from('evidences')
+    .download(storagePath);
+
+  if (dlErr || !fileData) throw new Error(`Cannot download: ${dlErr?.message}`);
+
+  // 2. Get target folder path from config
+  const { data: intRow } = await admin
+    .from('integrations').select('config')
+    .eq('workspace_id', wsId).eq('provider', 'onedrive').single();
+  const folderPath = (intRow?.config as Record<string, string>)?.folder_path ?? 'Shelwi Evidencias';
+
+  // 3. Upload to OneDrive via Graph simple upload
+  const uploadUrl = `https://graph.microsoft.com/v1.0/me/drive/root:/${folderPath}/${fileName}:/content`;
+  const uploadResp = await fetch(uploadUrl, {
+    method: 'PUT',
+    headers: {
+      'Authorization': `Bearer ${accessToken}`,
+      'Content-Type': 'application/octet-stream',
+    },
+    body: await fileData.arrayBuffer(),
+  });
+
+  if (!uploadResp.ok) throw new Error(`OneDrive upload failed: ${await uploadResp.text()}`);
+  const odFile = await uploadResp.json() as Record<string, unknown>;
+
+  // 4. Store OneDrive file ID
+  const fileId  = String(odFile.id);
+  const webUrl  = String((odFile as Record<string, Record<string, string>>).webUrl ?? '');
+
+  await admin.rpc('upsert_entity_ref' as never, {
+    p_workspace_id: wsId,
+    p_entity_type: 'evidence',
+    p_entity_id: evidenceId,
+    p_provider: 'onedrive',
+    p_external_id: fileId,
+    p_external_url: webUrl,
+  } as never);
+
+  return { onedrive_file_id: fileId, web_url: webUrl };
+}
+
+// ─── Microsoft Teams Adapter ──────────────────────────────────────────────────
+// Teams solo recibe notificaciones. NUNCA almacena datos críticos de Shelwi.
+
+async function processTeamsNotification(
+  admin: ReturnType<typeof createClient>,
+  event: Record<string, unknown>
+): Promise<Record<string, unknown>> {
+  const payload    = event.payload as Record<string, unknown>;
+  const wsId       = event.workspace_id as string;
+  const eventType  = event.event_type as string;
+  const accessToken = await getAccessToken(admin, wsId, 'outlook_calendar');
+  // Teams uses same Microsoft Graph token but requires ChannelMessage.Send scope
+
+  // Get Teams channel from config
+  const { data: intRow } = await admin
+    .from('integrations').select('config')
+    .eq('workspace_id', wsId).eq('provider', 'teams').single();
+
+  const config    = (intRow?.config ?? {}) as Record<string, string>;
+  const teamId    = config.team_id;
+  const channelId = config.channel_id;
+
+  if (!teamId || !channelId) {
+    return { skipped: true, reason: 'Teams team_id or channel_id not configured' };
+  }
+
+  // Build message body
+  const eventTitle = (payload.event_title as string) ?? eventType;
+  const details    = Object.entries(payload)
+    .filter(([k]) => !['event_title', 'workspace_id'].includes(k))
+    .map(([k, v]) => `**${k}:** ${v}`)
+    .join('<br>');
+
+  const messageBody = {
+    body: {
+      contentType: 'html',
+      content: `<h3>🤖 Shelwi — ${eventTitle}</h3><p>${details}</p>`,
+    },
+  };
+
+  const resp = await fetch(
+    `https://graph.microsoft.com/v1.0/teams/${teamId}/channels/${channelId}/messages`,
+    {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(messageBody),
+    }
+  );
+
+  if (!resp.ok) throw new Error(`Teams API error: ${await resp.text()}`);
+  const msg = await resp.json() as Record<string, string>;
+
+  await admin.rpc('upsert_entity_ref' as never, {
+    p_workspace_id: wsId,
+    p_entity_type: 'teams_message',
+    p_entity_id: event.id ?? wsId,
+    p_provider: 'teams',
+    p_external_id: msg.id,
+  } as never);
+
+  return { teams_message_id: msg.id, event_type: eventType };
+}
+
 // ─── Event router ─────────────────────────────────────────────────────────────
 
 async function processEvent(
@@ -716,6 +965,7 @@ async function processEvent(
     }
     case 'alegra':
       if (eventType === 'invoice_create') return processAlegraInvoice(admin, event);
+      if (eventType === 'invoice_void')   return processAlegraVoidInvoice(admin, event);
       return { skipped: true, reason: `Alegra event type ${eventType} not yet supported` };
     case 'gmail':
       if (eventType === 'email_send') return processGmailEmail(admin, event);
@@ -725,6 +975,14 @@ async function processEvent(
       return { skipped: true, reason: `Outlook Mail event type ${eventType} not yet supported` };
     case 'shelwi_internal':
       return processShelwiInternalEvent(admin, event);
+    case 'drive':
+      if (eventType === 'drive_sync') return processDriveSync(admin, event);
+      return { skipped: true, reason: `Drive event type ${eventType} not supported` };
+    case 'onedrive':
+      if (eventType === 'onedrive_sync') return processOneDriveSync(admin, event);
+      return { skipped: true, reason: `OneDrive event type ${eventType} not supported` };
+    case 'teams':
+      return processTeamsNotification(admin, event);
     default:
       return { skipped: true, reason: `Provider ${event.provider} not yet supported` };
   }
@@ -770,7 +1028,16 @@ Deno.serve(async (req: Request) => {
 
     const results = { processed: 0, failed: 0, skipped: 0, total: events?.length ?? 0 };
 
+    // Sprint 16.3: timeout safety guard
+    const startTime = Date.now();
+
     for (const event of (events ?? [])) {
+      // Safety: si llevamos más de 25s, salir del loop para evitar timeout
+      if (Date.now() - startTime > EXECUTION_BUDGET_MS) {
+        console.warn(`[integration-worker] Budget ${EXECUTION_BUDGET_MS}ms exceeded, stopping loop. Processed: ${results.processed}/${results.total}`);
+        break;
+      }
+
       // Mark as processing
       await admin.from('integration_events').update({
         status: 'processing', updated_at: new Date().toISOString()

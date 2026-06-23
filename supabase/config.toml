@@ -20,3 +20,9 @@ verify_jwt = true
 
 [functions.generate-report]
 verify_jwt = true
+
+[functions.automation-scheduler]
+verify_jwt = false
+
+[functions.connect-integration]
+verify_jwt = true

@@ -13,6 +13,7 @@ import { useCreateWorkOrder } from '../hooks/useWorkOrders';
 import { useAddWorkLogComment } from '../hooks/useWorkOrders';
 import { EvidenceGallery } from '../components/evidences/EvidenceGallery';
 import { EvidenceUploader } from '../components/evidences/EvidenceUploader';
+import { SyncedDocsList } from '../components/evidences/SyncedDocsList';
 import { useToast } from '../components/ui/Toast';
 import { formatCurrencyCOP } from '../lib/currency';
 import {
@@ -98,7 +99,7 @@ export function PedidoDetailPage() {
   const [woTitle, setWoTitle]           = useState('');
   const [comment, setComment]           = useState('');
   const [showStatusMenu, setShowStatusMenu] = useState(false);
-  const [activeTab, setActiveTab]       = useState<'ots' | 'evidencias' | 'bitacora' | 'snapshot'>('ots');
+  const [activeTab, setActiveTab]       = useState<'ots' | 'evidencias' | 'sincronizados' | 'bitacora' | 'snapshot'>('ots');
 
   const detailQ   = useOrderDetail(id);
   const statusMut = useUpdateOrderStatus();
@@ -171,10 +172,11 @@ export function PedidoDetailPage() {
         {/* Tabs */}
         <div style={{ display: 'flex', gap: 0, borderTop: '1px solid #F1F5F9', overflowX: 'auto' }}>
           {([
-            { key: 'ots',        label: `OTs (${detail.work_orders.length})` },
-            { key: 'evidencias', label: 'Evidencias' },
-            { key: 'bitacora',   label: 'Bitácora' },
-            { key: 'snapshot',   label: 'Snapshot' },
+            { key: 'ots',            label: `OTs (${detail.work_orders.length})` },
+            { key: 'evidencias',     label: 'Evidencias' },
+            { key: 'sincronizados',  label: 'Sync' },
+            { key: 'bitacora',       label: 'Bitácora' },
+            { key: 'snapshot',       label: 'Snapshot' },
           ] as const).map(tab => (
             <button key={tab.key} onClick={() => setActiveTab(tab.key)} style={{
               flex: 1, border: 'none', background: 'none', cursor: 'pointer',
@@ -282,6 +284,16 @@ export function PedidoDetailPage() {
             {detail.work_orders.map(wo => (
               <WOCard key={wo.id} wo={wo} onPress={() => navigate(`/app/ordenes-trabajo/${wo.id}`)} />
             ))}
+          </div>
+        )}
+
+        {/* TAB: Documentos Sincronizados */}
+        {activeTab === 'sincronizados' && id && (
+          <div>
+            <div style={{ fontSize: 13, color: '#64748B', lineHeight: 1.5, background: '#EFF6FF', borderRadius: 12, padding: '10px 14px', marginBottom: 14 }}>
+              <span style={{ fontWeight: 700, color: '#2563EB' }}>Documentos sincronizados</span> — evidencias en Shelwi y su respaldo en Drive/OneDrive. Shelwi siempre es la fuente de verdad.
+            </div>
+            <SyncedDocsList orderId={id} />
           </div>
         )}
 

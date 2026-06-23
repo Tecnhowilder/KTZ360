@@ -13,6 +13,9 @@ import { useToast } from '../components/ui/Toast';
 import { listWorkOrders } from '../services/workOrders';
 import { EvidenceGallery } from '../components/evidences/EvidenceGallery';
 import { EvidenceUploader } from '../components/evidences/EvidenceUploader';
+import { CheckInOutButton } from '../components/gps/CheckInOutButton';
+import { useWorkspace } from '../features/auth/WorkspaceProvider';
+import { useFeatureAccess } from '../hooks/usePermissions';
 import {
   WO_STATUS_LABELS, WO_STATUS_COLORS, PRIORITY_LABELS, PRIORITY_COLORS,
 } from '../services/workOrders';
@@ -31,7 +34,9 @@ export function OTDetailPage() {
   const { id }       = useParams<{ id: string }>();
   const navigate     = useNavigate();
   const { showToast } = useToast();
-  
+  const { profile }  = useWorkspace();
+  const gpsQ         = useFeatureAccess('gps_enabled');
+
   const [comment, setComment]           = useState('');
   const [showStatusMenu, setShowStatusMenu] = useState(false);
   const [activeTab, setActiveTab]       = useState<'info' | 'evidencias' | 'bitacora'>('info');
@@ -125,6 +130,17 @@ export function OTDetailPage() {
       </div>
 
       <div style={{ padding: '14px 16px 0' }}>
+
+        {/* GPS: Check In/Out para operarios/supervisores (Sprint 8, feature P3) */}
+        {gpsQ.data && ['operario','supervisor'].includes(profile.role) && id && (
+          <div style={{ marginBottom: 14 }}>
+            <CheckInOutButton
+              workOrderId={id}
+              operationalStatus={profile.operational_status}
+              gpsConsent={!!profile.gps_consent_at}
+            />
+          </div>
+        )}
 
         {/* TAB: Info */}
         {activeTab === 'info' && (

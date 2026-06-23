@@ -9,7 +9,8 @@ import {
   XCircle, ChevronRight, Plug, MessageSquare,
 } from 'lucide-react';
 import { useIntegrations, useInitiateOAuth, useDisconnectIntegration,
-  useConfigureWhatsApp, useTriggerWorker, useConnectAlegra } from '../../hooks/useIntegrations';
+  useConfigureWhatsApp, useTriggerWorker, useConnectAlegra,
+  useUpdateAutoSync } from '../../hooks/useIntegrations';
 import { useToast } from '../../components/ui/Toast';
 import { PROVIDER_META, type IntegrationProvider } from '../../services/integrations';
 import { WHATSAPP_EVENT_LABELS, type WhatsAppEventType } from '../../services/whatsapp';
@@ -141,6 +142,97 @@ function WhatsAppConfigSheet({
   );
 }
 
+// ─── Sheet de configuración de sincronización (Drive/OneDrive/Teams) ─────────
+
+function SyncConfigSheet({
+  provider, integration, onClose, onAutoSync, onDisconnect,
+}: {
+  provider: string;
+  integration?: Integration;
+  onClose: () => void;
+  onAutoSync: (v: boolean) => void;
+  onDisconnect: () => void;
+}) {
+  const meta     = PROVIDER_META[provider];
+  const curSync  = (integration?.config as Record<string, boolean>)?.auto_sync ?? false;
+  const isStorage = ['drive', 'onedrive'].includes(provider);
+
+  return (
+    <>
+      <div onClick={onClose} style={{ position: 'fixed', inset: 0, zIndex: 60, background: 'rgba(15,23,42,.4)' }} />
+      <div style={{
+        position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 65,
+        background: '#fff', borderRadius: '20px 20px 0 0',
+        paddingBottom: 'calc(20px + env(safe-area-inset-bottom))',
+        boxShadow: '0 -8px 40px rgba(15,23,42,.15)',
+      }}>
+        <div style={{ display: 'flex', justifyContent: 'center', padding: '12px 0 6px' }}>
+          <div style={{ width: 36, height: 4, borderRadius: 99, background: '#E2E8F0' }} />
+        </div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', padding: '0 20px 14px', borderBottom: '1px solid #F1F5F9' }}>
+          <div>
+            <div style={{ fontSize: 16, fontWeight: 800, color: '#0F172A' }}>{meta?.icon} {meta?.label}</div>
+            <div style={{ fontSize: 12, color: '#64748B', marginTop: 1 }}>Configuración de integración</div>
+          </div>
+          <button onClick={onClose} style={{ border: 'none', background: 'none', cursor: 'pointer', fontSize: 20 }}>✕</button>
+        </div>
+        <div style={{ padding: '16px 20px' }}>
+          {/* Estado */}
+          <div style={{ background: '#F0FDF4', borderRadius: 12, padding: '12px 14px', marginBottom: 16, display: 'flex', alignItems: 'center', gap: 8 }}>
+            <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#22C55E' }} />
+            <span style={{ fontSize: 13.5, fontWeight: 700, color: '#166534' }}>Conectado</span>
+            {integration?.connected_at && (
+              <span style={{ fontSize: 12, color: '#94A3B8', marginLeft: 'auto' }}>
+                {new Date(integration.connected_at).toLocaleDateString('es-CO')}
+              </span>
+            )}
+          </div>
+
+          {/* Toggle auto_sync — solo Drive y OneDrive, no Teams */}
+          {isStorage && (
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '13px 0', borderBottom: '1px solid #F1F5F9', marginBottom: 14 }}>
+              <div>
+                <div style={{ fontSize: 14, fontWeight: 700, color: '#0F172A' }}>Sincronización automática</div>
+                <div style={{ fontSize: 12, color: '#64748B', marginTop: 2 }}>
+                  Al subir evidencias, se copian automáticamente a {meta?.label}
+                </div>
+                <div style={{ fontSize: 11, color: '#D97706', marginTop: 4, fontWeight: 600 }}>
+                  ⚠️ Shelwi sigue siendo la fuente de verdad
+                </div>
+              </div>
+              <button
+                onClick={() => onAutoSync(!curSync)}
+                style={{
+                  width: 44, height: 24, borderRadius: 99, border: 'none',
+                  background: curSync ? '#2563EB' : '#E2E8F0',
+                  cursor: 'pointer', position: 'relative', flexShrink: 0, transition: 'background .15s',
+                }}
+              >
+                <span style={{ position: 'absolute', top: 2, left: curSync ? 22 : 2, width: 20, height: 20, borderRadius: '50%', background: '#fff', transition: 'left .15s' }} />
+              </button>
+            </div>
+          )}
+
+          {integration?.last_sync_at && (
+            <div style={{ fontSize: 12, color: '#64748B', marginBottom: 14 }}>
+              Última sincronización: {new Date(integration.last_sync_at).toLocaleString('es-CO')}
+            </div>
+          )}
+          {integration?.last_error && (
+            <div style={{ background: '#FEF2F2', borderRadius: 10, padding: '10px 12px', fontSize: 12, color: '#DC2626', marginBottom: 14 }}>
+              Error: {integration.last_error}
+            </div>
+          )}
+
+          <button onClick={onDisconnect} style={{ width: '100%', padding: '12px', borderRadius: 12, border: '1px solid #FECACA', background: '#FEF2F2', color: '#DC2626', fontWeight: 700, fontSize: 14, cursor: 'pointer' }}>
+            Desconectar {meta?.label}
+          </button>
+        </div>
+      </div>
+    </>
+  );
+}
+
 // ─── Tarjeta de proveedor ─────────────────────────────────────────────────────
 
 function ProviderCard({
@@ -233,12 +325,14 @@ export function IntegracionesPage() {
   const disconnectMut  = useDisconnectIntegration();
   const workerMut      = useTriggerWorker();
 
-  const [waSheet,     setWaSheet]     = useState(false);
-  const [alegraSheet, setAlegraSheet] = useState(false);
-  const [alegraEmail, setAlegraEmail] = useState('');
-  const [alegraToken, setAlegraToken] = useState('');
-  const [autoInvoice, setAutoInvoice] = useState(false);
+  const [waSheet,       setWaSheet]       = useState(false);
+  const [alegraSheet,   setAlegraSheet]   = useState(false);
+  const [syncSheet,     setSyncSheet]     = useState<string | null>(null); // provider key
+  const [alegraEmail,   setAlegraEmail]   = useState('');
+  const [alegraToken,   setAlegraToken]   = useState('');
+  const [autoInvoice,   setAutoInvoice]   = useState(false);
   const connectAlegra = useConnectAlegra();
+  const autoSyncMut   = useUpdateAutoSync();
 
   // Handle OAuth callback result
   useEffect(() => {
@@ -273,6 +367,15 @@ export function IntegracionesPage() {
       setAlegraSheet(true);
       return;
     }
+    // Drive/OneDrive/Teams — OAuth flow (activos en Sprint 14)
+    if (['drive', 'onedrive', 'teams'].includes(provider)) {
+      if (isConnected) {
+        setSyncSheet(provider);  // Abrir panel de configuración sync
+        return;
+      }
+      oauthMut.mutate(provider as 'drive' | 'onedrive' | 'teams');
+      return;
+    }
 
     if (isConnected) {
       disconnectMut.mutate(provider as IntegrationProvider);
@@ -284,8 +387,12 @@ export function IntegracionesPage() {
     }
   }
 
-  const ACTIVE_PROVIDERS = ['whatsapp', 'google_calendar', 'outlook_calendar', 'alegra', 'gmail', 'outlook_mail'];
-  const FUTURE_PROVIDERS = ['drive', 'onedrive', 'teams'];
+  // Sprint 14: drive/onedrive/teams pasan a ACTIVE_PROVIDERS
+  const ACTIVE_PROVIDERS = [
+    'whatsapp', 'google_calendar', 'outlook_calendar', 'alegra', 'gmail', 'outlook_mail',
+    'drive', 'onedrive', 'teams',
+  ];
+  const FUTURE_PROVIDERS: string[] = []; // Todos los soportados están activos
 
   return (
     <div style={{ background: '#F8FAFC', minHeight: '100dvh', paddingBottom: 80 }}>
@@ -419,6 +526,20 @@ export function IntegracionesPage() {
             </div>
           </div>
         </>
+      )}
+
+      {/* Drive/OneDrive/Teams — sync config sheet */}
+      {syncSheet && (
+        <SyncConfigSheet
+          provider={syncSheet}
+          integration={getIntegration(syncSheet)}
+          onClose={() => setSyncSheet(null)}
+          onAutoSync={(v) => {
+            autoSyncMut.mutate({ provider: syncSheet as IntegrationProvider, autoSync: v });
+            setSyncSheet(null);
+          }}
+          onDisconnect={() => { disconnectMut.mutate(syncSheet as IntegrationProvider); setSyncSheet(null); }}
+        />
       )}
 
       {/* WhatsApp config sheet */}

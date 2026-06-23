@@ -6,7 +6,7 @@
  *   2. Evalúa reglas periódicas (client_inactive, work_order_delayed)
  *
  * Configurar en Supabase Dashboard → Edge Functions → automation-scheduler → Schedule
- * Frecuencia: every minute  (*/1 * * * *)
+ * Frecuencia: every minute  (cron: * * * * *)
  *
  * Zero Trust: siempre usa service_role. No acepta parámetros externos sensibles.
  */

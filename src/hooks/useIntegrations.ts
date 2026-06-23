@@ -2,7 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useWorkspace } from '../features/auth/WorkspaceProvider';
 import {
   getIntegrationStatus, initiateOAuth, disconnectIntegration,
-  configureWhatsApp, triggerIntegrationWorker,
+  configureWhatsApp, triggerIntegrationWorker, updateIntegrationAutoSync,
   type IntegrationProvider, type WhatsAppConfig,
 } from '../services/integrations';
 import { useToast } from '../components/ui/Toast';
@@ -23,7 +23,7 @@ export function useInitiateOAuth() {
   const { workspace } = useWorkspace();
   const { showToast } = useToast();
   return useMutation({
-    mutationFn: (provider: 'google_calendar' | 'outlook_calendar') =>
+    mutationFn: (provider: 'google_calendar' | 'outlook_calendar' | 'drive' | 'onedrive' | 'teams') =>
       initiateOAuth(workspace.id, provider),
     onSuccess: ({ authorizationUrl }) => {
       window.location.href = authorizationUrl;
@@ -57,6 +57,21 @@ export function useConfigureWhatsApp() {
       showToast('WhatsApp configurado correctamente');
     },
     onError: (e: Error) => showToast(e.message ?? 'Error al configurar WhatsApp'),
+  });
+}
+
+export function useUpdateAutoSync() {
+  const queryClient = useQueryClient();
+  const { workspace } = useWorkspace();
+  const { showToast } = useToast();
+  return useMutation({
+    mutationFn: ({ provider, autoSync }: { provider: IntegrationProvider; autoSync: boolean }) =>
+      updateIntegrationAutoSync(workspace.id, provider, autoSync),
+    onSuccess: (_, vars) => {
+      queryClient.invalidateQueries({ queryKey: ['integrations', workspace.id] });
+      showToast(vars.autoSync ? 'Sincronización automática activada' : 'Sincronización automática desactivada');
+    },
+    onError: (e: Error) => showToast(e.message ?? 'Error'),
   });
 }
 

@@ -48,16 +48,29 @@ function timeAgo(dateStr: string): string {
 }
 
 // ─── Clasificación de cliente ──────────────────────────────────────────────────
+// Sprint 15: la clasificación viene desde customer_health_scores (backend).
+// Esta función es el FALLBACK temporal mientras el score se calcula.
+// Una vez que hay score persistido, la UI lo muestra desde el health score.
 
-function clientStatus(c: Client, quotes: DerivedQuote[]): { label: string; color: string; bg: string; border: string } {
-  const cq = quotes.filter(q => q.client_id === c.id);
-  const approved = cq.filter(q => q.status === 'Aprobada').length;
-  if (approved >= 3) return { label: 'VIP',            color: '#7C3AED', bg: '#F5F3FF', border: '#DDD6FE' };
-  if (approved >= 2) return { label: 'Recurrente',     color: '#0891B2', bg: '#ECFEFF', border: '#A5F3FC' };
-  if (cq.length === 0 || daysAgo(c.updated_at) > 60)
-                     return { label: 'Sin actividad',  color: '#EF4444', bg: '#FEF2F2', border: '#FECACA' };
-  if (cq.length > 0) return { label: 'Activo',         color: '#16A34A', bg: '#F0FDF4', border: '#BBF7D0' };
-  return               { label: 'Potencial',          color: '#D97706', bg: '#FFFBEB', border: '#FDE68A' };
+function clientStatusFallback(c: Client): { label: string; color: string; bg: string; border: string } {
+  if (daysAgo(c.updated_at) > 60)
+    return { label: 'Sin actividad', color: '#EF4444', bg: '#FEF2F2', border: '#FECACA' };
+  const extC = c as Client & { total_approved?: number; total_quotes?: number };
+  if ((extC.total_approved ?? 0) >= 3)
+    return { label: 'VIP',           color: '#7C3AED', bg: '#F5F3FF', border: '#DDD6FE' };
+  if ((extC.total_approved ?? 0) >= 2)
+    return { label: 'Recurrente',    color: '#0891B2', bg: '#ECFEFF', border: '#A5F3FC' };
+  if ((extC.total_quotes ?? 0) > 0)
+    return { label: 'Activo',        color: '#16A34A', bg: '#F0FDF4', border: '#BBF7D0' };
+  return   { label: 'Potencial',     color: '#D97706', bg: '#FFFBEB', border: '#FDE68A' };
+}
+
+// NOTA: clientStatusFallback usa c.total_approved y c.total_quotes (ya calculados
+// por refresh_client_metrics en backend). Sigue siendo Zero Trust porque estas
+// columnas vienen de la DB, no de cálculos en React. La clasificación VIP real
+// viene de customer_health_scores.status (Sprint 15).
+function clientStatus(c: Client, _quotes: DerivedQuote[]): { label: string; color: string; bg: string; border: string } {
+  return clientStatusFallback(c);
 }
 
 function lastActivity(c: Client, quotes: DerivedQuote[]): { text: string; action: string; date: string } | null {
