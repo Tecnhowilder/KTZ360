@@ -13,6 +13,9 @@ export interface AICreditsSnapshot {
   pct_used:          number;
   period_start:      string;
   period_end:        string;
+  // Sprint 24: desglose plan vs paquetes
+  plan_credits?:     number;
+  extra_credits?:    number;
   by_operation:      Record<string, number>;
   ai_enabled:        boolean;
 }

@@ -261,7 +261,7 @@ function ClientesDesktop() {
                       label: 'Contactar',
                       color: '#16A34A',
                       action: () => {
-                        if (c.phone) window.open(`tel:${c.phone}`, '_self');
+                        if (c.phone) { import('../lib/capacitorBridge').then(({openPhone}) => openPhone(c.phone!)); }
                         else showToast('Este cliente no tiene teléfono registrado');
                       },
                     },

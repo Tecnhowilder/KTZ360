@@ -5,6 +5,7 @@
  */
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { openExternalUrl } from '../../lib/capacitorBridge';
 import { Search, SlidersHorizontal, Plus, MessageCircle, Star, X, ChevronRight } from 'lucide-react';
 import { useWorkspace } from '../../features/auth/WorkspaceProvider';
 import { useAuth } from '../../features/auth/AuthProvider';
@@ -128,7 +129,7 @@ function CatalogMaterialCard({ mat, override }: { mat: CatalogMaterialRow; overr
             Ahorro: {saving}%
           </span>
         )}
-        <button onClick={() => window.open('https://wa.me/', '_blank')}
+        <button onClick={() => openExternalUrl('https://wa.me/')}
           style={{ width: 32, height: 32, borderRadius: 9, border: '1px solid #DCF8C6', background: '#F0FDF4', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#16A34A', marginTop: 2 }}>
           <MessageCircle size={14} />
         </button>

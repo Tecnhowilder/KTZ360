@@ -1,8 +1,9 @@
-import { createContext, useContext, type ReactNode } from 'react';
+import { createContext, useContext, useEffect, useRef, type ReactNode } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from './AuthProvider';
 import { getProfile, getWorkspace, getCompanySettings, getCurrentPlanName } from '../../services/workspaces';
 import type { Profile, Workspace, CompanySettings } from '../../lib/types';
+import { supabase } from '../../lib/supabaseClient';
 
 interface WorkspaceContextValue {
   profile: Profile;
@@ -32,6 +33,37 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   });
 
   const workspaceId = profileQuery.data?.workspace_id;
+  const sessionRegistered = useRef(false);
+
+  // Sprint 24 D1: registrar sesión activa cuando workspace_id está disponible
+  useEffect(() => {
+    if (!workspaceId || sessionRegistered.current) return;
+    sessionRegistered.current = true;
+
+    const deviceId = (() => {
+      try {
+        const existing = localStorage.getItem('shelwi_device_id');
+        if (existing) return existing;
+        const newId = crypto.randomUUID();
+        localStorage.setItem('shelwi_device_id', newId);
+        return newId;
+      } catch { return crypto.randomUUID(); }
+    })();
+
+    const ua = navigator.userAgent;
+    const deviceName = /iPhone|iPad/.test(ua) ? 'iOS'
+      : /Android/.test(ua) ? 'Android'
+      : /Mac/.test(ua) ? 'Mac'
+      : /Windows/.test(ua) ? 'Windows'
+      : 'Navegador';
+
+    supabase.rpc('register_session' as never, {
+      p_workspace_id: workspaceId,
+      p_device_id:    deviceId,
+      p_device_name:  deviceName,
+      p_user_agent:   ua.slice(0, 500),
+    } as never).then(() => {});
+  }, [workspaceId]);
 
   const workspaceQuery = useQuery({
     queryKey: ['workspace', workspaceId],

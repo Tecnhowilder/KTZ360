@@ -25,12 +25,27 @@ const SUPABASE_URL     = Deno.env.get('SUPABASE_URL')!;
 const SUPABASE_SVC_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 const ENCRYPTION_KEY   = Deno.env.get('INTEGRATION_ENCRYPTION_KEY') ?? Deno.env.get('ENCRYPTION_KEY') ?? '';
 
-// Sprint 16.3: reducido de 20 → 5 para evitar timeout con eventos Drive/Alegra/Teams
-// El scheduler llama cada minuto, así que procesamos 5 × 60 = 300 eventos/hora
-const MAX_EVENTS_PER_RUN = 5;
+// Sprint 24 D2: Batch dinámico por prioridad de provider.
+// Webhooks y shelwi_internal son rápidos (~50ms) → pueden procesarse más.
+// Drive/OneDrive/Teams/Alegra son lentos (~3-8s) → máximo 3 por run.
+//
+// Estrategia por nivel de usuarios:
+//   <1K ws activos:  MAX_EVENTS_PER_RUN = 5  (actual)
+//   1K-3K ws:        MAX_EVENTS_PER_RUN = 10 (ajustar env var MAX_BATCH)
+//   3K-5K ws:        Múltiples instancias del worker (diferentes providers)
+//   5K+ ws:          Worker dedicado por provider type
+//
+// Para ajustar sin redeploy: env var WORKER_MAX_BATCH (override dinámico)
+const ENV_MAX_BATCH = parseInt(Deno.env.get('WORKER_MAX_BATCH') ?? '5');
+const MAX_EVENTS_PER_RUN = isNaN(ENV_MAX_BATCH) ? 5 : Math.min(ENV_MAX_BATCH, 50);
 
 // Safety budget: si llevamos >25s ejecutando, cortamos el loop (timeout Supabase = 30s)
 const EXECUTION_BUDGET_MS = 25_000;
+
+// Providers que pueden procesarse en lote mayor (rápidos, sin timeout riesgo)
+const FAST_PROVIDERS = new Set(['webhook', 'zapier', 'make', 'n8n', 'shelwi_internal', 'whatsapp']);
+// Providers lentos: limitados a MAX_SLOW = 2 por run para no saturar el budget
+const MAX_SLOW_PROVIDERS_PER_RUN = 2;
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -595,6 +610,156 @@ async function processAlegraVoidInvoice(
   return { external_invoice_id: externalId, status: 'void' };
 }
 
+// ─── Webhook Adapter — HMAC-SHA256 signed delivery ───────────────────────────
+// Handles: webhook | zapier | make | n8n (same delivery mechanism)
+// Security: HMAC-SHA256(secret, timestamp + "." + body) → X-Shelwi-Signature
+// Idempotency: event_id included in payload header + body
+// Resilience: auto-disable endpoint after max_consecutive_failures
+
+async function processWebhookDelivery(
+  admin: ReturnType<typeof createClient>,
+  event: Record<string, unknown>
+): Promise<Record<string, unknown>> {
+  const wsId      = event.workspace_id as string;
+  const eventType = event.event_type as string;
+  const payload   = event.payload as Record<string, unknown>;
+  const endpointId = payload.endpoint_id as string;
+
+  // 1. Obtener endpoint y su secret (solo service_role puede)
+  const { data: secretData } = await admin
+    .rpc('get_webhook_endpoint_secret', { p_endpoint_id: endpointId });
+
+  if (!secretData) {
+    return { skipped: true, reason: `Endpoint ${endpointId} not found or has no secret` };
+  }
+  const secret = secretData as string;
+
+  // 2. Construir payload estándar
+  const timestamp = Math.floor(Date.now() / 1000).toString();
+  const eventId   = crypto.randomUUID();
+  const deliveryPayload = {
+    event:           eventType,
+    event_id:        eventId,
+    workspace_id:    wsId,
+    timestamp:       new Date().toISOString(),
+    shelwi_version:  '1.0',
+    data:            payload.event_data ?? payload,
+  };
+  const body = JSON.stringify(deliveryPayload);
+
+  // 3. Firmar con HMAC-SHA256: signature = HMAC(secret, timestamp + "." + body)
+  const encoder = new TextEncoder();
+  const key = await crypto.subtle.importKey(
+    'raw', encoder.encode(secret),
+    { name: 'HMAC', hash: 'SHA-256' },
+    false, ['sign']
+  );
+  const signatureBytes = await crypto.subtle.sign(
+    'HMAC', key, encoder.encode(timestamp + '.' + body)
+  );
+  const signature = 'sha256=' + Array.from(new Uint8Array(signatureBytes))
+    .map(b => b.toString(16).padStart(2, '0')).join('');
+
+  // 4. Obtener URL del endpoint
+  const { data: ep } = await admin
+    .from('webhook_endpoints')
+    .select('url, is_active, disabled_at, failure_count')
+    .eq('id', endpointId)
+    .maybeSingle();
+
+  if (!ep || !ep.is_active || ep.disabled_at) {
+    return { skipped: true, reason: 'Endpoint disabled or not found' };
+  }
+
+  // 5. Enviar request con timeout
+  const startMs = Date.now();
+  let responseStatus = 0;
+  let responseBody = '';
+  let status: 'delivered' | 'failed' | 'retrying' = 'failed';
+
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 10_000); // 10s timeout
+
+    const res = await fetch(ep.url, {
+      method:  'POST',
+      headers: {
+        'Content-Type':         'application/json',
+        'X-Shelwi-Signature':   signature,
+        'X-Shelwi-Event':       eventType,
+        'X-Shelwi-Delivery':    eventId,
+        'X-Shelwi-Timestamp':   timestamp,
+        'User-Agent':           'Shelwi-Webhooks/1.0',
+      },
+      body,
+      signal: controller.signal,
+    });
+
+    clearTimeout(timeout);
+    responseStatus = res.status;
+    responseBody   = await res.text().catch(() => '');
+    status = (res.status >= 200 && res.status < 300) ? 'delivered' : 'failed';
+
+  } catch (err: unknown) {
+    responseBody = err instanceof Error ? err.message : String(err);
+    status = 'failed';
+  }
+
+  const durationMs = Date.now() - startMs;
+
+  // 6. Determinar si hay reintento
+  const attempt = (payload.attempt as number) ?? 1;
+  const maxAttempts = 3;
+  let nextRetryAt: string | null = null;
+  if (status === 'failed' && attempt < maxAttempts) {
+    // Backoff exponencial: 1min, 5min, 30min
+    const delays = [60, 300, 1800];
+    const delaySeconds = delays[attempt - 1] ?? 1800;
+    nextRetryAt = new Date(Date.now() + delaySeconds * 1000).toISOString();
+    status = 'retrying' as 'delivered' | 'failed' | 'retrying';
+  }
+
+  // 7. Registrar resultado de entrega
+  await admin.rpc('record_webhook_delivery', {
+    p_endpoint_id:    endpointId,
+    p_workspace_id:   wsId,
+    p_event_type:     eventType,
+    p_payload:        deliveryPayload,
+    p_status:         status === 'retrying' ? 'failed' : status,
+    p_response_status: responseStatus || null,
+    p_response_body:  responseBody || null,
+    p_duration_ms:    durationMs,
+    p_attempt:        attempt,
+    p_next_retry_at:  nextRetryAt,
+  });
+
+  // 8. Si hay reintento, re-encolar
+  if (status === 'retrying' && nextRetryAt) {
+    await admin.from('integration_events').insert({
+      workspace_id: wsId,
+      provider:     event.provider as string,
+      event_type:   eventType,
+      payload:      {
+        ...payload,
+        attempt:  attempt + 1,
+        event_id: eventId,
+      },
+      execute_after: nextRetryAt,
+    });
+  }
+
+  console.log(`[webhook] ${eventType} → ${ep.url} | ${responseStatus} | ${durationMs}ms | ${status}`);
+
+  return {
+    endpoint_id:     endpointId,
+    event_type:      eventType,
+    response_status: responseStatus,
+    duration_ms:     durationMs,
+    status,
+    signature,
+  };
+}
+
 // ─── Gmail Adapter ────────────────────────────────────────────────────────────
 
 async function processGmailEmail(
@@ -975,6 +1140,11 @@ async function processEvent(
       return { skipped: true, reason: `Outlook Mail event type ${eventType} not yet supported` };
     case 'shelwi_internal':
       return processShelwiInternalEvent(admin, event);
+    case 'webhook':
+    case 'zapier':
+    case 'make':
+    case 'n8n':
+      return processWebhookDelivery(admin, event);
     case 'drive':
       if (eventType === 'drive_sync') return processDriveSync(admin, event);
       return { skipped: true, reason: `Drive event type ${eventType} not supported` };

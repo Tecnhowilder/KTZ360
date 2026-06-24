@@ -307,13 +307,13 @@ grant execute on function public.get_survey_responses(uuid, uuid) to authenticat
 -- ============================================================================
 
 create or replace function public.assign_loyalty_points(
-  p_workspace_id uuid,
-  p_client_id    uuid,
-  p_order_id     uuid         default null,
-  p_work_order_id uuid        default null,
-  p_points       int,
-  p_description  text         default null,
-  p_type         text         default 'earned_order'
+  p_workspace_id  uuid,
+  p_client_id     uuid,
+  p_order_id      uuid,
+  p_work_order_id uuid,
+  p_points        int,
+  p_description   text  default null,
+  p_type          text  default 'earned_order'
 )
 returns uuid  -- transaction id
 language plpgsql

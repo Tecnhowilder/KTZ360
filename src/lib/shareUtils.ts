@@ -11,6 +11,7 @@
  *   - Copy link
  */
 import { formatCurrencyCOP } from './currency';
+import { openExternalUrl, openEmail } from './capacitorBridge';
 
 export interface ShareParams {
   clientName: string;
@@ -27,7 +28,7 @@ export interface ShareParams {
  * @deprecated Usar services/whatsapp.ts → openWhatsApp() o getWhatsAppMessage()
  * Se mantiene solo para compatibilidad. Será eliminado en Sprint 13.
  */
-export function openWhatsAppShare(params: ShareParams): void {
+export async function openWhatsAppShare(params: ShareParams): Promise<void> {
   const { clientName, projectName, companyName, publicUrl, total } = params;
   const firstName = clientName ? clientName.split(' ')[0] : '';
   const valorFmt  = total != null ? formatCurrencyCOP(total) : null;
@@ -43,7 +44,8 @@ export function openWhatsAppShare(params: ShareParams): void {
   const msg   = lines.join('\n');
   const phone = params.phone?.replace(/\D/g, '') ?? '';
   const base  = phone ? `https://wa.me/${phone}` : 'https://wa.me/';
-  window.open(`${base}?text=${encodeURIComponent(msg)}`, '_blank');
+  // Sprint 22: capacitorBridge — native WhatsApp app o web
+  await openExternalUrl(`${base}?text=${encodeURIComponent(msg)}`);
 }
 
 // ─── Email: corporativo, sin emojis, completo ────────────────────────────────
@@ -93,11 +95,11 @@ export async function shareByEmail(params: ShareParams): Promise<void> {
     }
   }
 
-  // Incluir destinatario real si está disponible
-  const to = params.clientEmail ? encodeURIComponent(params.clientEmail) : '';
-  window.open(
-    `mailto:${to}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`,
-    '_blank',
+  // Sprint 22: capacitorBridge para mailto nativo
+  await openEmail(
+    params.clientEmail ?? '',
+    buildEmailSubject(params),
+    buildEmailBody(params),
   );
 }
 

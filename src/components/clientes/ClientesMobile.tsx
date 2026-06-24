@@ -5,6 +5,7 @@
  */
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { openPhone, openExternalUrl } from '../../lib/capacitorBridge';
 import {
   Search, SlidersHorizontal, Plus, UserPlus, Download, Upload,
   MoreVertical, MessageCircle, Phone, FileText,
@@ -150,8 +151,8 @@ function ClientCard({
                   {[
                     { icon: Eye,          label: 'Ver perfil',        action: onOpen },
                     { icon: FileText,     label: 'Nueva cotización',  action: () => navigate('/app/cotizaciones/nueva') },
-                    { icon: MessageCircle,label: 'WhatsApp',          action: () => c.phone && window.open(`https://wa.me/${c.phone.replace(/\D/g,'')}`, '_blank') },
-                    { icon: Phone,        label: 'Llamar',            action: () => c.phone && window.open(`tel:${c.phone}`, '_self') },
+                    { icon: MessageCircle,label: 'WhatsApp',          action: () => c.phone && openExternalUrl(`https://wa.me/${c.phone.replace(/\D/g,'')}`) },
+                    { icon: Phone,        label: 'Llamar',            action: () => c.phone && openPhone(c.phone) },
                     { icon: Pencil,       label: 'Editar',            action: onOpen },
                     { icon: Trash2,       label: 'Eliminar',          action: () => {}, danger: true },
                   ].map(item => (
@@ -473,11 +474,11 @@ export function ClientesMobile() {
                 <strong>{c.name}</strong> no ha respondido en {Math.max(...quotes.filter(q => q.client_id === c.id && q.status === 'Enviada').map(q => daysAgo(q.sent_at ?? q.created_at)))} días. Se recomienda seguimiento hoy.
               </div>
               <div style={{ display: 'flex', gap: 8 }}>
-                <button onClick={() => c.phone && window.open(`https://wa.me/${c.phone.replace(/\D/g,'')}`, '_blank')}
+                <button onClick={() => c.phone && openExternalUrl(`https://wa.me/${c.phone.replace(/\D/g,'')}`) }
                   style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '6px 12px', border: 'none', borderRadius: 8, background: '#22C55E', color: '#fff', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
                   <MessageCircle size={12} /> WhatsApp
                 </button>
-                <button onClick={() => c.phone && window.open(`tel:${c.phone}`, '_self')}
+                <button onClick={() => c.phone && openPhone(c.phone)}
                   style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '6px 12px', border: '1px solid rgba(255,255,255,.3)', borderRadius: 8, background: 'none', color: '#fff', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
                   <Phone size={12} /> Llamar
                 </button>

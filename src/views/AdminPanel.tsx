@@ -27,9 +27,10 @@ import {
   type AuditLogFilters,
 } from '../services/admin';
 import { PlansEditor }      from '../components/admin/PlansEditor';
-import { FounderTab }       from '../components/admin/FounderTab';
-import { IAAdminTab }       from '../components/admin/IAAdminTab';
-import { StorageAdminTab }  from '../components/admin/StorageAdminTab';
+import { FounderTab }              from '../components/admin/FounderTab';
+import { IAAdminTab }              from '../components/admin/IAAdminTab';
+import { StorageAdminTab }         from '../components/admin/StorageAdminTab';
+import { CustomerExperienceTab }   from '../components/admin/CustomerExperienceTab';
 import type { SubscriptionRow, SystemConfigurationRow, AdminSettingRow } from '../lib/database.types';
 import { useToast } from '../components/ui/Toast';
 import { fmt } from '../lib/calc';
@@ -49,7 +50,7 @@ const tdStyle:     React.CSSProperties = { padding: '10px 12px', verticalAlign: 
 // ─── Tabs ─────────────────────────────────────────────────────────────────────
 
 type Tab = 'dashboard' | 'subscriptions' | 'plans' | 'founder' | 'ia' | 'storage'
-         | 'users' | 'workspaces' | 'audit' | 'system' | 'support' | 'finanzas';
+         | 'users' | 'workspaces' | 'audit' | 'system' | 'support' | 'finanzas' | 'cx';
 
 const TAB_LABELS: Record<Tab, string> = {
   dashboard:     'Dashboard',
@@ -64,6 +65,7 @@ const TAB_LABELS: Record<Tab, string> = {
   system:        'Configuración',
   support:       'Soporte',
   finanzas:      'Finanzas Shelwi',
+  cx:            'Customer Experience',
 };
 
 // ─── AdminPanel root ──────────────────────────────────────────────────────────
@@ -88,7 +90,7 @@ export function AdminPanel() {
   // Para distinguir, consultamos el perfil directamente.
   const canEdit = adminQuery.data === true; // true siempre que is_support_admin() = true
   // Para acciones solo super_admin, usaremos un query separado
-  const tabs: Tab[] = ['dashboard','subscriptions','plans','founder','ia','storage','users','workspaces','audit','system','support','finanzas'];
+  const tabs: Tab[] = ['dashboard','subscriptions','plans','founder','ia','storage','users','workspaces','audit','system','support','finanzas','cx'];
 
   return (
     <div>
@@ -121,6 +123,7 @@ export function AdminPanel() {
       {tab === 'system'        && <ConfigTab />}
       {tab === 'support'       && <SupportTab />}
       {tab === 'finanzas'      && <FinanzasAdminTab />}
+      {tab === 'cx'            && <CustomerExperienceTab />}
     </div>
   );
 }

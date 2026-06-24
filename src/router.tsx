@@ -40,6 +40,7 @@ import { Team } from './views/Team';
 import { Pipeline } from './views/Pipeline';
 import { IntegracionesPage } from './views/config/IntegracionesPage';
 import { AlmacenamientoPage } from './views/config/AlmacenamientoPage';
+import { WebhooksPage } from './views/config/WebhooksPage';
 import { AutomatizacionesPage } from './views/AutomatizacionesPage';
 import { CustomerSuccessPage } from './views/CustomerSuccessPage';
 import { MapaOperativoPage } from './views/MapaOperativoPage';
@@ -47,6 +48,7 @@ import { GrowthPage } from './views/GrowthPage';
 import { ReferralRedirect } from './views/public/ReferralRedirect';
 import { FinancePage } from './views/FinancePage';
 import { BIPage } from './views/BIPage';
+import { IAOperacionesPage } from './views/IAOperacionesPage';
 
 export const router = createBrowserRouter([
   {
@@ -99,12 +101,15 @@ export const router = createBrowserRouter([
       { path: 'config', element: <ConfiguracionPage /> },
       { path: 'config/integraciones', element: <IntegracionesPage /> },
       { path: 'config/almacenamiento', element: <AlmacenamientoPage /> },
+      { path: 'config/webhooks',      element: <WebhooksPage /> },
       { path: 'automatizaciones', element: <AutomatizacionesPage /> },
       { path: 'customer-success', element: <CustomerSuccessPage /> },
-      { path: 'mapa-operativo', element: <MapaOperativoPage /> },
+      { path: 'mapa-operativo',         element: <MapaOperativoPage /> },
+      { path: 'operaciones/mapa',       element: <MapaOperativoPage /> },
       { path: 'growth',    element: <GrowthPage /> },
       { path: 'finanzas', element: <FinancePage /> },
-      { path: 'bi',       element: <BIPage /> },
+      { path: 'bi',               element: <BIPage /> },
+      { path: 'ia/operaciones',  element: <IAOperacionesPage /> },
     ],
   },
   { path: '*', element: <Navigate to="/" replace /> },

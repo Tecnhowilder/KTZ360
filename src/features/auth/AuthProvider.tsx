@@ -26,6 +26,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       if (event === 'SIGNED_IN') {
         supabase.rpc('log_auth_event', { p_action: 'login' }).then(() => {});
+        // Sprint 24 D1: el registro de sesión en active_sessions ocurre en
+        // WorkspaceProvider donde ya está disponible el workspace_id del perfil.
       }
     });
 

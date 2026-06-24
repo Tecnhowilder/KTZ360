@@ -5,6 +5,7 @@
  */
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { openPhone, openExternalUrl } from '../../lib/capacitorBridge';
 import {
   Search, SlidersHorizontal, LayoutList, Columns, Plus,
   UserPlus, FileText, Package, ChevronRight, ChevronLeft,
@@ -465,13 +466,13 @@ export function CotizacionesMobile() {
               <div style={{ display: 'flex', gap: 8 }}>
                 {rec.action === 'whatsapp' ? (
                   <button
-                    onClick={() => rec.q.client_id && window.open(`https://wa.me/${(rec.q as any).clientPhone?.replace(/\D/g,'') ?? ''}`, '_blank')}
+                    onClick={() => rec.q.client_id && openExternalUrl(`https://wa.me/${(rec.q as any).clientPhone?.replace(/\D/g,'') ?? ''}`)}
                     style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '6px 12px', border: 'none', borderRadius: 8, background: '#22C55E', color: '#fff', fontSize: 12.5, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
                     <MessageCircle size={13} /> WhatsApp
                   </button>
                 ) : (
                   <button
-                    onClick={() => rec.q.client_id && window.open(`tel:${(rec.q as any).clientPhone ?? ''}`, '_self')}
+                    onClick={() => rec.q.client_id && openPhone((rec.q as any).clientPhone ?? '')}
                     style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '6px 12px', border: 'none', borderRadius: 8, background: '#2563EB', color: '#fff', fontSize: 12.5, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
                     <Phone size={13} /> Llamar
                   </button>

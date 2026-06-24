@@ -167,7 +167,8 @@ serve(async (req) => {
     }
 
     // Gemini 2.5 Flash endpoint
-    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
+    const modelId   = body.model ?? 'gemini-2.5-flash';
+    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${modelId}:generateContent?key=${apiKey}`;
 
     const geminiBody: Record<string, unknown> = {
       contents: [{ parts: [{ text: prompt }] }],
@@ -189,11 +190,13 @@ serve(async (req) => {
       };
     }
 
+    const geminiStartMs = Date.now();
     const geminiRes = await fetch(geminiUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(geminiBody),
     });
+    const executionTimeMs = Date.now() - geminiStartMs;
 
     const geminiData = await geminiRes.json();
 
@@ -209,13 +212,15 @@ serve(async (req) => {
     const tokensUsed = (geminiData.usageMetadata?.totalTokenCount ?? 0) as number;
     const estimatedCostUSD = (tokensUsed / 1_000_000) * 0.15; // $0.15 USD/1M tokens entrada
 
-    // ── 6. Registrar consumo de créditos ────────────────────────────────────
+    // ── 6. Registrar consumo de créditos — Sprint 24: incluye model + exec_time ─
     const { data: consumeResult, error: consumeErr } = await adminClient
       .rpc('consume_ai_credits', {
         p_workspace_id:   workspaceId,
         p_operation:      operation,
         p_tokens_used:    tokensUsed,
         p_estimated_cost: estimatedCostUSD,
+        p_model:          modelId,         // Sprint 24: modelo real usado
+        p_exec_ms:        executionTimeMs, // Sprint 24: tiempo de respuesta Gemini
       });
 
     if (consumeErr) {

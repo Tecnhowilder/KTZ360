@@ -188,13 +188,13 @@ export const ROLE_META: Record<string, { label: string; bg: string; color: strin
 };
 
 export const OPERATIONAL_STATUS_META: Record<OperationalStatus, {
-  label: string; color: string; bg: string; dotColor: string
+  label: string; color: string; bg: string; dotColor: string; emoji: string;
 }> = {
-  off:        { label: 'Desconectado', color: '#64748B', bg: '#F8FAFC', dotColor: '#94A3B8' },
-  disponible: { label: 'Disponible',   color: '#16A34A', bg: '#F0FDF4', dotColor: '#22C55E' },
-  en_ruta:    { label: 'En ruta',      color: '#2563EB', bg: '#EFF6FF', dotColor: '#3B82F6' },
-  en_sitio:   { label: 'En sitio',     color: '#D97706', bg: '#FFFBEB', dotColor: '#F59E0B' },
-  finalizado: { label: 'Finalizado',   color: '#7C3AED', bg: '#F5F3FF', dotColor: '#8B5CF6' },
+  off:        { label: 'Desconectado', color: '#64748B', bg: '#F8FAFC', dotColor: '#94A3B8', emoji: '⚫' },
+  disponible: { label: 'Disponible',   color: '#16A34A', bg: '#F0FDF4', dotColor: '#22C55E', emoji: '🟢' },
+  en_ruta:    { label: 'En ruta',      color: '#2563EB', bg: '#EFF6FF', dotColor: '#3B82F6', emoji: '🔵' },
+  en_sitio:   { label: 'En sitio',     color: '#D97706', bg: '#FFFBEB', dotColor: '#F59E0B', emoji: '🟡' },
+  finalizado: { label: 'Finalizado',   color: '#7C3AED', bg: '#F5F3FF', dotColor: '#8B5CF6', emoji: '✅' },
 };
 
 export function canViewFullTeam(role: string): boolean {

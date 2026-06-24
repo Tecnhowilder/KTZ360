@@ -1480,6 +1480,46 @@ export interface Database {
         Args: { p_days?: number };
         Returns: Json;
       };
+      check_ai_operation_permission: {
+        Args: { p_workspace_id: string; p_operation: string };
+        Returns: Json;
+      };
+      register_session: {
+        Args: { p_workspace_id: string; p_device_id: string; p_device_name?: string | null; p_user_agent?: string | null; p_ip?: string | null };
+        Returns: Json;
+      };
+      check_session_valid: {
+        Args: { p_workspace_id: string; p_device_id: string };
+        Returns: Json;
+      };
+      get_active_sessions: {
+        Args: { p_workspace_id: string };
+        Returns: Json;
+      };
+      revoke_session: {
+        Args: { p_workspace_id: string; p_session_id: string };
+        Returns: Json;
+      };
+      get_ai_credit_packs: {
+        Args: Record<string, never>;
+        Returns: Json;
+      };
+      get_ai_credit_purchases: {
+        Args: { p_workspace_id: string };
+        Returns: Json;
+      };
+      activate_ai_credit_pack: {
+        Args: { p_workspace_id: string; p_pack_id: string; p_payment_id: string; p_price_paid: number };
+        Returns: Json;
+      };
+      get_ai_admin_dashboard: {
+        Args: { p_days?: number };
+        Returns: Json;
+      };
+      create_ai_usage_partition: {
+        Args: { p_year: number; p_month: number };
+        Returns: void;
+      };
       get_sales_by_rep: {
         Args: { p_workspace_id: string; p_period_start?: string | null; p_period_end?: string | null };
         Returns: Json;
@@ -1514,6 +1554,38 @@ export interface Database {
       };
       get_full_funnel: {
         Args: { p_workspace_id: string; p_period_start?: string | null; p_period_end?: string | null };
+        Returns: Json;
+      };
+      register_webhook_endpoint: {
+        Args: { p_workspace_id: string; p_label: string; p_url: string; p_provider_type?: string; p_events?: string[] };
+        Returns: Json;
+      };
+      update_webhook_endpoint: {
+        Args: { p_workspace_id: string; p_endpoint_id: string; p_label?: string | null; p_url?: string | null; p_events?: string[] | null; p_is_active?: boolean | null };
+        Returns: Json;
+      };
+      delete_webhook_endpoint: {
+        Args: { p_workspace_id: string; p_endpoint_id: string };
+        Returns: Json;
+      };
+      rotate_webhook_secret: {
+        Args: { p_workspace_id: string; p_endpoint_id: string };
+        Returns: Json;
+      };
+      get_webhook_endpoints: {
+        Args: { p_workspace_id: string };
+        Returns: Json;
+      };
+      get_webhook_deliveries: {
+        Args: { p_workspace_id: string; p_endpoint_id?: string | null; p_limit?: number };
+        Returns: Json;
+      };
+      redeliver_webhook: {
+        Args: { p_workspace_id: string; p_delivery_id: string };
+        Returns: Json;
+      };
+      test_webhook_endpoint: {
+        Args: { p_workspace_id: string; p_endpoint_id: string };
         Returns: Json;
       };
       store_alegra_credentials: {

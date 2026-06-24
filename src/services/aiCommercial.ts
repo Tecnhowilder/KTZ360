@@ -14,7 +14,8 @@ import type { DerivedQuote } from '../lib/types';
 import type { Client } from '../lib/types';
 import { formatCurrencyCOP } from '../lib/currency';
 import type { WorkspaceProfitability } from './finance';
-import type { BIExecutiveKPIs, BISalesKPIs, BICustomerKPIs, BIMarketingKPIs } from './bi';
+import type { BIExecutiveKPIs, BISalesKPIs, BICustomerKPIs, BIMarketingKPIs, BIOperationsKPIs } from './bi';
+import type { FinanceDashboard } from './finance';
 
 // ─── Helpers de formateo de contexto ────────────────────────────────────────
 
@@ -509,4 +510,255 @@ Responde ÚNICAMENTE en JSON:
 }`;
 
   return callAistudio({ prompt, operation: 'bi_growth_recs', max_tokens: 600, temperature: 0.4 });
+}
+
+// ─── IA OPERATIVA — 6 funciones (3 créditos c/u, PREMIUM) ────────────────────
+// Reutiliza: callAistudio, motor ai-proxy, check_ai_credits/consume_ai_credits.
+// Sin nuevo motor IA. Sin nuevo proveedor.
+
+/**
+ * Detecta riesgos operativos cruzando OTs + clientes + costos.
+ * Operación: ops_risk_detection → 3 créditos (PREMIUM)
+ */
+export async function detectOperationalRisks(
+  opsKpis: BIOperationsKPIs,
+  finDashboard: FinanceDashboard,
+): Promise<AIResponse> {
+  const delayed    = opsKpis.productivity_summary as Record<string, unknown>;
+  const lowMargin  = finDashboard.low_margin_orders ?? [];
+  const lowClients = finDashboard.low_margin_clients ?? [];
+
+  const prompt = `Eres el analista de riesgos operativos IA de Shelwi. Detecta riesgos urgentes.
+
+ESTADO OPERATIVO ACTUAL:
+- Pedidos activos: ${JSON.stringify(opsKpis.orders_status)}
+- OTs activas: ${JSON.stringify(opsKpis.work_orders_status)}
+- OTs retrasadas en período: ${delayed.delayed ?? 0}
+- Duración promedio OT: ${delayed.avg_duration_h ?? 0}h
+- Salud financiera: ${finDashboard.financial_health}
+- Pedidos con margen <5%: ${lowMargin.length}
+- Clientes con margen bajo: ${lowClients.length}
+
+Responde ÚNICAMENTE en JSON:
+{
+  "nivel_riesgo": "<Crítico|Alto|Medio|Bajo>",
+  "riesgos": [
+    {"tipo": "<Retrasos|Costos|Clientes|Productividad|Financiero>", "descripcion": "<descripción concisa>", "urgencia": "<Inmediata|Esta semana|Este mes>", "impacto": "<Alto|Medio|Bajo>"}
+  ],
+  "alerta_principal": "<el riesgo más urgente en 1 oración>",
+  "acciones_inmediatas": ["<acción 1>", "<acción 2>"]
+}`;
+
+  return callAistudio({ prompt, operation: 'ops_risk_detection', max_tokens: 500, temperature: 0.2 });
+}
+
+/**
+ * Analiza OTs retrasadas y patrones de retraso por operario.
+ * Operación: ops_delay_analysis → 3 créditos (PREMIUM)
+ */
+export async function detectDelayedWorkOrders(
+  opsKpis: BIOperationsKPIs,
+): Promise<AIResponse> {
+  const team    = opsKpis.productivity_by_member ?? [];
+  const summary = opsKpis.productivity_summary as Record<string, unknown>;
+  const wos     = opsKpis.work_orders_status as Record<string, number>;
+
+  const topDelayed = team
+    .filter(m => m.delayed_count > 0)
+    .sort((a, b) => b.delay_rate_pct - a.delay_rate_pct)
+    .slice(0, 5)
+    .map(m => `${m.full_name}: ${m.delayed_count} retrasos (${m.delay_rate_pct}% de sus OTs), avg ${m.avg_duration_hours}h/OT`);
+
+  const prompt = `Eres el analista operativo IA de Shelwi. Analiza los retrasos en OTs.
+
+RESUMEN OPERATIVO:
+- Total OTs en período: ${summary.total_wos ?? 0}
+- Finalizadas: ${summary.finalizadas ?? 0}
+- Retrasadas: ${summary.delayed ?? 0}
+- Duración promedio: ${summary.avg_duration_h ?? 0}h
+- OTs activas ahora: ${(wos.en_progreso ?? 0) + (wos.asignada ?? 0)}
+
+OPERARIOS CON MÁS RETRASOS:
+${topDelayed.length > 0 ? topDelayed.join('\n') : 'Sin datos de retrasos registrados'}
+
+Responde ÚNICAMENTE en JSON:
+{
+  "severidad": "<Crítica|Alta|Media|Baja>",
+  "patron_detectado": "<descripción del patrón principal de retraso>",
+  "causas_probables": ["<causa 1>", "<causa 2>"],
+  "operarios_criticos": ["<nombre si delay_rate > 30%>"],
+  "recomendaciones": ["<acción concreta 1>", "<acción concreta 2>", "<acción concreta 3>"],
+  "alerta": "<si hay algo urgente en 1 oración, sino null>"
+}`;
+
+  return callAistudio({ prompt, operation: 'ops_delay_analysis', max_tokens: 500, temperature: 0.2 });
+}
+
+/**
+ * Detecta baja productividad por operario y sugiere acciones.
+ * Operación: ops_productivity_analysis → 3 créditos (PREMIUM)
+ */
+export async function detectLowProductivity(
+  opsKpis: BIOperationsKPIs,
+): Promise<AIResponse> {
+  const team = opsKpis.productivity_by_member ?? [];
+
+  const teamSummary = team.slice(0, 8).map(m =>
+    `${m.full_name} (${m.role}): ${m.wos_finished}/${m.wos_assigned} OTs | ${m.completion_rate}% completadas | ${m.avg_duration_hours}h avg | GPS: ${m.gps_hours}h`
+  ).join('\n');
+
+  const avgCompletion = team.length > 0
+    ? Math.round(team.reduce((a, m) => a + m.completion_rate, 0) / team.length)
+    : 0;
+
+  const prompt = `Eres el analista de productividad IA de Shelwi. Evalúa la productividad del equipo.
+
+PRODUCTIVIDAD DEL EQUIPO:
+Promedio de completación del equipo: ${avgCompletion}%
+
+DETALLE POR MIEMBRO:
+${teamSummary || 'Sin datos de productividad en el período'}
+
+Responde ÚNICAMENTE en JSON:
+{
+  "estado_general": "<Excelente|Bueno|Regular|Bajo>",
+  "miembros_bajo_rendimiento": [
+    {"nombre": "<nombre>", "problema": "<descripción>", "sugerencia": "<acción específica>"}
+  ],
+  "mejores_performers": ["<nombre 1>", "<nombre 2>"],
+  "insight_equipo": "<observación más importante sobre el equipo en 1-2 oraciones>",
+  "acciones_recomendadas": ["<acción para mejorar productividad 1>", "<acción 2>"]
+}`;
+
+  return callAistudio({ prompt, operation: 'ops_productivity_analysis', max_tokens: 500, temperature: 0.3 });
+}
+
+/**
+ * Detecta desviaciones de costo y proyectos con sobrecosto.
+ * Operación: ops_cost_analysis → 3 créditos (PREMIUM)
+ */
+export async function detectCostOverruns(
+  finDashboard: FinanceDashboard,
+  profitability: WorkspaceProfitability,
+): Promise<AIResponse> {
+  const lowOrders  = finDashboard.low_margin_orders ?? [];
+  const summary    = finDashboard.summary;
+  const hasReal    = summary.has_real_costs;
+
+  const orderDetails = lowOrders.slice(0, 5).map(o =>
+    `${o.order_number} — ${o.title}: margen ${o.margin_pct}% (valor: ${formatCurrencyCOP(o.revenue)})`
+  ).join('\n');
+
+  const prompt = `Eres el analista financiero operativo IA de Shelwi. Detecta sobrecostos y desviaciones.
+
+ESTADO FINANCIERO:
+- Ingresos período: ${formatCurrencyCOP(summary.total_revenue)}
+- Margen estimado: ${summary.estimated_margin_pct}%
+- Margen bruto: ${summary.gross_margin_pct}%
+${hasReal ? `- Margen REAL (con costos registrados): ${summary.real_margin_pct ?? 'N/A'}%` : '- Sin costos reales registrados aún'}
+- Salud financiera: ${finDashboard.financial_health}
+
+PEDIDOS CON MARGEN BAJO (<5%):
+${orderDetails || 'Sin pedidos de margen bajo en el período'}
+
+DESGLOSE DE COSTOS ESTIMADOS:
+- Materiales: ${formatCurrencyCOP(profitability.total_materials)}
+- Mano de obra: ${formatCurrencyCOP(profitability.total_labor)}
+- Equipos: ${formatCurrencyCOP(profitability.total_equipment)}
+- AIU total: ${formatCurrencyCOP(profitability.total_aiu)}
+
+Responde ÚNICAMENTE en JSON:
+{
+  "nivel_alerta": "<Crítico|Alto|Medio|Bajo>",
+  "desviaciones_detectadas": [
+    {"area": "<Materiales|Mano de obra|Equipos|General>", "problema": "<descripción>", "impacto": "<Alto|Medio|Bajo>"}
+  ],
+  "proyectos_criticos": ["<número de pedido si margen <0>"],
+  "causa_raiz_probable": "<causa principal del sobrecosto si existe>",
+  "acciones": ["<acción de control de costos 1>", "<acción 2>"],
+  "alerta": "<si margen real < 0, describir aquí; sino null>"
+}`;
+
+  return callAistudio({ prompt, operation: 'ops_cost_analysis', max_tokens: 500, temperature: 0.2 });
+}
+
+/**
+ * Detecta proyectos/pedidos en riesgo cruzando OTs + clientes + margen.
+ * Operación: ops_project_risk → 3 créditos (PREMIUM)
+ */
+export async function detectAtRiskProjects(
+  finDashboard: FinanceDashboard,
+  csKpis: BICustomerKPIs,
+): Promise<AIResponse> {
+  const lowOrders  = finDashboard.low_margin_orders ?? [];
+  const atRisk     = csKpis.at_risk_clients ?? [];
+  const wos        = finDashboard.summary;
+
+  const atRiskClients = (atRisk as Array<Record<string, unknown>>).slice(0, 5).map(c =>
+    `${c.client_name as string}: score ${c.score as number}, estado ${c.status as string}`
+  ).join('\n');
+
+  const prompt = `Eres el analista de riesgo de proyectos IA de Shelwi. Identifica proyectos en riesgo.
+
+PEDIDOS CON MARGEN BAJO:
+${lowOrders.slice(0,5).map(o => `${o.order_number} - ${o.title}: ${o.margin_pct}%`).join('\n') || 'Ninguno'}
+
+CLIENTES EN RIESGO:
+${atRiskClients || 'Ninguno'}
+
+MÉTRICAS GLOBALES:
+- Pedidos finalizados: ${wos.orders_finalized}
+- Cotizaciones aprobadas: ${wos.quotes_approved}
+- Salud financiera: ${finDashboard.financial_health}
+- NPS: ${csKpis.nps_score ?? 'sin datos'}
+
+Responde ÚNICAMENTE en JSON:
+{
+  "proyectos_en_riesgo": [
+    {"identificador": "<número de pedido o nombre cliente>", "tipo_riesgo": "<Financiero|Satisfacción|Operativo>", "nivel": "<Crítico|Alto|Medio>", "accion": "<qué hacer ahora>"}
+  ],
+  "patron_riesgo": "<descripción del patrón de riesgo detectado>",
+  "clientes_prioridad": ["<cliente que necesita contacto urgente>"],
+  "recomendacion_clave": "<1 acción que más impacto tendría>"
+}`;
+
+  return callAistudio({ prompt, operation: 'ops_project_risk', max_tokens: 500, temperature: 0.2 });
+}
+
+/**
+ * Genera plan de acción operativo priorizado basado en todos los análisis.
+ * Operación: ops_recommendations → 3 créditos (PREMIUM)
+ */
+export async function recommendOperationalActions(
+  riskAnalysis:     string,
+  delayAnalysis:    string,
+  productivityAnalysis: string,
+  costAnalysis:     string,
+): Promise<AIResponse> {
+  // Extraer insights clave de cada análisis (primeros 200 chars del JSON)
+  function extract(json: string, key: string): string {
+    try { return (JSON.parse(json.match(/\{[\s\S]*\}/)?.[0] ?? '{}')[key] as string) ?? ''; } catch { return ''; }
+  }
+
+  const prompt = `Eres el director de operaciones IA de Shelwi. Crea un plan de acción semanal.
+
+DIAGNÓSTICOS:
+- Riesgos operativos: ${extract(riskAnalysis, 'alerta_principal') || 'sin alerta principal'}
+- Retrasos: ${extract(delayAnalysis, 'patron_detectado') || 'sin patrón'}
+- Productividad: ${extract(productivityAnalysis, 'insight_equipo') || 'sin datos'}
+- Costos: ${extract(costAnalysis, 'causa_raiz_probable') || 'sin desviaciones'}
+
+Responde ÚNICAMENTE en JSON:
+{
+  "estado_operativo": "<Excelente|Bueno|Regular|Crítico>",
+  "plan_semana": [
+    {"prioridad": 1, "accion": "<acción concreta>", "responsable": "<Operario|Supervisor|Admin|Owner>", "plazo": "<Hoy|Mañana|Esta semana>", "impacto": "<Alto|Medio|Bajo>"},
+    {"prioridad": 2, "accion": "<acción concreta>", "responsable": "<rol>", "plazo": "<plazo>", "impacto": "<impacto>"},
+    {"prioridad": 3, "accion": "<acción concreta>", "responsable": "<rol>", "plazo": "<plazo>", "impacto": "<impacto>"}
+  ],
+  "mensaje_equipo": "<mensaje motivacional breve para el equipo esta semana>",
+  "kpi_a_monitorear": "<el KPI más importante a revisar mañana>"
+}`;
+
+  return callAistudio({ prompt, operation: 'ops_recommendations', max_tokens: 600, temperature: 0.3 });
 }

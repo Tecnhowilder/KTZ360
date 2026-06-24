@@ -1,5 +1,6 @@
 import { supabase } from '../lib/supabaseClient';
 import { logEvent } from './audit';
+import { navigateToUrl } from '../lib/capacitorBridge';
 
 interface CreateCheckoutResponse {
   preferenceId: string;
@@ -55,7 +56,8 @@ export async function startSubscriptionCheckout(
   if (error) throw error;
   if (!data?.initPoint) throw new Error('No se pudo iniciar el checkout de Mercado Pago.');
 
-  window.location.href = data.initPoint;
+  // Sprint 22: Capacitor-safe — usa in-app browser en native, window.location.href en web
+  await navigateToUrl(data.initPoint);
 }
 
 /** Obtiene el estado de suscripción Founder si aplica. */

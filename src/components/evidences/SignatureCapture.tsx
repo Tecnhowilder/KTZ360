@@ -115,10 +115,13 @@ export function SignatureCapture({ onCapture, onCancel }: Props) {
           <div style={{ fontSize: 12, color: '#94A3B8' }}>Dibuja tu firma en el área</div>
         </div>
 
-        {/* Canvas */}
+        {/* Canvas — Sprint 22: aria-label para accesibilidad (App Store req.) */}
         <div style={{ margin: '0 16px', borderRadius: 14, border: '2px dashed #E2E8F0', overflow: 'hidden', position: 'relative' }}>
           <canvas
             ref={canvasRef}
+            role="img"
+            aria-label="Área de firma digital. Dibuja tu firma con el dedo o el ratón."
+            tabIndex={0}
             style={{ display: 'block', width: '100%', height: 180, touchAction: 'none', cursor: 'crosshair' }}
             onMouseDown={startDraw}
             onMouseMove={draw}

@@ -14,6 +14,7 @@
  * El frontend solo recibe la URL final.
  */
 import { supabase } from '../lib/supabaseClient';
+import { openExternalUrl } from '../lib/capacitorBridge';
 
 // ─── Tipos de evento soportados ───────────────────────────────────────────────
 
@@ -76,11 +77,11 @@ export async function openWhatsApp(
 ): Promise<void> {
   try {
     const result = await getWhatsAppMessage(workspaceId, eventType, entityId, extraParams);
-    window.open(result.wa_url, '_blank', 'noopener,noreferrer');
+    // Sprint 22: capacitorBridge — native app o web
+    await openExternalUrl(result.wa_url);
   } catch (err) {
     console.error('[whatsapp] Error:', err);
-    // Fallback: abrir WhatsApp sin mensaje si falla el backend
-    window.open('https://wa.me/', '_blank', 'noopener,noreferrer');
+    await openExternalUrl('https://wa.me/');
   }
 }
 
@@ -98,8 +99,8 @@ export function buildWhatsAppUrlDirect(phone: string | null | undefined, message
  * Helper legacy: compatibilidad con código antiguo que usaba openWhats().
  * @deprecated Usar openWhatsApp() con el workspaceId.
  */
-export function openWhatsLegacy(message: string): void {
-  window.open(`https://wa.me/?text=${encodeURIComponent(message)}`, '_blank', 'noopener,noreferrer');
+export async function openWhatsLegacy(message: string): Promise<void> {
+  await openExternalUrl(`https://wa.me/?text=${encodeURIComponent(message)}`);
 }
 
 // ─── Labels ───────────────────────────────────────────────────────────────────

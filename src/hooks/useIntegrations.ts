@@ -1,4 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { navigateToUrl } from '../lib/capacitorBridge';
 import { useWorkspace } from '../features/auth/WorkspaceProvider';
 import {
   getIntegrationStatus, initiateOAuth, disconnectIntegration,
@@ -26,7 +27,8 @@ export function useInitiateOAuth() {
     mutationFn: (provider: 'google_calendar' | 'outlook_calendar' | 'drive' | 'onedrive' | 'teams') =>
       initiateOAuth(workspace.id, provider),
     onSuccess: ({ authorizationUrl }) => {
-      window.location.href = authorizationUrl;
+      // Sprint 22: Capacitor-safe — in-app browser en native
+      navigateToUrl(authorizationUrl);
     },
     onError: (e: Error) => showToast(e.message ?? 'Error al iniciar conexión'),
   });

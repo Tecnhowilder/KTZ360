@@ -14,10 +14,17 @@ export type AIOperation =
   | 'forecast'              // 3 créditos
   | 'forecast_finance'       // 3 créditos — Sprint 18
   | 'risk_analysis'          // 3 créditos
-  | 'bi_executive_summary'   // 3 créditos — Sprint 19
-  | 'bi_business_forecast'   // 3 créditos — Sprint 19
-  | 'bi_risk_assessment'     // 3 créditos — Sprint 19
-  | 'bi_growth_recs';        // 3 créditos — Sprint 19
+  | 'bi_executive_summary'        // 3 créditos — Sprint 19
+  | 'bi_business_forecast'        // 3 créditos — Sprint 19
+  | 'bi_risk_assessment'          // 3 créditos — Sprint 19
+  | 'bi_growth_recs'              // 3 créditos — Sprint 19
+  // IA Operativa
+  | 'ops_risk_detection'          // 3 créditos — IA Operativa
+  | 'ops_delay_analysis'          // 3 créditos — IA Operativa
+  | 'ops_productivity_analysis'   // 3 créditos — IA Operativa
+  | 'ops_cost_analysis'           // 3 créditos — IA Operativa
+  | 'ops_project_risk'            // 3 créditos — IA Operativa
+  | 'ops_recommendations';        // 3 créditos — IA Operativa
 
 export type AIRequest = {
   prompt:      string;

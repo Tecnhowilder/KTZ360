@@ -2,6 +2,7 @@ import { useState, type FormEvent } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { signIn } from '../../services/auth';
 import { supabase } from '../../lib/supabaseClient';
+import { getAppBaseUrl } from '../../lib/capacitorBridge';
 import { AuthLayout, inputStyle, labelStyle, primaryButtonStyle, errorStyle, linkStyle } from './AuthLayout';
 import { APP_NAME } from '../../lib/brand';
 
@@ -69,7 +70,7 @@ export function LoginPage() {
       const { error: oauthError } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: `${window.location.origin}${redirect || '/app/dashboard'}`,
+          redirectTo: `${getAppBaseUrl()}${redirect || '/app/dashboard'}`,
           queryParams: {
             access_type: 'offline',
             prompt: 'select_account',

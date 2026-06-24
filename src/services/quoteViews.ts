@@ -28,16 +28,22 @@ function parseUserAgent(ua: string): { device: string; browser: string } {
   return { device, browser };
 }
 
+/**
+ * trackQuoteView — Security 0092: usa RPC register_quote_view() en lugar de INSERT directo.
+ * La RPC valida que el quote_id exista y no esté eliminado antes de insertar.
+ * Eliminada la inserción directa a quote_views (WITH CHECK (true) eliminado en 0092).
+ */
 export async function trackQuoteView(quoteId: string): Promise<void> {
-  const ua             = navigator.userAgent;
+  const ua = navigator.userAgent;
   const { device, browser } = parseUserAgent(ua);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  await (supabase as any).from('quote_views').insert({
-    quote_id:   quoteId,
-    user_agent: ua,
-    device,
-    browser,
+  await (supabase as any).rpc('register_quote_view', {
+    p_quote_id:   quoteId,
+    p_user_agent: ua,
+    p_device:     device,
+    p_browser:    browser,
   });
+  // Error silencioso intencional: si el quote no existe, no exponemos el error al visitante
 }
 
 export async function getQuoteViewStats(quoteIds: string[]): Promise<QuoteViewStats[]> {

@@ -9,12 +9,12 @@
  */
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.0';
 
-export type PlanCode    = 'pro' | 'premium';
+export type PlanCode    = 'pro' | 'premium' | 'enterprise';
 export type BillingCycle = 'monthly' | 'annual';
 
 /** Validadores de tipo (no implican precio) */
 export function isPlanCode(value: unknown): value is PlanCode {
-  return value === 'pro' || value === 'premium';
+  return value === 'pro' || value === 'premium' || value === 'enterprise';
 }
 
 export function isBillingCycle(value: unknown): value is BillingCycle {
@@ -27,8 +27,9 @@ export function isFounderCheckout(value: unknown): value is boolean {
 
 /** Nombres de visualización */
 export const PLAN_NAMES: Record<PlanCode, string> = {
-  pro:     'PRO',
-  premium: 'PREMIUM',
+  pro:        'PRO',
+  premium:    'PREMIUM',
+  enterprise: 'ENTERPRISE',
 };
 
 /**
