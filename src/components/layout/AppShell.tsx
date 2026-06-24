@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useUI } from '../../features/app/UIProvider';
 import { useWindowWidth, navModeFor } from '../../hooks/useWindowWidth';
+import { useSessionGuard } from '../../hooks/useSessionGuard';
 import { Sidebar } from './Sidebar';
 import { MobileHeader } from './MobileHeader';
 import { MobileDrawer } from './MobileDrawer';
@@ -11,6 +12,8 @@ import { DocumentOverlay } from '../overlays/DocumentOverlay';
 import { UpgradeModal } from '../upgrade/UpgradeModal';
 
 export function AppShell() {
+  useSessionGuard(); // Sprint 24: Session Security — detecta revocación y fuerza logout
+
   const navigate = useNavigate();
   const { _registerNavigate } = useUI();
 

@@ -15,6 +15,7 @@
 import { serve }        from 'https://deno.land/std@0.201.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.0';
 import { corsHeaders }  from '../_shared/cors.ts';
+import { logEdgeError } from '../_shared/errorLogger.ts';
 import {
   isPlanCode,
   isBillingCycle,
@@ -160,9 +161,9 @@ serve(async (req) => {
             },
           }).then(() => {}).catch(() => {});
 
-          // Si la diferencia es mayor a $5.000 COP, no activar el plan
-          if (amountCheck.delta > 5000) {
-            console.error('[mp-webhook] Plan activation BLOCKED due to price mismatch > $5000');
+          // Si la diferencia es mayor a $500 COP (tolerancia de redondeo MP), no activar el plan
+          if (amountCheck.delta > 500) {
+            console.error('[mp-webhook] Plan activation BLOCKED due to price mismatch > $500');
             return new Response(JSON.stringify({ received: true, blocked: 'price_mismatch' }), {
               status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
             });
@@ -304,7 +305,7 @@ serve(async (req) => {
     );
 
   } catch (error) {
-    console.error('[mp-webhook] unhandled error:', error);
+    logEdgeError('mp-webhook', error);
     // Siempre retornar 200 a MP para evitar reintentos infinitos
     return new Response(
       JSON.stringify({ received: true, error: String(error) }),

@@ -17,6 +17,7 @@
  */
 import { serve } from 'https://deno.land/std@0.201.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { logEdgeError } from '../_shared/errorLogger.ts';
 
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
@@ -239,7 +240,7 @@ serve(async (req) => {
     }), { status: 200, headers: CORS_HEADERS });
 
   } catch (error) {
-    console.error('ai-proxy unhandled error:', error);
+    logEdgeError('ai-proxy', error);
     return new Response(JSON.stringify({ error: String(error) }), {
       status: 500, headers: CORS_HEADERS,
     });

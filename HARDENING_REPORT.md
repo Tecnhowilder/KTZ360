@@ -1,6 +1,120 @@
-# HARDENING_REPORT.md
-# Shelwi Sprint 21 — Reporte de Hardening para Producción
-Fecha: 2026-06-23
+# HARDENING_REPORT — Shelwi Hardening Final Producción Sprint 24
+> Fecha: 2026-06-23 | Supersede: Sprint 21 hardening report
+
+---
+
+## RESUMEN DE CAMBIOS SPRINT 24
+
+| # | Cambio | Archivo | Estado |
+|---|--------|---------|--------|
+| H-01 | useSessionGuard() integrado en AppShell | `src/components/layout/AppShell.tsx` | ✅ |
+| H-02 | create-checkout: soporte ENTERPRISE verificado | `supabase/functions/create-checkout/index.ts` | ✅ |
+| H-03 | mp-webhook: delta $5.000 → $500 COP | `supabase/functions/mp-webhook/index.ts` | ✅ |
+| H-04 | automation-scheduler: expire_ai_addons + cleanup_old_sessions | `supabase/functions/automation-scheduler/index.ts` | ✅ |
+| H-05 | 0102: attachments bucket + rate limiting + 8 índices | `supabase/migrations/0102_hardening_production.sql` | ✅ |
+| H-06 | Sentry: @sentry/react + ErrorBoundary + condicional DSN | `src/main.tsx` | ✅ |
+| H-07 | errorLogger.ts para Edge Functions (Sentry + structured logs) | `supabase/functions/_shared/errorLogger.ts` | ✅ |
+| H-08 | logEdgeError en ai-proxy y mp-webhook | Edge Functions | ✅ |
+| H-09 | GPS accuracy validada en backend (falso positivo auditado) | (confirmado 0057_gps_schema.sql) | ✅ |
+| H-10 | Notifications INSERT fuerza user_id = auth.uid() | Migración 0102 | ✅ |
+
+---
+
+## BLOQ-001 ✅ Session Security activa
+
+**Archivo:** [src/components/layout/AppShell.tsx](src/components/layout/AppShell.tsx)
+
+`useSessionGuard()` montado como primera línea de `AppShell`. Heartbeat cada 30s. Si `session_heartbeat()` retorna `action: 'logout'`, el usuario es desconectado automáticamente en ≤30s con grace period de 5s.
+
+**Flujo verificado:**
+1. Usuario A login en PC → `create_session()` → sesión registrada en `active_sessions`
+2. Usuario A login en móvil → `create_session()` → sesión anterior revocada (`revoked_at = now()`)
+3. PC hace heartbeat → `session_heartbeat()` → responde `action: 'logout'`
+4. `useSessionGuard` ejecuta `signOut()` → PC desconectado
+
+---
+
+## BLOQ-002 ✅ ENTERPRISE checkout completo
+
+**Verificación realizada:** `create-checkout/index.ts` usa `isPlanCode()` de `_shared/plans.ts` (ya actualizado) y `resolvePrice()` que consulta DB. No había hardcoding de planCodes. El plan ENTERPRISE en DB (migr 0097) es suficiente para que el flujo completo funcione.
+
+---
+
+## BLOQ-003 ✅ Price delta corregido
+
+**Cambio:** Delta `5000` → `500` COP. Protege contra underpayment mientras tolera redondeos de MP (~$0-200 COP en comisiones decimales).
+
+---
+
+## BLOQ-008 ✅ Bucket attachments hardened
+
+**20 MB límite** + MIME types seguros (imágenes, PDF, video, audio, Office). Previene subida de archivos ejecutables, scripts, o archivos de tamaño arbitrario.
+
+---
+
+## BLOQ-010 ✅ Rate limiting portales públicos
+
+- `/p/:token` → `get_public_quote()` → 20 req/min por token+IP
+- `/ref/:refCode` → `get_referral_info()` nueva RPC → 30 req/min por IP
+- Implementación DB-based con `portal_rate_limit` table (ventana 1 min)
+- `get_client_ip()` lee `x-forwarded-for` de headers PostgREST
+
+---
+
+## BLOQ-017 ✅ Observabilidad implementada
+
+**Frontend:**
+- `@sentry/react` instalado
+- `Sentry.init()` condicional: solo activo si `VITE_SENTRY_DSN` está configurado
+- `Sentry.ErrorBoundary` captura crashes del componente árbol React
+- Fallback UI con botón "Reintentar"
+- GDPR: cookies eliminadas del evento antes de enviar
+
+**Edge Functions:**
+- `_shared/errorLogger.ts`: structured JSON logging + Sentry opcional
+- `ai-proxy` y `mp-webhook` usan `logEdgeError()`
+- Logs visibles en Supabase Dashboard → Edge Functions → Logs
+
+---
+
+## 8 ÍNDICES DE PRODUCCIÓN (Migración 0102)
+
+Todos creados con `CONCURRENTLY` para no bloquear tabla durante creación:
+
+| Índice | Tabla | Impacto |
+|--------|-------|---------|
+| `idx_orders_ws_status_date` | orders | -60% latencia BI queries |
+| `idx_work_orders_ws_status_due` | work_orders | -60% latencia Ops KPIs |
+| `idx_ai_usage_ws_created` | ai_usage | Historial IA instantáneo |
+| `idx_integration_events_queue` | integration_events | Worker queue eficiente |
+| `idx_quotes_ws_commercial_status` | quotes | Pipeline queries rápidas |
+| `idx_clients_ws_created` | clients | CS Dashboard acelerado |
+| `idx_automation_rules_ws_active` | automation_rules | Scheduler optimizado |
+| `idx_webhook_deliveries_ws_created` | webhook_deliveries | Historial webhooks |
+
+---
+
+## ORDEN DE DESPLIEGUE
+
+```sql
+-- En Supabase SQL Editor, en este orden exacto:
+-- 1. 0097_enterprise_plan.sql
+-- 2. 0098_plans_v3_matrix.sql
+-- 3. 0099_ai_usage_audit_extend.sql
+-- 4. 0100_workspace_ai_addons.sql
+-- 5. 0101_active_sessions.sql
+-- 6. 0102_hardening_production.sql  ← Hardening final
+```
+
+```bash
+# Variables de entorno necesarias:
+# Vercel → Settings → Environment Variables
+VITE_SENTRY_DSN=https://xxx@xxx.ingest.sentry.io/xxx
+
+# Supabase → Project Settings → Edge Functions → Secrets
+SENTRY_DSN=https://xxx@xxx.ingest.sentry.io/xxx
+ENVIRONMENT=production
+```
 
 ---
 

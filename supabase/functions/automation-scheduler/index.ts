@@ -67,6 +67,9 @@ Deno.serve(async (req: Request) => {
         await admin.rpc('cleanup_processed_integration_events');
         await admin.rpc('cleanup_expired_oauth_states');
         await admin.rpc('expire_overdue_quotes');
+        // Sprint 24: cleanup sesiones y addons IA vencidos
+        await admin.rpc('cleanup_old_sessions');
+        await admin.rpc('expire_ai_addons');
         console.log('[scheduler] Daily cleanup executed');
       }
     }

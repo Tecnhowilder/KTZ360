@@ -84,7 +84,7 @@ serve(async (req) => {
     const isFounder   = body.isFounder === true; // explícito boolean
 
     if (!isPlanCode(planCode)) {
-      return new Response(JSON.stringify({ error: 'planCode must be "pro" or "premium"' }), {
+      return new Response(JSON.stringify({ error: 'planCode must be "pro", "premium" or "enterprise"' }), {
         status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
