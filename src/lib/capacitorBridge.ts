@@ -79,14 +79,42 @@ export async function openPhone(phone: string): Promise<void> {
 }
 
 /**
- * Abre WhatsApp con un número de teléfono y mensaje opcional.
- * En native: Browser.open → OS delega a WhatsApp si está instalado.
- * En web: window.open a wa.me.
+ * Abre WhatsApp con número + código de país explícito.
+ * HOTFIX: siempre requiere countryCode para evitar interpretación incorrecta.
+ * Ejemplo: openWhatsApp('+57', '3154823475') → wa.me/573154823475
  */
-export async function openWhatsApp(phone: string, message?: string): Promise<void> {
-  const clean = phone.replace(/\D/g, '');
-  const msg   = message ? `?text=${encodeURIComponent(message)}` : '';
-  const url   = clean ? `https://wa.me/${clean}${msg}` : `https://wa.me/${msg}`;
+export async function openWhatsApp(
+  phoneOrCountryCode: string,
+  phoneOrMessage?: string,
+  message?: string
+): Promise<void> {
+  let cc: string;
+  let phone: string;
+  let msg: string | undefined;
+
+  // Soporte legacy: openWhatsApp(phone, message) sin country code
+  // Y nuevo: openWhatsApp(countryCode, phone, message)
+  if (phoneOrCountryCode.startsWith('+') && phoneOrMessage && !message) {
+    // Caso: openWhatsApp(countryCode, phone)
+    cc    = phoneOrCountryCode.replace(/[^0-9]/g, '');
+    phone = phoneOrMessage.replace(/[^0-9]/g, '');
+    msg   = undefined;
+  } else if (phoneOrCountryCode.startsWith('+') && phoneOrMessage && message) {
+    // Caso: openWhatsApp(countryCode, phone, message)
+    cc    = phoneOrCountryCode.replace(/[^0-9]/g, '');
+    phone = phoneOrMessage.replace(/[^0-9]/g, '');
+    msg   = message;
+  } else {
+    // Legacy: openWhatsApp(phone, message) — asume +57 Colombia
+    cc    = '57';
+    phone = phoneOrCountryCode.replace(/[^0-9]/g, '');
+    msg   = phoneOrMessage;
+  }
+
+  const msgParam = msg ? `?text=${encodeURIComponent(msg)}` : '';
+  const url = (cc && phone.length >= 7)
+    ? `https://wa.me/${cc}${phone}${msgParam}`
+    : `https://wa.me/${msgParam}`;
   await openExternalUrl(url);
 }
 

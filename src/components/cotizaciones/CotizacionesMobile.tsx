@@ -508,6 +508,31 @@ export function CotizacionesMobile() {
           ))}
         </div>
       </div>
+
+      {/* ── FAB — Nueva cotización (fijo sobre el bottom nav) ── */}
+      <button
+        onClick={() => navigate('/app/cotizaciones/nueva')}
+        aria-label="Nueva cotización"
+        style={{
+          position: 'fixed',
+          bottom: 'calc(76px + env(safe-area-inset-bottom))',
+          right: 16,
+          zIndex: 45,
+          width: 56,
+          height: 56,
+          borderRadius: '50%',
+          background: '#2563EB',
+          border: 'none',
+          color: '#fff',
+          cursor: 'pointer',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          boxShadow: '0 4px 20px rgba(37,99,235,.45)',
+        }}
+      >
+        <Plus size={24} strokeWidth={2.5} />
+      </button>
     </div>
   );
 }

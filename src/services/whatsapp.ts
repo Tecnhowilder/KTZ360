@@ -87,11 +87,17 @@ export async function openWhatsApp(
 
 /**
  * Fallback: construir URL directa sin RPC.
- * Usar SOLO cuando no haya conexión al backend.
+ * HOTFIX: requiere countryCode explícito para URL correcta.
+ * Ejemplo: wa.me/573154823475 (no wa.me/3154823475)
  */
-export function buildWhatsAppUrlDirect(phone: string | null | undefined, message: string): string {
-  const cleanPhone = phone?.replace(/\D/g, '') ?? '';
-  const base = cleanPhone.length >= 7 ? `https://wa.me/${cleanPhone}` : 'https://wa.me/';
+export function buildWhatsAppUrlDirect(
+  phone: string | null | undefined,
+  message: string,
+  countryCode = '+57'
+): string {
+  const cc    = countryCode.replace(/[^0-9]/g, '') || '57';
+  const clean = phone?.replace(/[^0-9]/g, '') ?? '';
+  const base  = clean.length >= 7 ? `https://wa.me/${cc}${clean}` : 'https://wa.me/';
   return `${base}?text=${encodeURIComponent(message)}`;
 }
 
