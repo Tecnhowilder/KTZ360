@@ -1,12 +1,10 @@
 import { useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { X, LogOut, Plus } from 'lucide-react';
-import { Icon, NAV_ICONS, NAV_ITEMS, type NavId } from '../../lib/icons';
+import { X, LogOut } from 'lucide-react';
+import { type NavId } from '../../lib/icons';
 import { useWorkspace } from '../../features/auth/WorkspaceProvider';
-import { useUI, defaultQConfig } from '../../features/app/UIProvider';
 import { isSuperAdmin } from '../../lib/permissions';
-import { getThemeByPlan } from '../../lib/planTheme';
 import { signOut } from '../../services/auth';
 
 interface MobileDrawerProps {
@@ -18,10 +16,8 @@ export function MobileDrawer({ open, onClose }: MobileDrawerProps) {
   const navigate = useNavigate();
   const location = useLocation();
   const queryClient = useQueryClient();
-  const { profile, planName, company } = useWorkspace();
-  const { openQuoteFlow } = useUI();
+  const { profile, planName } = useWorkspace();
   const adminQuery = useQuery({ queryKey: ['isSuperAdmin'], queryFn: isSuperAdmin });
-  const theme = getThemeByPlan(planName);
 
   const activeView = location.pathname.split('/')[2] as NavId | undefined;
 
@@ -43,10 +39,6 @@ export function MobileDrawer({ open, onClose }: MobileDrawerProps) {
   }, [onClose]);
 
   const canManage = profile.role === 'owner' || !!adminQuery.data;
-  const navItems = NAV_ITEMS
-    .filter(it => !['empresa', 'planes', 'team'].includes(it.id) || canManage)
-    .concat(adminQuery.data ? [{ id: 'admin' as NavId, label: 'Admin', badge: false }] : []);
-
   const initial = (profile.full_name || profile.email || '?').trim().charAt(0).toUpperCase();
 
   const navTo = (path: string) => {
@@ -61,8 +53,6 @@ export function MobileDrawer({ open, onClose }: MobileDrawerProps) {
       navigate('/login', { replace: true });
     }
   }
-
-  const TRANSITION = 'background 0.5s ease, box-shadow 0.4s ease';
 
   return (
     <>
@@ -88,8 +78,8 @@ export function MobileDrawer({ open, onClose }: MobileDrawerProps) {
           position: 'fixed', top: 0, left: 0, bottom: 0,
           width: '82vw', maxWidth: 300,
           zIndex: 49,
-          background: theme.sidebarBg,
-          boxShadow: '6px 0 32px rgba(0,0,0,.25)',
+          background: '#fff',
+          boxShadow: '6px 0 32px rgba(0,0,0,.18)',
           transform: open ? 'translateX(0)' : 'translateX(-100%)',
           transition: 'transform .28s cubic-bezier(.4,0,.2,1)',
           display: 'flex', flexDirection: 'column',
@@ -97,101 +87,106 @@ export function MobileDrawer({ open, onClose }: MobileDrawerProps) {
           paddingBottom: 'env(safe-area-inset-bottom)',
         }}
       >
-        {/* Header */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 14px 10px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <div style={{ background: '#fff', borderRadius: 9, padding: '4px 8px', display: 'inline-flex', alignItems: 'center' }}>
-                <img src="/icons/logo-horizontal-white-bg.png" alt="Shelwi" style={{ height: 26, width: 'auto', objectFit: 'contain' }} />
-              </div>
+        {/* ── Header drawer UX 2026 ──────────────────────────────────────── */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 20px 12px', borderBottom: '1px solid #F1F5F9' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <div style={{ width: 30, height: 30, borderRadius: 8, background: '#7C3AED', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <span style={{ color: '#fff', fontWeight: 900, fontSize: 15 }}>S</span>
+            </div>
+            <span style={{ fontSize: 18, fontWeight: 800, color: '#0F172A' }}>Shelwi</span>
           </div>
-          <button
-            onClick={onClose}
-            aria-label="Cerrar menú"
-            style={{ border: 'none', background: 'rgba(255,255,255,.1)', color: '#fff', width: 34, height: 34, borderRadius: 9, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}
-          >
-            <X size={16} />
+          <button onClick={onClose} aria-label="Cerrar menú" style={{ border: 'none', background: '#F1F5F9', width: 32, height: 32, borderRadius: '50%', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <X size={15} color="#374151" />
           </button>
         </div>
 
-        {/* CTA */}
-        <div style={{ padding: '0 10px 10px' }}>
-          <button
-            onClick={() => { openQuoteFlow({ cfg: defaultQConfig(company) }); onClose(); }}
-            style={{
-              width: '100%', border: 'none', background: theme.ctaBg, color: '#fff',
-              fontWeight: 700, fontSize: 14, padding: '12px 0', borderRadius: 13,
-              cursor: 'pointer', boxShadow: theme.ctaShadow,
-              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7,
-              minHeight: 48, transition: TRANSITION,
-            }}
-          >
-            <Plus size={17} strokeWidth={2.5} /> Nueva cotización
-          </button>
-        </div>
-
-        {/* Nav */}
-        <nav style={{ flex: 1, overflowY: 'auto', padding: '0 8px' }}>
-          {navItems.map(it => {
+        {/* ── Nav grupos ──────────────────────────────────────────────────── */}
+        <nav style={{ flex: 1, overflowY: 'auto', padding: '8px 12px' }}>
+          {/* PRINCIPAL */}
+          {[
+            { id: 'dashboard',    label: 'Inicio',        icon: '🏠' },
+            { id: 'cotizaciones', label: 'Cotizaciones',  icon: '📋' },
+            { id: 'pedidos',      label: 'Pedidos',       icon: '📦' },
+            { id: 'clientes',     label: 'Clientes',      icon: '👥' },
+          ].map(it => {
             const active = activeView === it.id;
             return (
-              <button
-                key={it.id}
-                onClick={() => navTo(`/app/${it.id}`)}
-                style={{
-                  display: 'flex', alignItems: 'center', gap: 13,
-                  width: '100%', border: 'none',
-                  background: active ? theme.activeNavBg : 'transparent',
-                  color: active ? '#fff' : '#94A3B8',
-                  padding: '13px 12px', borderRadius: 12,
-                  cursor: 'pointer', fontWeight: 600, fontSize: 14.5,
-                  textAlign: 'left', minHeight: 50, transition: TRANSITION,
-                }}
-              >
-                <span style={{ width: 22, height: 22, display: 'flex', flexShrink: 0 }}>
-                  <Icon path={NAV_ICONS[it.id]} />
-                </span>
-                <span style={{ flex: 1 }}>{it.label}</span>
-                {(it as { badge?: boolean }).badge && (
-                  <span style={{ fontSize: 9, fontWeight: 800, background: theme.badgeBg, color: theme.badgeColor, padding: '2px 6px', borderRadius: 5 }}>
-                    PRO
-                  </span>
-                )}
+              <button key={it.id} onClick={() => navTo(`/app/${it.id}`)} style={{
+                display: 'flex', alignItems: 'center', gap: 14,
+                width: '100%', padding: '13px 14px', marginBottom: 2,
+                border: 'none', borderRadius: 12, cursor: 'pointer', textAlign: 'left',
+                background: active ? '#F5F3FF' : 'transparent',
+              }}>
+                <span style={{ fontSize: 18 }}>{it.icon}</span>
+                <span style={{ fontSize: 15, fontWeight: active ? 700 : 500, color: active ? '#7C3AED' : '#0F172A' }}>{it.label}</span>
+              </button>
+            );
+          })}
+
+          <div style={{ height: 1, background: '#F1F5F9', margin: '8px 4px' }} />
+
+          {/* INTELIGENCIA */}
+          {[
+            { id: 'ia',      label: 'Shelwi IA', icon: '🤖' },
+            { id: 'catalogo',label: 'Catálogo',  icon: '📚' },
+            { id: 'reportes',label: 'Reportes',  icon: '📊' },
+          ].map(it => {
+            const active = activeView === it.id;
+            return (
+              <button key={it.id} onClick={() => navTo(`/app/${it.id}`)} style={{
+                display: 'flex', alignItems: 'center', gap: 14,
+                width: '100%', padding: '13px 14px', marginBottom: 2,
+                border: 'none', borderRadius: 12, cursor: 'pointer', textAlign: 'left',
+                background: active ? '#F5F3FF' : 'transparent',
+              }}>
+                <span style={{ fontSize: 18 }}>{it.icon}</span>
+                <span style={{ fontSize: 15, fontWeight: active ? 700 : 500, color: active ? '#7C3AED' : '#0F172A' }}>{it.label}</span>
+              </button>
+            );
+          })}
+
+          <div style={{ height: 1, background: '#F1F5F9', margin: '8px 4px' }} />
+
+          {/* ADMINISTRACIÓN */}
+          {[
+            ...(canManage ? [{ id: 'empresa', label: 'Mi Empresa', icon: '🏢' }, { id: 'team', label: 'Equipo', icon: '👤' }] : []),
+            { id: 'config', label: 'Configuración', icon: '⚙️' },
+          ].map(it => {
+            const active = activeView === it.id;
+            return (
+              <button key={it.id} onClick={() => navTo(`/app/${it.id}`)} style={{
+                display: 'flex', alignItems: 'center', gap: 14,
+                width: '100%', padding: '13px 14px', marginBottom: 2,
+                border: 'none', borderRadius: 12, cursor: 'pointer', textAlign: 'left',
+                background: active ? '#F5F3FF' : 'transparent',
+              }}>
+                <span style={{ fontSize: 18 }}>{it.icon}</span>
+                <span style={{ fontSize: 15, fontWeight: active ? 700 : 500, color: active ? '#7C3AED' : '#0F172A' }}>{it.label}</span>
               </button>
             );
           })}
         </nav>
 
-        {/* Footer: user info + logout */}
-        <div style={{ borderTop: '1px solid rgba(255,255,255,.08)', padding: '10px 10px 8px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 12px', borderRadius: 12, background: 'rgba(255,255,255,.06)', marginBottom: 8 }}>
-            <div
-              style={{
-                width: 36, height: 36, borderRadius: 10,
-                background: theme.avatarBg,
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                color: '#fff', fontWeight: 800, fontSize: 15, flexShrink: 0,
-                transition: TRANSITION,
-              }}
-            >
+        {/* ── Footer ────────────────────────────────────────────────────────── */}
+        <div style={{ borderTop: '1px solid #F1F5F9', padding: '12px 12px 8px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px', marginBottom: 8 }}>
+            <div style={{ width: 36, height: 36, borderRadius: 10, background: '#7C3AED', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 800, fontSize: 15, flexShrink: 0 }}>
               {initial}
             </div>
             <div style={{ lineHeight: 1.3, overflow: 'hidden' }}>
-              <div style={{ fontSize: 13, fontWeight: 700, color: '#fff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: '#0F172A', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                 {profile.full_name || profile.email}
               </div>
-              <div style={{ fontSize: 11, color: '#94A3B8' }}>Plan {planName}</div>
+              <div style={{ fontSize: 11, color: '#64748B' }}>Plan {planName}</div>
             </div>
           </div>
-          <button
-            onClick={handleSignOut}
-            style={{
-              display: 'flex', alignItems: 'center', gap: 10,
-              width: '100%', border: 'none', background: 'rgba(239,68,68,.12)',
-              color: '#FCA5A5', padding: '12px 14px', borderRadius: 12,
-              cursor: 'pointer', fontWeight: 600, fontSize: 14, minHeight: 48,
-            }}
-          >
-            <LogOut size={16} /> Cerrar sesión
+          <button onClick={handleSignOut} style={{
+            display: 'flex', alignItems: 'center', gap: 10,
+            width: '100%', border: 'none', background: 'none',
+            color: '#DC2626', padding: '12px 14px', borderRadius: 12,
+            cursor: 'pointer', fontWeight: 600, fontSize: 14,
+          }}>
+            <LogOut size={16} color="#DC2626" /> Cerrar sesión
           </button>
         </div>
       </div>
