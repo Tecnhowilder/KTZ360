@@ -132,24 +132,100 @@ export function MobileDashboard() {
         </div>
 
         {/* ── Acciones rápidas ─────────────────────────────────────────────── */}
-        <div>
-          <p style={{ fontSize: 13, fontWeight: 700, color: '#374151', margin: '0 0 10px' }}>Acciones rápidas</p>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 10 }}>
-            {[
-              { icon: '🎤', label: 'Hablar con IA',    color: '#7C3AED', bg: '#F5F3FF', action: () => navigate('/app/ia/crear') },
-              { icon: '📄', label: 'Nueva cotización', color: '#2563EB', bg: '#EFF6FF', action: () => openQuoteFlow({ cfg: defaultQConfig(company) }) },
-              { icon: '📦', label: 'Nuevo pedido',     color: '#F97316', bg: '#FFF7ED', action: () => navigate('/app/pedidos/nuevo') },
-              { icon: '📷', label: 'Desde foto',       color: '#64748B', bg: '#F1F5F9', action: () => navigate('/app/ia/crear?mode=photo') },
-            ].map(a => (
-              <button key={a.label} onClick={a.action} style={{
-                display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
-                padding: '14px 4px 10px', border: `1.5px solid ${a.bg}`,
-                borderRadius: 14, background: '#fff', cursor: 'pointer',
-              }}>
-                <div style={{ width: 42, height: 42, borderRadius: 12, background: a.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22 }}>
-                  {a.icon}
+        <div style={{ background: '#fff', borderRadius: 20, padding: '16px 14px 14px', boxShadow: '0 1px 6px rgba(0,0,0,0.06)' }}>
+          {/* Header */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+            <span style={{ fontSize: 15, fontWeight: 800, color: '#0F172A' }}>Acciones rápidas</span>
+            <button onClick={() => navigate('/app/config')}
+              style={{ display: 'flex', alignItems: 'center', gap: 5, border: '1.5px solid #EDE9FE', borderRadius: 99, padding: '5px 12px', background: '#F5F3FF', cursor: 'pointer', color: '#7C3AED', fontSize: 12, fontWeight: 700 }}>
+              <span style={{ fontSize: 14 }}>⚙</span> Personalizar
+            </button>
+          </div>
+
+          {/* Grid 4×2 */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 8 }}>
+            {([
+              {
+                img: '/icons/habalr con ia.png',
+                label: 'Hablar con IA',
+                desc: 'Asistente inteligente para ayudarte',
+                bg: '#F5F3FF',
+                action: () => navigate('/app/ia/crear'),
+              },
+              {
+                img: '/icons/nueva cotizacion.png',
+                label: 'Nueva cotización',
+                desc: 'Crea y envía cotizaciones',
+                bg: '#EFF6FF',
+                action: () => openQuoteFlow({ cfg: defaultQConfig(company) }),
+              },
+              {
+                img: '/icons/nuevo pedido.png',
+                label: 'Nuevo pedido',
+                desc: 'Crea un pedido rápido',
+                bg: '#FFF7ED',
+                action: () => navigate('/app/pedidos/nuevo'),
+              },
+              {
+                img: '/icons/desde foto.png',
+                label: 'Desde foto',
+                desc: 'Extrae datos de una imagen',
+                bg: '#F0FFF4',
+                action: () => navigate('/app/ia/crear?mode=photo'),
+              },
+              {
+                img: '/icons/clientes (2).png',
+                label: 'Nuevo cliente',
+                desc: 'Agrega un nuevo cliente',
+                bg: '#FEFCE8',
+                action: () => navigate('/app/clientes'),
+              },
+              {
+                img: '/icons/seguimiento  (2).png',
+                label: 'Seguimiento',
+                desc: 'Da seguimiento a tus cotizaciones',
+                bg: '#FFF1F2',
+                action: () => navigate('/app/cotizaciones?estado=Enviada'),
+              },
+              {
+                img: '/icons/reportes (2).png',
+                label: 'Reportes',
+                desc: 'Consulta tus métricas y reportes',
+                bg: '#F0F9FF',
+                action: () => navigate('/app/reportes'),
+              },
+              {
+                img: '/icons/productos.png',
+                label: 'Productos',
+                desc: 'Explora y gestiona tu catálogo',
+                bg: '#FFF7ED',
+                action: () => navigate('/app/catalogo'),
+              },
+            ] as const).map(a => (
+              <button key={a.label} onClick={a.action}
+                style={{
+                  display: 'flex', flexDirection: 'column', alignItems: 'center',
+                  padding: '8px 4px 8px', gap: 0,
+                  border: '1.5px solid #F1F5F9', borderRadius: 14,
+                  background: '#FAFAFA', cursor: 'pointer', textAlign: 'center',
+                }}>
+                {/* Ícono PNG */}
+                <div style={{
+                  width: 46, height: 46, borderRadius: 12,
+                  background: a.bg,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  marginBottom: 6, overflow: 'hidden',
+                }}>
+                  <img
+                    src={a.img}
+                    alt={a.label}
+                    style={{ width: 32, height: 32, objectFit: 'contain' }}
+                    onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
+                  />
                 </div>
-                <span style={{ fontSize: 10, fontWeight: 600, color: '#374151', textAlign: 'center', lineHeight: 1.3 }}>{a.label}</span>
+                <span style={{ fontSize: 10, fontWeight: 700, color: '#0F172A', lineHeight: 1.3 }}>
+                  {a.label}
+                </span>
               </button>
             ))}
           </div>

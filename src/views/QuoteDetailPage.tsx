@@ -27,7 +27,7 @@ const STATUS_ACTIONS: { status: QuoteStatus; label: string; color: string; bg: s
 export function QuoteDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { workspace } = useWorkspace();
+  const { workspace, company } = useWorkspace();
   const { openDocument } = useUI();
   const { showToast } = useToast();
   const qc = useQueryClient();
@@ -69,11 +69,16 @@ export function QuoteDetailPage() {
 
   async function getPublicUrl() {
     const token = await getOrCreateQuoteToken(id!);
-    // B2-C: auto-cambiar a 'Enviada' al generar/compartir el link
+    // Cambiar a 'Enviada' al compartir — se espera para que la UI refleje el cambio
     if (q && q.status === 'Borrador') {
-      updateQuoteStatus(id!, 'Enviada')
-        .then(() => { qc.invalidateQueries({ queryKey: ['quote', id] }); qc.invalidateQueries({ queryKey: ['quotes'] }); })
-        .catch(() => {});
+      try {
+        await updateQuoteStatus(id!, 'Enviada');
+        qc.invalidateQueries({ queryKey: ['quote', id] });
+        qc.invalidateQueries({ queryKey: ['quotes'] });
+      } catch (err) {
+        console.error('No se pudo actualizar estado:', err);
+        // No bloquear el share aunque falle el status update
+      }
     }
     return `${window.location.origin}/p/${token}`;
   }
@@ -85,7 +90,7 @@ export function QuoteDetailPage() {
       openWhatsAppShare({
         clientName: client?.name ?? '',
         projectName: q?.title ?? '',
-        companyName: '',
+        companyName: company?.name ?? '',
         publicUrl: url,
         total: total,
         phone: client?.phone ?? undefined,
@@ -99,12 +104,13 @@ export function QuoteDetailPage() {
     try {
       const url = await getPublicUrl();
       await shareByEmail({
-        clientName: client?.name ?? '',
+        clientName:  client?.name ?? '',
         projectName: q?.title ?? '',
-        companyName: '',
-        publicUrl: url,
-        total: total,
+        companyName: company?.name ?? '',
+        publicUrl:   url,
+        total:       total,
         clientEmail: client?.email ?? undefined,
+        planCode:    workspace.plan_code ?? 'free',
       });
     } catch (err: unknown) {
       if ((err as Error)?.name !== 'AbortError') showToast('Error al abrir correo');

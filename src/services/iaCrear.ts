@@ -27,6 +27,8 @@ export interface CatalogContextItem {
   name: string;
   description: string | null;
   unit?: string | null;
+  price?: number;
+  type?: string;
 }
 
 export interface ClientContextItem {
@@ -64,8 +66,10 @@ export interface IAInterpretResult {
 
 export async function fetchCatalogContext(): Promise<CatalogContextItem[]> {
   const { data } = await (supabase as any)
-    .from('catalog_services')
-    .select('id, name, description')
+    .from('catalog_items')
+    .select('id, name, description, unit, price, type')
+    .eq('status', 'active')
+    .is('deleted_at', null)
     .limit(80)
     .order('name');
   return (data ?? []) as CatalogContextItem[];
@@ -81,6 +85,37 @@ export async function fetchClientsContext(): Promise<ClientContextItem[]> {
   return (data as unknown as ClientContextItem[]) ?? [];
 }
 
+// ─── Normalización para fuzzy matching ───────────────────────────────────────
+
+function normalize(s: string): string {
+  return s.toLowerCase()
+    .normalize('NFD').replace(/[̀-ͯ]/g, '') // quitar tildes
+    .replace(/[^a-z0-9\s]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function fuzzyMatch(needle: string, haystack: string): boolean {
+  const n = normalize(needle);
+  const h = normalize(haystack);
+  return h.includes(n) || n.includes(h) || n.split(' ').every(w => h.includes(w));
+}
+
+// ─── Extracción robusta de JSON de la respuesta de Gemini ────────────────────
+
+function extractJSON(text: string): string | null {
+  // 1. Bloque markdown ```json ... ```
+  const mdMatch = text.match(/```(?:json)?\s*([\s\S]*?)```/);
+  if (mdMatch) return mdMatch[1].trim();
+
+  // 2. Primer objeto JSON completo en el texto
+  const start = text.indexOf('{');
+  const end   = text.lastIndexOf('}');
+  if (start !== -1 && end > start) return text.slice(start, end + 1);
+
+  return null;
+}
+
 // ─── Construir prompt ─────────────────────────────────────────────────────────
 
 function buildPrompt(
@@ -90,66 +125,38 @@ function buildPrompt(
   workspaceConfig: { taxRate?: number; advancePct?: number }
 ): string {
   const catalogText = catalog.length > 0
-    ? catalog.map(c => `- ID:${c.id} | ${c.name}${c.description ? ` (${c.description})` : ''}`).join('\n')
-    : '(Catálogo vacío — el usuario deberá agregar productos manualmente)';
+    ? catalog.map(c => `  {"id":"${c.id}","name":"${c.name}"${c.description ? `,"desc":"${c.description}"` : ''}}`).join(',\n')
+    : '  (catálogo vacío)';
 
   const clientsText = clients.length > 0
-    ? clients.map(c => `- ID:${c.id} | ${c.name}${c.phone ? ` | Tel: ${c.phone}` : ''}`).join('\n')
-    : '(Sin clientes registrados)';
+    ? clients.map(c => `  {"id":"${c.id}","name":"${c.name}"${c.phone ? `,"phone":"${c.phone}"` : ''}}`).join(',\n')
+    : '  (sin clientes)';
 
-  return `Eres el Agente IA Operativo de Shelwi, una plataforma para contratistas colombianos.
+  return `Eres el agente IA de Shelwi. Interpreta la solicitud y responde SOLO con JSON puro, sin bloques markdown, sin texto extra.
 
-Tu tarea: interpretar la solicitud del usuario y extraer información estructurada para crear una COTIZACIÓN o PEDIDO.
-
-═══ CATÁLOGO DISPONIBLE (ÚNICAMENTE usar estos productos) ═══
+CATÁLOGO (úsalo para service_lines):
+[
 ${catalogText}
+]
 
-═══ CLIENTES REGISTRADOS (ÚNICAMENTE usar estos clientes) ═══
+CLIENTES (úsalo para client_id):
+[
 ${clientsText}
+]
 
-═══ CONFIGURACIÓN DEL WORKSPACE ═══
-- IVA: ${workspaceConfig.taxRate ?? 19}%
-- Anticipo por defecto: ${workspaceConfig.advancePct ?? 30}%
+CONFIG: IVA ${workspaceConfig.taxRate ?? 19}%, anticipo por defecto ${workspaceConfig.advancePct ?? 30}%
 
-═══ SOLICITUD DEL USUARIO ═══
-"${userText}"
+SOLICITUD: "${userText}"
 
-═══ REGLAS ABSOLUTAS ═══
-1. NUNCA inventar productos que no estén en el catálogo
-2. NUNCA inventar precios ni referencias
-3. NUNCA inventar clientes que no estén en la lista
-4. Si un producto no existe en el catálogo: service_id = null, found_in_catalog = false
-5. Si un cliente no existe: client_id = null, client_found = false
-6. Detectar automáticamente si es COTIZACIÓN o PEDIDO:
-   - Cotización: "cotiza", "propuesta", "presupuesto", "precio", "cuánto cuesta"
-   - Pedido: "pedido", "mantenimiento", "revisión", "instalación", "enviar técnico", "visita", "servicio"
-   - Si es ambiguo: type = "ambiguo"
-7. Extraer: anticipo (%), transporte (COP), fechas, observaciones
-8. Todo lo que no puedas clasificar va en "notes"
+REGLAS:
+- Busca coincidencias por nombre aunque haya diferencias de tildes o mayúsculas ("pedro fernandez" = "Pedro Fernández")
+- type: "cotizacion" si dice cotiza/propuesta/presupuesto/precio; "pedido" si dice pedido/mantenimiento/instalación/servicio; "ambiguo" si no está claro
+- service_id: UUID exacto del catálogo si hay coincidencia, null si no existe
+- client_id: UUID exacto del cliente si hay coincidencia, null si no existe
+- NUNCA inventes productos o clientes que no estén en las listas
 
-Responde ÚNICAMENTE con JSON válido (sin texto extra):
-{
-  "type": "cotizacion" | "pedido" | "ambiguo",
-  "client_id": "uuid exacto de la lista o null",
-  "client_name": "nombre mencionado por el usuario",
-  "client_found": true | false,
-  "title": "título corto y descriptivo del trabajo (máx 60 chars)",
-  "service_lines": [
-    {
-      "service_id": "uuid exacto del catálogo o null",
-      "service_name": "nombre del servicio/producto mencionado",
-      "quantity": 1,
-      "unit": "unidad (und, m², m, hr, etc.) o null",
-      "found_in_catalog": true | false
-    }
-  ],
-  "advance_pct": número (0-100) o null,
-  "transport_cost": número en COP o null,
-  "notes": "notas y observaciones no clasificadas",
-  "scheduled_date": "YYYY-MM-DD o null",
-  "confidence": "alta" | "media" | "baja",
-  "warnings": ["advertencia si falta info importante"]
-}`;
+Responde exactamente con este JSON (reemplaza los valores):
+{"type":"cotizacion","client_id":null,"client_name":"","client_found":false,"title":"","service_lines":[{"service_id":null,"service_name":"","quantity":1,"unit":null,"found_in_catalog":false}],"advance_pct":null,"transport_cost":null,"notes":"","scheduled_date":null,"confidence":"alta","warnings":[]}`;
 }
 
 // ─── Función principal de interpretación ─────────────────────────────────────
@@ -167,18 +174,17 @@ export async function interpretCreationRequest(
   const aiResponse = await callAistudio({
     prompt,
     operation:   'ia_voice_interpret',
-    max_tokens:  800,
-    temperature: 0.1,   // baja temperatura = respuestas más deterministas
+    max_tokens:  1500,
+    temperature: 0.1,
   });
 
-  // Parsear JSON de la respuesta
+  // ── Extraer y parsear JSON ────────────────────────────────────────────────
   let result: IAInterpretResult;
   try {
-    const jsonMatch = aiResponse.text.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) throw new Error('No se encontró JSON en la respuesta');
-    result = JSON.parse(jsonMatch[0]) as IAInterpretResult;
+    const raw = extractJSON(aiResponse.text);
+    if (!raw) throw new Error('Sin JSON en respuesta');
+    result = JSON.parse(raw) as IAInterpretResult;
   } catch {
-    // Si falla el parse, devolver resultado mínimo
     result = {
       type:           'ambiguo',
       client_id:      null,
@@ -194,6 +200,27 @@ export async function interpretCreationRequest(
       warnings:       ['No se pudo interpretar completamente la solicitud'],
     };
   }
+
+  // ── Fuzzy matching post-AI ────────────────────────────────────────────────
+  // Corrige casos donde la IA no encontró coincidencia por tildes/mayúsculas
+
+  if (!result.client_found && result.client_name) {
+    const match = clients.find(c => fuzzyMatch(result.client_name, c.name));
+    if (match) {
+      result.client_id    = match.id;
+      result.client_name  = match.name;
+      result.client_found = true;
+    }
+  }
+
+  result.service_lines = result.service_lines.map(line => {
+    if (line.found_in_catalog) return line;
+    const match = catalog.find(c => fuzzyMatch(line.service_name, c.name));
+    if (match) {
+      return { ...line, service_id: match.id, service_name: match.name, found_in_catalog: true };
+    }
+    return line;
+  });
 
   return { result, aiResponse };
 }

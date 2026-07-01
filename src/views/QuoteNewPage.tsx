@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { ArrowLeft, ChevronDown, ChevronUp } from 'lucide-react';
 import { useWorkspace } from '../features/auth/WorkspaceProvider';
 import { useAuth } from '../features/auth/AuthProvider';
@@ -23,19 +23,32 @@ const STEP_LABELS = ['Cliente y proyecto', 'Ítems', 'Costos y totales', 'Vista 
 
 export function QuoteNewPage() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { workspace, company } = useWorkspace();
   const { user } = useAuth();
   const { showToast } = useToast();
 
-  const [currentStep, setCurrentStep] = useState(1);
+  // Datos pre-cargados desde el flujo IA (navigate state)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const iaPreload = (location.state as any)?.iaPreload ?? null;
+
+  const [currentStep, setCurrentStep] = useState(iaPreload ? 2 : 1);
   const [isSaving, setIsSaving]       = useState(false);
   const [showDraftPrompt, setShowDraftPrompt] = useState(false);
 
-  const [clientData, setClientData]   = useState<StepClientData>(EMPTY_CLIENT_DATA);
-  const [items, setItems]             = useState<QuoteItem[]>([]);
+  const [clientData, setClientData]   = useState<StepClientData>(
+    iaPreload
+      ? { ...EMPTY_CLIENT_DATA, clientId: iaPreload.clientId, clientName: iaPreload.clientName, projectName: iaPreload.projectName, description: iaPreload.notes }
+      : EMPTY_CLIENT_DATA,
+  );
+  const [items, setItems]             = useState<QuoteItem[]>(iaPreload?.items ?? []);
   const [laborItems, setLaborItems]   = useState<LaborItem[]>([]);
-  const [costConfig, setCostConfig]   = useState<CostConfig>(DEFAULT_COST_CONFIG);
-  const [quoteName, setQuoteName]     = useState('');
+  const [costConfig, setCostConfig]   = useState<CostConfig>(
+    iaPreload?.advancePct != null
+      ? { ...DEFAULT_COST_CONFIG, advance_pct: iaPreload.advancePct }
+      : DEFAULT_COST_CONFIG,
+  );
+  const [quoteName, setQuoteName]     = useState(iaPreload?.projectName ?? '');
 
   const stepRefs = useRef<(HTMLDivElement | null)[]>([null, null, null, null]);
 
@@ -45,10 +58,10 @@ export function QuoteNewPage() {
     setQuoteName(prev => (!prev || prev === buildQuoteTitle(items)) ? derived : prev);
   }, [items, clientData.projectName]);
 
-  // Detectar borrador al iniciar
+  // Detectar borrador al iniciar — no mostrar si venimos del flujo IA
   useEffect(() => {
-    if (hasDraft(workspace.id)) setShowDraftPrompt(true);
-  }, [workspace.id]);
+    if (!iaPreload && hasDraft(workspace.id)) setShowDraftPrompt(true);
+  }, [workspace.id]); // eslint-disable-line
 
   // Autosave con debounce — solo si hay contenido
   const hasContent = items.length > 0 || laborItems.length > 0 || clientData.clientName.trim().length > 0;

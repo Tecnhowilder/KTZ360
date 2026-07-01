@@ -13,12 +13,13 @@ import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Mic, MicOff, AlertTriangle, CheckCircle2, Package, Users, Loader2 } from 'lucide-react';
 import { useUI, defaultQConfig } from '../features/app/UIProvider';
 import { useWorkspace } from '../features/auth/WorkspaceProvider';
-import { useAICredits } from '../hooks/useAICredits';
+import { useAICredits, useInvalidateAICredits } from '../hooks/useAICredits';
 import { isAICreditsExhausted, isAIPlanNotIncluded } from '../services/aiStudio';
 import {
   fetchCatalogContext, fetchClientsContext, interpretCreationRequest, createDirectOrder,
   type IAInterpretResult, type CatalogContextItem, type ClientContextItem,
 } from '../services/iaCrear';
+import { computeItemSubtotal, type QuoteItem } from '../lib/itemEngine';
 import { formatCurrencyCOP } from '../lib/currency';
 
 // ─── Tipos de fase ────────────────────────────────────────────────────────────
@@ -47,7 +48,8 @@ export function IACrearPage() {
   const navigate    = useNavigate();
   const { openQuoteFlow } = useUI();
   const { company } = useWorkspace();
-  const creditsQ    = useAICredits();
+  const creditsQ       = useAICredits();
+  const invalidateAI   = useInvalidateAICredits();
 
   const [phase,     setPhase]     = useState<Phase>('idle');
   const [userText,  setUserText]  = useState('');
@@ -61,7 +63,10 @@ export function IACrearPage() {
   const [exampleIdx, setExampleIdx] = useState(0);
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const recognitionRef = useRef<any>(null);
+  const recognitionRef   = useRef<any>(null);
+  const latestTranscript = useRef('');
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const runInterpretRef  = useRef<(text: string) => Promise<void>>(async () => {});
 
   // ── Verificar soporte de voz y cargar contexto ────────────────────────────
   useEffect(() => {
@@ -98,11 +103,13 @@ export function IACrearPage() {
     recognition.onresult = (e: SpeechRecognitionEvent) => {
       const t = Array.from(e.results).map(r => r[0].transcript).join(' ');
       setTranscript(t);
+      latestTranscript.current = t; // guardar en ref para que onend lo lea sin closure stale
     };
     recognition.onend = () => {
-      if (transcript.trim()) {
-        setUserText(transcript);
-        runInterpretation(transcript);
+      const finalText = latestTranscript.current;
+      if (finalText.trim()) {
+        setUserText(finalText);
+        runInterpretRef.current(finalText); // usar ref siempre actualizada
       } else {
         setPhase('idle');
       }
@@ -110,9 +117,10 @@ export function IACrearPage() {
     recognition.onerror = () => setPhase('idle');
 
     recognitionRef.current = recognition;
+    latestTranscript.current = '';
     setTranscript('');
     recognition.start();
-  }, [transcript]); // eslint-disable-line
+  }, []); // sin deps — usa refs para valores dinámicos
 
   const stopListening = useCallback(() => {
     recognitionRef.current?.stop();
@@ -149,6 +157,7 @@ export function IACrearPage() {
       );
       setResult(interpreted);
       setPhase('preview');
+      invalidateAI(); // refrescar contador de créditos en la UI
     } catch (err: unknown) {
       if (isAICreditsExhausted(err)) {
         setErrorMsg('No tienes créditos IA disponibles.\n\nPuedes continuar creando esta cotización manualmente.');
@@ -161,32 +170,47 @@ export function IACrearPage() {
     }
   }, [catalog, clients, company, creditsQ.data]); // eslint-disable-line
 
-  // ── Confirmar → abrir flujo existente ────────────────────────────────────
+  // Mantener runInterpretRef siempre apuntando a la versión más reciente
+  useEffect(() => { runInterpretRef.current = runInterpretation; }, [runInterpretation]);
+
+  // ── Confirmar → abrir flujo de cotización con datos pre-cargados ─────────
   async function handleConfirm() {
     if (!result) return;
     setLoading(true);
 
     if (result.type === 'cotizacion' || result.type === 'ambiguo') {
-      // Reutilizar openQuoteFlow() con datos pre-cargados
-      openQuoteFlow({
-        cfg: {
-          ...defaultQConfig(company),
-          clientId:         result.client_id    ?? undefined,
-          proj:             result.title,
-          transportCost:    result.transport_cost ?? 0,
-          transportEnabled: (result.transport_cost ?? 0) > 0,
-          advancePct:       result.advance_pct   ?? company?.advance_pct ?? 30,
-          serviceLines:     [],  // El usuario confirma los items en el paso de catálogo
+      // Construir QuoteItems desde los service_lines de la IA
+      const preloadItems: QuoteItem[] = result.service_lines.map((line, idx) => {
+        const catalogItem = catalog.find(c => c.id === line.service_id);
+        const unitPrice   = catalogItem?.price ?? 0;
+        const qty         = line.quantity ?? 1;
+        return {
+          type:            (catalogItem?.type ?? 'PRODUCT') as QuoteItem['type'],
+          item_name:       catalogItem?.name ?? line.service_name,
+          description:     catalogItem?.description ?? undefined,
+          quantity:        qty,
+          unit:            line.unit ?? catalogItem?.unit ?? 'und',
+          unit_price:      unitPrice,
+          discount:        0,
+          subtotal:        computeItemSubtotal({ quantity: qty, unit_price: unitPrice, discount: 0 }),
+          catalog_item_id: line.service_id ?? null,
+          sort_order:      idx,
+        };
+      });
+
+      // Navegar a la página de cotización con datos pre-cargados via Router state
+      navigate('/app/cotizaciones/nueva', {
+        state: {
+          iaPreload: {
+            clientId:    result.client_id,
+            clientName:  result.client_name,
+            projectName: result.title,
+            notes:       result.notes || '',
+            items:       preloadItems,
+            advancePct:  result.advance_pct ?? company?.advance_pct ?? 30,
+          },
         },
       });
-      // Guardar contexto de items en sessionStorage para el flujo
-      if (result.service_lines.length > 0) {
-        sessionStorage.setItem('ia_crear_hints', JSON.stringify({
-          items:  result.service_lines,
-          notes:  result.notes,
-          source: 'ia_crear',
-        }));
-      }
       setLoading(false);
       setResult(null);
       setUserText('');

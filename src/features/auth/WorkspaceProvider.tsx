@@ -90,37 +90,14 @@ type WorkspaceContextState =
 
 const WorkspaceContext = createContext<WorkspaceContextState | undefined>(undefined);
 
-// ─── WorkspaceProvider ────────────────────────────────────────────────────────
+// ─── Session registration (Sprint 24 D1) ─────────────────────────────────────
+// Registra el dispositivo actual como sesión activa la primera vez que un
+// perfil activo se resuelve. Complementa useSessionGuard (heartbeat de 30s).
+// Separado de WorkspaceProvider para mantener su función en responsabilidad única.
 
-export function WorkspaceProvider({ children }: { children: ReactNode }) {
-  const { user } = useAuth();
-
-  // Timeout de seguridad: nunca dejar spinner más de 15 segundos.
-  const [timedOut, setTimedOut] = useState(false);
-  useEffect(() => {
-    const t = setTimeout(() => setTimedOut(true), 15_000);
-    return () => clearTimeout(t);
-  }, []);
-
-  // getProfile usa maybeSingle(): data === null es un resultado válido,
-  // NO una excepción. profileQuery.isError solo es true ante un fallo real.
-  const profileQuery = useQuery({
-    queryKey:  ['profile', user?.id],
-    queryFn:   () => getProfile(user!.id),
-    enabled:   !!user,
-    retry:     2,
-    staleTime: 60_000,
-  });
-
-  const profile       = profileQuery.data ?? null;
-  const workspaceId   = profile?.workspace_id;
-  // Zero Trust: solo perfiles activos cuentan como sesión válida. Un perfil
-  // invited/inactive/removed puede LEER su propia fila (profiles_select_own)
-  // pero nunca debe registrar una sesión activa ni disparar lecturas del workspace.
-  const profileActive = profile?.status === 'active';
+function useSessionRegistration(workspaceId: string | undefined, profileActive: boolean) {
   const sessionRegistered = useRef(false);
 
-  // Sprint 24 D1: registrar sesión activa solo para perfiles activos.
   useEffect(() => {
     if (!workspaceId || !profileActive || sessionRegistered.current) return;
     sessionRegistered.current = true;
@@ -149,9 +126,34 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       p_user_agent:   ua.slice(0, 500),
     } as never).then(() => {});
   }, [workspaceId, profileActive]);
+}
 
-  // workspace/company solo se consultan si el perfil existe Y está activo —
-  // un perfil 'forbidden' nunca debe disparar lecturas adicionales del workspace.
+// ─── Data fetching (4 queries en cascada) ────────────────────────────────────
+// Encapsula los 4 useQuery y los derivados inmediatos de sus resultados.
+// Responsabilidad única: obtener los datos del tenant — sin side effects,
+// sin lógica de estado de pantalla, sin contexto React.
+//
+// Diseño de las claves y opciones:
+//   queryKey:  idénticas a la versión original (caché compartida)
+//   enabled:   idénticas — workspace/company/plan bloqueados hasta profileActive
+//   staleTime: idénticos (60s perfil/workspace/company, 5 min plan)
+
+function useWorkspaceQueries(userId: string | undefined) {
+  // getProfile usa maybeSingle(): data === null es resultado válido, no excepción.
+  const profileQuery = useQuery({
+    queryKey:  ['profile', userId],
+    queryFn:   () => getProfile(userId!),
+    enabled:   !!userId,
+    retry:     2,
+    staleTime: 60_000,
+  });
+
+  const profile      = profileQuery.data ?? null;
+  const workspaceId  = profile?.workspace_id;
+  // Zero Trust: solo perfiles activos acceden al workspace.
+  const profileActive = profile?.status === 'active';
+
+  // workspace/company/plan solo se consultan si el perfil existe Y está activo.
   const workspaceQuery = useQuery({
     queryKey:  ['workspace', workspaceId],
     queryFn:   () => getWorkspace(workspaceId!),
@@ -180,83 +182,120 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     profileQuery.isLoading ||
     (profileActive && (workspaceQuery.isLoading || companyQuery.isLoading || planQuery.isLoading));
 
-  // Excepciones reales (red, permisos que lanzan, errores inesperados).
-  // Nunca incluye "0 filas" — eso ahora resuelve a null, no a throw.
+  // Excepciones reales (red, RLS que lanza). Nunca incluye "0 filas" → eso es null.
   const isError =
-    profileQuery.isError ||
+    profileQuery.isError  ||
     workspaceQuery.isError ||
-    companyQuery.isError ||
+    companyQuery.isError  ||
     planQuery.isError;
 
   const firstError =
-    profileQuery.error ||
+    profileQuery.error  ||
     workspaceQuery.error ||
-    companyQuery.error ||
+    companyQuery.error  ||
     planQuery.error;
 
-  const value: WorkspaceContextState = (() => {
-    // 0) Sin usuario autenticado: profileQuery queda `enabled:false` y nunca
-    //    se ejecuta, por lo que isLoading/isSuccess permanecen ambos en false
-    //    indefinidamente. Sin este guard explícito, el flujo cae en el
-    //    fallback final `{ loading: true }` — el mismo bug de spinner
-    //    infinito que esta refactorización corrige, para un caso distinto.
-    //    En producción ProtectedRoute ya redirige a /login antes de montar
-    //    este provider sin sesión, pero se cubre aquí por defensa en profundidad.
-    if (!user) {
-      return { loading: false, notFound: 'profile' };
+  return {
+    profile, workspaceId, profileActive,
+    profileQuery, workspaceQuery, companyQuery, planQuery,
+    isLoading, isError, firstError,
+  };
+}
+
+// ─── Máquina de estados del workspace ─────────────────────────────────────────
+// Función PURA: sin hooks, sin side effects, completamente testeable.
+// Recibe los resultados de los queries + estado local y retorna uno de los
+// 5 estados semánticos definidos en WorkspaceContextState.
+//
+// Separada del provider para permitir unit tests directos:
+//   computeWorkspaceState({ hasUser: false, ... }) → { loading: false, notFound: 'profile' }
+
+interface WorkspaceStateArgs {
+  hasUser:            boolean;
+  timedOut:           boolean;
+  isLoading:          boolean;
+  isError:            boolean;
+  firstError:         unknown;
+  profileIsSuccess:   boolean;
+  profile:            Profile | null;
+  profileActive:      boolean;
+  workspaceIsSuccess: boolean;
+  workspaceData:      Workspace | null | undefined;
+  companyIsSuccess:   boolean;
+  companyData:        CompanySettings | null | undefined;
+  planData:           string | null | undefined;
+}
+
+function computeWorkspaceState(a: WorkspaceStateArgs): WorkspaceContextState {
+  // 0) Sin usuario autenticado — ProtectedRoute redirige antes de montar este
+  //    provider, pero se cubre aquí como defensa en profundidad.
+  if (!a.hasUser) return { loading: false, notFound: 'profile' };
+
+  // 1) Error real (red, RLS que lanza) — no se oculta ni reintenta infinitamente.
+  if (a.isError) return { loading: false, error: (a.firstError as Error) ?? new Error('Error al cargar tu cuenta') };
+
+  // 2) Timeout de seguridad (15 s).
+  if (a.timedOut && a.isLoading) return { loading: false, error: new Error('La carga tardó demasiado. Verifica tu conexión e intenta de nuevo.') };
+
+  // 3) Aún cargando.
+  if (a.isLoading) return { loading: true };
+
+  // 4) Profile resolvió — distinguir notFound / forbidden / active.
+  if (a.profileIsSuccess) {
+    if (a.profile === null) return { loading: false, notFound: 'profile' };
+
+    // Zero Trust: solo 'active' obtiene acceso al workspace.
+    if (!a.profileActive) return { loading: false, forbidden: true, profileStatus: a.profile.status };
+
+    // Perfil activo — verificar el resto de recursos.
+    if (a.workspaceIsSuccess && a.workspaceData === null) return { loading: false, notFound: 'workspace' };
+    if (a.companyIsSuccess   && a.companyData   === null) return { loading: false, notFound: 'company'   };
+
+    if (a.workspaceData && a.companyData && a.planData) {
+      return { profile: a.profile, workspace: a.workspaceData, company: a.companyData, planName: a.planData, loading: false };
     }
+  }
 
-    // 1) Error real — no se oculta, no se reintenta infinitamente
-    if (isError) {
-      return { loading: false, error: (firstError as Error) ?? new Error('Error al cargar tu cuenta') };
-    }
+  // Fallback — dependencias en cascada aún resolviendo.
+  return { loading: true };
+}
 
-    // 2) Timeout de seguridad
-    if (timedOut && isLoading) {
-      return { loading: false, error: new Error('La carga tardó demasiado. Verifica tu conexión e intenta de nuevo.') };
-    }
+// ─── WorkspaceProvider ────────────────────────────────────────────────────────
 
-    // 3) Aún cargando
-    if (isLoading) {
-      return { loading: true };
-    }
+export function WorkspaceProvider({ children }: { children: ReactNode }) {
+  const { user } = useAuth();
 
-    // 4) profileQuery resolvió — distinguir ausencia (notFound) de
-    //    presencia con status no activo (forbidden) de presencia activa.
-    if (profileQuery.isSuccess) {
-      if (profile === null) {
-        // La query funcionó pero no hay fila — estado esperado, no excepción.
-        return { loading: false, notFound: 'profile' };
-      }
+  // Timeout de seguridad: nunca dejar spinner más de 15 segundos.
+  const [timedOut, setTimedOut] = useState(false);
+  useEffect(() => {
+    const t = setTimeout(() => setTimedOut(true), 15_000);
+    return () => clearTimeout(t);
+  }, []);
 
-      if (!profileActive) {
-        // Zero Trust: profiles_select_own permite leer la fila propia sin
-        // importar el status, pero solo 'active' obtiene acceso a la app.
-        return { loading: false, forbidden: true, profileStatus: profile.status };
-      }
+  const {
+    profile, workspaceId, profileActive,
+    profileQuery, workspaceQuery, companyQuery, planQuery,
+    isLoading, isError, firstError,
+  } = useWorkspaceQueries(user?.id);
 
-      // Perfil activo — verificar el resto de recursos
-      if (workspaceQuery.isSuccess && workspaceQuery.data === null) {
-        return { loading: false, notFound: 'workspace' };
-      }
-      if (companyQuery.isSuccess && companyQuery.data === null) {
-        return { loading: false, notFound: 'company' };
-      }
+  // Sprint 24 D1: registrar dispositivo como sesión activa (ver useSessionRegistration).
+  useSessionRegistration(workspaceId, profileActive);
 
-      if (workspaceQuery.data && companyQuery.data && planQuery.data) {
-        return {
-          profile,
-          workspace: workspaceQuery.data,
-          company:   companyQuery.data,
-          planName:  planQuery.data,
-          loading:   false,
-        };
-      }
-    }
-
-    // Fallback — aún resolviendo dependencias en cadena
-    return { loading: true };
-  })();
+  const value = computeWorkspaceState({
+    hasUser:            !!user,
+    timedOut,
+    isLoading,
+    isError,
+    firstError,
+    profileIsSuccess:   profileQuery.isSuccess,
+    profile,
+    profileActive,
+    workspaceIsSuccess: workspaceQuery.isSuccess,
+    workspaceData:      workspaceQuery.data,
+    companyIsSuccess:   companyQuery.isSuccess,
+    companyData:        companyQuery.data,
+    planData:           planQuery.data,
+  });
 
   return <WorkspaceContext.Provider value={value}>{children}</WorkspaceContext.Provider>;
 }

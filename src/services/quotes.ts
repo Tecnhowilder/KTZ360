@@ -269,9 +269,21 @@ export async function updateQuote(id: string, input: QuoteInput): Promise<Quote>
 }
 
 export async function updateQuoteStatus(id: string, status: QuoteStatus): Promise<Quote> {
-  const patch: Partial<Quote> = { status };
-  if (status === 'Enviada') patch.sent_at = new Date().toISOString();
-  const { data, error } = await supabase.from('quotes').update(patch).eq('id', id).select('*').single();
+  // Usar RPC SECURITY DEFINER que valida transiciones y registra audit log
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: rpc, error: rpcErr } = await (supabase as any).rpc('update_quote_status', {
+    p_quote_id: id,
+    p_status:   status,
+  });
+  if (rpcErr) throw rpcErr;
+  if (rpc && !rpc.ok) throw new Error(rpc.error ?? `No se pudo cambiar estado a ${status}`);
+
+  // Si el estado es Enviada, actualizar sent_at (el RPC no lo hace)
+  if (status === 'Enviada') {
+    await supabase.from('quotes').update({ sent_at: new Date().toISOString() }).eq('id', id);
+  }
+
+  const { data, error } = await supabase.from('quotes').select('*').eq('id', id).single();
   if (error) throw error;
   return data;
 }

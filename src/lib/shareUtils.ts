@@ -22,6 +22,7 @@ export interface ShareParams {
   phone?: string;
   clientEmail?: string;
   quoteNumber?: string;
+  planCode?: string;
 }
 
 /**
@@ -50,9 +51,13 @@ export async function openWhatsAppShare(params: ShareParams): Promise<void> {
 
 // ─── Email: corporativo, sin emojis, completo ────────────────────────────────
 
-export function buildEmailSubject(params: Pick<ShareParams, 'projectName' | 'quoteNumber'>): string {
-  const ref = params.quoteNumber ? ` (${params.quoteNumber})` : '';
-  return `Propuesta para ${params.projectName || 'tu proyecto'}${ref}`;
+export function buildEmailSubject(
+  params: Pick<ShareParams, 'projectName' | 'quoteNumber' | 'companyName'> & { planCode?: string }
+): string {
+  const ref      = params.quoteNumber ? ` (${params.quoteNumber})` : '';
+  const isFree   = !params.planCode || params.planCode === 'free';
+  const sender   = isFree ? 'Shelwi' : (params.companyName?.trim() || 'Shelwi');
+  return `Cotización de ${sender} — ${params.projectName || 'tu proyecto'}${ref}`;
 }
 
 export function buildEmailBody(params: ShareParams): string {
@@ -82,7 +87,7 @@ export function buildEmailBody(params: ShareParams): string {
  * o mailto: fallback en desktop.
  */
 export async function shareByEmail(params: ShareParams): Promise<void> {
-  const subject = buildEmailSubject(params);
+  const subject = buildEmailSubject({ ...params, planCode: params.planCode });
   const body    = buildEmailBody(params);
 
   if (navigator.share) {

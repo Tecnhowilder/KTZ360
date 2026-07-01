@@ -17,7 +17,12 @@
  */
 import { serve } from 'https://deno.land/std@0.201.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
-import { logEdgeError } from '../_shared/errorLogger.ts';
+
+function logEdgeError(fnName: string, error: unknown): void {
+  const message = error instanceof Error ? error.message : String(error);
+  const stack   = error instanceof Error ? error.stack  : undefined;
+  console.error(JSON.stringify({ level: 'error', function: fnName, message, stack, timestamp: new Date().toISOString() }));
+}
 
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
@@ -83,8 +88,7 @@ serve(async (req) => {
     const body        = await req.json();
     const prompt      = body.prompt;
     const images      = body.images;
-    const operation   = body.operation ?? 'generate_description'; // operación para créditos
-    const model       = body.model ?? 'gemini-2.5-flash';
+    const operation   = body.operation ?? 'generate_description';
     const maxTokens   = body.max_tokens ?? 800;
     const temperature = body.temperature ?? 0.2;
 
@@ -167,7 +171,7 @@ serve(async (req) => {
       });
     }
 
-    // Gemini 2.5 Flash endpoint
+    // gemini-2.5-flash: usa extracción multi-part para manejar el thinking mode
     const modelId   = body.model ?? 'gemini-2.5-flash';
     const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${modelId}:generateContent?key=${apiKey}`;
 
@@ -192,14 +196,33 @@ serve(async (req) => {
     }
 
     const geminiStartMs = Date.now();
-    const geminiRes = await fetch(geminiUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(geminiBody),
-    });
+    let geminiRes: Response;
+    try {
+      geminiRes = await fetch(geminiUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(geminiBody),
+      });
+    } catch (fetchErr) {
+      console.error('Gemini fetch error:', String(fetchErr));
+      return new Response(JSON.stringify({
+        error: 'gemini_network_error',
+        message: 'No se pudo conectar con Gemini API.',
+      }), { status: 502, headers: CORS_HEADERS });
+    }
     const executionTimeMs = Date.now() - geminiStartMs;
 
-    const geminiData = await geminiRes.json();
+    let geminiData: unknown;
+    try {
+      geminiData = await geminiRes.json();
+    } catch {
+      const raw = await geminiRes.text().catch(() => '');
+      console.error('Gemini non-JSON response:', geminiRes.status, raw.slice(0, 200));
+      return new Response(JSON.stringify({
+        error: 'gemini_parse_error',
+        message: `Gemini devolvió una respuesta inesperada (HTTP ${geminiRes.status}).`,
+      }), { status: 502, headers: CORS_HEADERS });
+    }
 
     if (!geminiRes.ok) {
       console.error('Gemini API error:', geminiData);
@@ -229,8 +252,13 @@ serve(async (req) => {
       // No bloquear la respuesta por error de registro
     }
 
-    // Extraer texto generado
-    const text = geminiData.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
+    // Extraer texto generado — combinar partes reales (excluye partes thought de modelos con thinking)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const parts = (geminiData.candidates?.[0]?.content?.parts ?? []) as Array<any>;
+    const text = parts
+      .filter((p: any) => !p.thought && typeof p.text === 'string')
+      .map((p: any) => p.text as string)
+      .join('') || '';
 
     return new Response(JSON.stringify({
       text,
@@ -241,7 +269,8 @@ serve(async (req) => {
 
   } catch (error) {
     logEdgeError('ai-proxy', error);
-    return new Response(JSON.stringify({ error: String(error) }), {
+    const msg = error instanceof Error ? `${error.name}: ${error.message}` : String(error);
+    return new Response(JSON.stringify({ error: msg }), {
       status: 500, headers: CORS_HEADERS,
     });
   }

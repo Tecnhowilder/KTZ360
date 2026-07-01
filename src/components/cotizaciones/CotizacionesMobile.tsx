@@ -205,34 +205,33 @@ export function CotizacionesMobile() {
             <div style={{ fontSize: 13, color: '#94A3B8' }}>Elige la forma más rápida</div>
           </div>
 
-          {/* Opciones */}
-          <div style={{ padding: '0 16px' }}>
-            {CREATE_OPTIONS.map((opt, i) => (
+          {/* Opciones — grid 2×2 con iconos PNG */}
+          <div style={{ padding: '0 16px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+            {([
+              { img: '/icons/habalr con ia.png',     bg: '#F5F3FF', title: 'Hablar con IA',    desc: 'La IA crea la cotización por ti',        action: 'ia'       },
+              { img: '/icons/nueva cotizacion.png',   bg: '#EFF6FF', title: 'Nueva cotización', desc: 'Crea desde cero de forma manual',         action: 'quote'    },
+              { img: '/icons/desde foto.png',         bg: '#F0FFF4', title: 'Desde foto',       desc: 'Toma una foto y la IA la interpreta',     action: 'photo'    },
+              { img: '/icons/seguimiento  (2).png',   bg: '#FEFCE8', title: 'Desde plantilla',  desc: 'Usa una plantilla para ahorrar tiempo',   action: 'template' },
+            ] as const).map(opt => (
               <button key={opt.action} onClick={() => doCreate(opt.action)}
                 style={{
-                  width: '100%', display: 'flex', alignItems: 'center', gap: 14,
-                  padding: '14px 0',
-                  border: 'none', background: 'none', cursor: 'pointer', textAlign: 'left',
-                  borderBottom: i < CREATE_OPTIONS.length - 1 ? '1px solid #F8FAFC' : 'none',
+                  display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                  gap: 0, padding: '12px 8px 10px',
+                  border: '1.5px solid #F1F5F9', borderRadius: 16,
+                  background: '#fff', cursor: 'pointer', textAlign: 'center',
+                  boxShadow: '0 1px 4px rgba(0,0,0,0.05)',
                 }}>
-                {/* Ícono (fiel al mockup) */}
                 <div style={{
-                  width: 50, height: 50, borderRadius: 14,
-                  background: opt.iconBg,
+                  width: 52, height: 52, borderRadius: 14, background: opt.bg,
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  fontSize: 24, flexShrink: 0,
+                  marginBottom: 8, overflow: 'hidden',
                 }}>
-                  {opt.icon}
+                  <img src={opt.img} alt={opt.title} style={{ width: 36, height: 36, objectFit: 'contain' }}
+                    onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }} />
                 </div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 15, fontWeight: 700, color: '#0F172A', marginBottom: 3 }}>
-                    {opt.title}
-                  </div>
-                  <div style={{ fontSize: 12.5, color: '#94A3B8', lineHeight: 1.45 }}>
-                    {opt.desc}
-                  </div>
-                </div>
-                <ChevronRight size={18} color="#CBD5E1" style={{ flexShrink: 0 }} />
+                <span style={{ fontSize: 12.5, fontWeight: 700, color: '#0F172A', lineHeight: 1.3 }}>
+                  {opt.title}
+                </span>
               </button>
             ))}
           </div>

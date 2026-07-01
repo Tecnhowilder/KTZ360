@@ -46,8 +46,13 @@ input[type=range]::-webkit-slider-thumb {
   }
 }
 
+/* Scrollbar solo en desktop */
 ::-webkit-scrollbar { width: 10px; height: 10px; }
 ::-webkit-scrollbar-thumb { background: #CBD5E1; border-radius: 99px; border: 3px solid #F8FAFC; }
+@media (max-width: 899px) {
+  ::-webkit-scrollbar { display: none; }
+  body { scrollbar-width: none; -ms-overflow-style: none; }
+}
 
 @media print {
   .no-print { display: none !important; }
@@ -69,7 +74,9 @@ input[type=range]::-webkit-slider-thumb {
   }
 }
 
-html, body, #root { height: 100%; }
+html, body { height: 100%; }
+body { -webkit-overflow-scrolling: touch; overflow-y: auto; }
+#root { min-height: 100%; }
 
 /* Quote flow — Paso 1 "Cliente y proyecto" */
 .qf-modal { width: 100%; max-width: 680px; height: 96vh; border-radius: 26px 26px 0 0; }

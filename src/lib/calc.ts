@@ -93,7 +93,20 @@ export function deriveQuote(quote: Quote, client: Client | undefined): DerivedQu
     validDays: quote.valid_days || 15,
     termsConditions: Array.isArray(quote.terms_conditions) ? (quote.terms_conditions as unknown as string[]) : [],
   };
-  const C = computeQuote(serviceLines, cfg);
+  const rawC = computeQuote(serviceLines, cfg);
+  // Cotizaciones v2 (item-based) tienen service_lines:[] y total real en calc_snapshot.
+  // Si service_lines está vacío pero calc_snapshot tiene un total, usarlo.
+  const snap = quote.calc_snapshot as Record<string, number> | null;
+  const useSnap = serviceLines.length === 0 && snap && typeof snap.total === 'number' && snap.total > 0;
+  const C = useSnap
+    ? {
+        ...rawC,
+        total:    snap!.total    ?? 0,
+        subtotal: snap!.subtotal ?? 0,
+        ivaAmt:   snap!.tax      ?? 0,
+        discAmt:  snap!.discount ?? 0,
+      }
+    : rawC;
   const created = new Date(quote.created_at);
   const due = dueDate(created, cfg.validDays);
   const expired = TODAY() > due && (quote.status === 'Enviada' || quote.status === 'Borrador');

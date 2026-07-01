@@ -70,25 +70,37 @@ export async function callAistudio(req: AIRequest): Promise<AIResponse> {
   });
 
   if (error) {
-    throw error;
-  }
+    // Cuando la edge function retorna 4xx/5xx, el SDK pone null en data.
+    // El body real viene en error.context (FunctionsHttpError de Supabase JS v2).
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const ctx = (error as any)?.context;
+    let errBody: Record<string, unknown> | null = null;
+    try {
+      if (ctx && typeof ctx.json === 'function') errBody = await ctx.json();
+    } catch { /* ignorar errores de parse */ }
 
-  // Manejar errores de negocio retornados por ai-proxy
-  if (data?.error === 'ai_credits_exhausted') {
-    throw makeAIError('AICreditsExhaustedError',
-      `Créditos IA agotados este mes (${data.credits_used ?? 0}/${data.credits_max ?? 0}).`,
-      { credits_used: data.credits_used, credits_max: data.credits_max });
-  }
-  if (data?.error === 'ai_not_included') {
-    throw makeAIError('AIPlanNotIncludedError',
-      `La IA no está incluida en el plan ${data.plan ?? 'free'}. Actualiza a PRO o PREMIUM.`,
-      { plan: data.plan });
-  }
-  if (data?.error === 'rate_limit_exceeded') {
-    throw new Error(`Límite de llamadas IA alcanzado. Intenta en ${data.retry_after_minutes ?? 60} minutos.`);
-  }
-  if (data?.error) {
-    throw new Error(data.error);
+    const errCode = errBody?.error as string | undefined;
+
+    if (errCode === 'ai_credits_exhausted') {
+      throw makeAIError('AICreditsExhaustedError',
+        `Créditos IA agotados este mes (${errBody?.credits_used ?? 0}/${errBody?.credits_max ?? 0}).`,
+        { credits_used: errBody?.credits_used, credits_max: errBody?.credits_max });
+    }
+    if (errCode === 'ai_not_included') {
+      throw makeAIError('AIPlanNotIncludedError',
+        `La IA no está incluida en el plan ${errBody?.plan ?? 'free'}. Actualiza a PRO o PREMIUM.`,
+        { plan: errBody?.plan });
+    }
+    if (errCode === 'rate_limit_exceeded') {
+      throw new Error(`Límite de llamadas IA alcanzado. Intenta en ${errBody?.retry_after_minutes ?? 60} minutos.`);
+    }
+    if (errCode === 'GEMINI_API_KEY is not configured') {
+      throw new Error('La clave de API de Gemini no está configurada en el servidor. Contacta al administrador.');
+    }
+    if (errCode) {
+      throw new Error(errBody?.message as string ?? errCode);
+    }
+    throw error;
   }
 
   return {
