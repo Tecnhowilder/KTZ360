@@ -48,7 +48,7 @@ export function QuoteNewPage() {
       ? { ...DEFAULT_COST_CONFIG, advance_pct: iaPreload.advancePct }
       : DEFAULT_COST_CONFIG,
   );
-  const [quoteName, setQuoteName]     = useState(iaPreload?.projectName ?? '');
+  const [quoteName, setQuoteName]     = useState<string>(iaPreload?.projectName ?? '');
 
   const stepRefs = useRef<(HTMLDivElement | null)[]>([null, null, null, null]);
 

@@ -27,7 +27,7 @@ const STATUS_ACTIONS: { status: QuoteStatus; label: string; color: string; bg: s
 export function QuoteDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { workspace, company } = useWorkspace();
+  const { workspace, company, planName } = useWorkspace();
   const { openDocument } = useUI();
   const { showToast } = useToast();
   const qc = useQueryClient();
@@ -110,7 +110,7 @@ export function QuoteDetailPage() {
         publicUrl:   url,
         total:       total,
         clientEmail: client?.email ?? undefined,
-        planCode:    workspace.plan_code ?? 'free',
+        planCode:    planName?.toLowerCase() ?? 'free',
       });
     } catch (err: unknown) {
       if ((err as Error)?.name !== 'AbortError') showToast('Error al abrir correo');

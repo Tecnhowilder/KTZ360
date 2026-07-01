@@ -39,35 +39,6 @@ function fmtDate(dateStr: string): string {
   return `${d.getDate()} ${d.toLocaleString('es-CO', { month: 'short' }).replace('.', '')}`;
 }
 
-// ─── Opciones de creación (mockup imagen 2) ───────────────────────────────────
-
-const CREATE_OPTIONS = [
-  {
-    icon: '🎤', iconBg: '#F5F3FF',
-    title: 'Hablar con IA',
-    desc: 'Describe lo que necesitas y la IA creará la cotización por ti.',
-    action: 'ia',
-  },
-  {
-    icon: '📸', iconBg: '#FFF7ED',
-    title: 'Desde foto',
-    desc: 'Toma una foto de una lista o documento y la IA la interpreta.',
-    action: 'photo',
-  },
-  {
-    icon: '➕', iconBg: '#F0FDF4',
-    title: 'Nueva cotización',
-    desc: 'Crea una cotización desde cero de forma manual.',
-    action: 'quote',
-  },
-  {
-    icon: '📋', iconBg: '#EFF6FF',
-    title: 'Desde plantilla',
-    desc: 'Usa una plantilla guardada para ahorrar tiempo.',
-    action: 'template',
-  },
-] as const;
-
 // ─── Componente principal ─────────────────────────────────────────────────────
 
 export function CotizacionesMobile() {
