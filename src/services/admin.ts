@@ -2,7 +2,7 @@ import { supabase } from '../lib/supabaseClient';
 import type {
   WorkspaceRow, SubscriptionRow, PlanRow, SystemConfigurationRow, AdminSettingRow,
   ProfileRow, PlanFeaturesRow, PlanLimitsRow, AuditLogRow, Json,
-  FounderPromotionRow, AiOperationCostRow,
+  FounderPromotionRow, AiOperationCostRow, WorkspaceInvitationRow,
 } from '../lib/database.types';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -349,4 +349,25 @@ export async function getAuditLogPaged(filters: AuditLogFilters = {}): Promise<A
   if (error) throw error;
   if (!data.ok) throw new Error(data.error);
   return { rows: data.rows ?? [], total: data.total ?? 0 };
+}
+
+// Invitaciones — visibilidad y gestión cross-workspace (super_admin / support_admin)
+export interface InvitationAdminEntry extends WorkspaceInvitationRow {
+  workspace_name: string | null;
+}
+export async function listAllInvitations(): Promise<InvitationAdminEntry[]> {
+  const [invRes, wsRes] = await Promise.all([
+    supabase.from('workspace_invitations').select('*').order('created_at', { ascending: false }),
+    supabase.from('workspaces').select('id, name'),
+  ]);
+  if (invRes.error) throw invRes.error;
+  if (wsRes.error) throw wsRes.error;
+  const wsNameById = new Map((wsRes.data ?? []).map((w) => [w.id, w.name]));
+  return (invRes.data ?? []).map((inv) => ({ ...inv, workspace_name: wsNameById.get(inv.workspace_id) ?? null }));
+}
+
+export async function adminRevokeInvitation(invitationId: string, reason?: string): Promise<void> {
+  const { data, error } = await rpc('admin_revoke_invitation', { p_invitation_id: invitationId, p_reason: reason ?? null });
+  if (error) throw error;
+  if (!data.ok) throw new Error(data.error);
 }

@@ -10,6 +10,7 @@ import { MobileBottomNav } from './MobileBottomNav';
 import { ClientDetailOverlay } from '../overlays/ClientDetailOverlay';
 import { DocumentOverlay } from '../overlays/DocumentOverlay';
 import { UpgradeModal } from '../upgrade/UpgradeModal';
+import { FAB } from '../ui/FAB';
 
 export function AppShell() {
   useSessionGuard(); // Sprint 24: Session Security — detecta revocación y fuerza logout
@@ -74,6 +75,7 @@ export function AppShell() {
       <ClientDetailOverlay />
       <DocumentOverlay />
       <UpgradeModal />
+      {navBottom && <FAB />}
     </div>
   );
 }

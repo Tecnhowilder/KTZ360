@@ -77,11 +77,87 @@ serve(async (req) => {
 
     const workspaceId = profile.workspace_id;
 
-    // ── 3. Parsear y validar parámetros del checkout ──────────────────────────
+    // ── 3. Parsear cuerpo ─────────────────────────────────────────────────────
     const body        = await req.json();
+    const productType = body.productType ?? 'plan_subscription'; // 'plan_subscription' | 'additional_licenses'
+
+    // ── BRANCH A: Compra de licencias de usuario adicionales ──────────────────
+    if (productType === 'additional_licenses') {
+      const quantity  = Number(body.quantity ?? 1);
+      const unitPrice = 11900; // COP — precio oficial, ignoramos body.unitPrice por seguridad
+
+      if (!Number.isInteger(quantity) || quantity < 1 || quantity > 20) {
+        return new Response(JSON.stringify({ error: 'quantity must be integer between 1 and 20' }), {
+          status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      // Verificar que el workspace tiene plan PREMIUM o ENTERPRISE
+      const { data: planFeature } = await adminClient.rpc('check_feature_access', {
+        p_workspace_id: workspaceId,
+        p_feature:      'multiuser_enabled',
+      });
+
+      if (!planFeature) {
+        return new Response(JSON.stringify({ error: 'Plan PREMIUM requerido para comprar usuarios adicionales' }), {
+          status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      const totalAmount = quantity * unitPrice;
+
+      await adminClient.from('audit_log').insert({
+        workspace_id: workspaceId, user_id: user.id,
+        action: 'additional_licenses_checkout_initiated', entity_type: 'subscription',
+        metadata: { quantity, unit_price: unitPrice, total: totalAmount },
+      }).then(() => {}).catch(() => {});
+
+      const externalReference = JSON.stringify({
+        workspaceId,
+        userId:         user.id,
+        productType:    'additional_licenses',
+        quantity,
+        unitPrice,
+        expectedAmount: totalAmount,
+      });
+
+      const preference = {
+        items: [{
+          id:          `additional-licenses-x${quantity}`,
+          title:       `Shelwi — ${quantity} usuario${quantity > 1 ? 's' : ''} adicional${quantity > 1 ? 'es' : ''}`,
+          description: `${quantity} cupo${quantity > 1 ? 's' : ''} adicional${quantity > 1 ? 'es' : ''} de usuario para tu equipo Shelwi`,
+          quantity:    1,
+          currency_id: 'COP',
+          unit_price:  totalAmount,
+        }],
+        external_reference: externalReference,
+        back_urls: {
+          success: `${siteUrl}/app/team?payment=success`,
+          pending: `${siteUrl}/app/team?payment=pending`,
+          failure: `${siteUrl}/app/team/adicionales?payment=failed`,
+        },
+        notification_url: `${supabaseUrl}/functions/v1/mp-webhook`,
+        metadata: { workspace_id: workspaceId, product_type: 'additional_licenses', quantity },
+      };
+
+      const mpRes  = await fetch('https://api.mercadopago.com/checkout/preferences', {
+        method:  'POST',
+        headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+        body:    JSON.stringify(preference),
+      });
+      const mpData = await mpRes.json();
+      if (!mpRes.ok) throw new Error(`Mercado Pago error ${mpRes.status}: ${JSON.stringify(mpData)}`);
+
+      return new Response(
+        JSON.stringify({ preferenceId: mpData.id, initPoint: mpData.init_point, amount: totalAmount, currency: 'COP' }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+      );
+    }
+
+    // ── BRANCH B: Suscripción de plan (PRO / PREMIUM / ENTERPRISE) ────────────
     const planCode    = body.planCode;
     const billingCycle = body.billingCycle;
-    const isFounder   = body.isFounder === true; // explícito boolean
+    const isFounder   = body.isFounder === true;
 
     if (!isPlanCode(planCode)) {
       return new Response(JSON.stringify({ error: 'planCode must be "pro", "premium" or "enterprise"' }), {
@@ -110,7 +186,7 @@ serve(async (req) => {
         amount:       resolved.amount,
         currency:     resolved.currency,
       },
-    }).then(() => {}).catch(() => {}); // no bloquear por error de log
+    }).then(() => {}).catch(() => {});
 
     // ── 6. Construir external_reference (firmado por MP, seguro) ─────────────
     const externalReference = JSON.stringify({
@@ -120,7 +196,7 @@ serve(async (req) => {
       billingCycle,
       isFounder,
       founderPromoId: resolved.founderPromoId ?? null,
-      expectedAmount: resolved.amount,       // para validación en webhook
+      expectedAmount: resolved.amount,
     });
 
     // ── 7. Crear preferencia en Mercado Pago ──────────────────────────────────

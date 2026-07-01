@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, Copy, MessageCircle, MoreVertical, Download, Mail, Pencil, Package } from 'lucide-react';
+import { ArrowLeft, Copy, MessageCircle, MoreVertical, Download, Mail, Pencil, Package, CheckCircle2 } from 'lucide-react';
 import { getQuote, updateQuoteStatus } from '../services/quotes';
 import { listQuoteItems } from '../services/quoteItems';
 import { listClients } from '../services/clients';
@@ -237,7 +237,22 @@ export function QuoteDetailPage() {
           )}
         </button>
 
-        {/* Crear Pedido — solo si cotización Aprobada */}
+        {/* Cotización convertida en pedido — estado final, no se puede volver */}
+        {q.status === 'convertida' && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 16px', background: '#F0FDF4', border: '1.5px solid #BBF7D0', borderRadius: 14 }}>
+            <div style={{ width: 34, height: 34, borderRadius: 9, background: '#DCFCE7', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <CheckCircle2 size={16} color="#16A34A" />
+            </div>
+            <div>
+              <div style={{ fontSize: 14, fontWeight: 700, color: '#166534' }}>Convertida en Pedido</div>
+              <button onClick={() => navigate('/app/pedidos')} style={{ fontSize: 12, color: '#16A34A', background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontFamily: 'inherit', textDecoration: 'underline' }}>
+                Ver pedido →
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Crear Pedido — solo si cotización Aprobada (no convertida aún) */}
         {q.status === 'Aprobada' && (
           <button
             onClick={async () => {
@@ -251,7 +266,7 @@ export function QuoteDetailPage() {
                 showToast('Pedido creado ✓');
                 navigate(`/app/pedidos/${orderId}`);
               } catch (e: any) {
-                showToast(e.message?.includes('Ya existe') ? 'Ya existe un pedido activo para esta cotización' : e.message);
+                showToast(e.message?.includes('Ya existe') ? 'Ya existe un pedido para esta cotización' : e.message);
               } finally { setCreatingOrder(false); }
             }}
             disabled={creatingOrder}
@@ -278,7 +293,8 @@ export function QuoteDetailPage() {
           </button>
         )}
 
-        {/* Cambiar estado */}
+        {/* Cambiar estado — oculto si la cotización ya fue convertida en pedido */}
+        {q.status !== 'convertida' && (
         <div style={{ background: '#fff', border: '1px solid #E2E8F0', borderRadius: 16, overflow: 'hidden', position: 'relative' }}>
           <button onClick={() => setStatusMenuOpen(v => !v)} style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 16px', border: 'none', background: 'none', cursor: 'pointer', fontFamily: 'inherit' }}>
             <span style={{ fontSize: 14, fontWeight: 700, color: '#0F172A' }}>Cambiar estado</span>
@@ -294,6 +310,7 @@ export function QuoteDetailPage() {
             </div>
           )}
         </div>
+        )}
       </div>
     </div>
   );

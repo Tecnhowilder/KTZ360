@@ -8,16 +8,18 @@ import type { DerivedQuote } from '../lib/types';
 export function useClients() {
   const { workspace } = useWorkspace();
   return useQuery({
-    queryKey: ['clients', workspace.id],
-    queryFn: () => listClients(workspace.id),
+    queryKey:  ['clients', workspace.id],
+    queryFn:   () => listClients(workspace.id),
+    staleTime: 30_000,
   });
 }
 
 export function useQuotesRaw() {
   const { workspace } = useWorkspace();
   return useQuery({
-    queryKey: ['quotes', workspace.id],
-    queryFn: () => listQuotes(workspace.id),
+    queryKey:  ['quotes', workspace.id],
+    queryFn:   () => listQuotes(workspace.id),
+    staleTime: 30_000,
   });
 }
 

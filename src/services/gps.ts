@@ -73,7 +73,11 @@ const GPS_OPTIONS: PositionOptions = {
   maximumAge: 30_000,  // aceptar ubicación de hasta 30s de antigüedad
 };
 
-export function getCurrentPosition(): Promise<GpsPosition> {
+// Umbral de precisión: warn si > 100m, rechazar si > 500m
+const ACCURACY_WARN_M  = 100;
+const ACCURACY_LIMIT_M = 500;
+
+export function getCurrentPosition(): Promise<GpsPosition & { accuracyWarning?: string }> {
   return new Promise((resolve, reject) => {
     if (!navigator.geolocation) {
       reject(new Error('Este dispositivo no soporta GPS'));
@@ -81,11 +85,26 @@ export function getCurrentPosition(): Promise<GpsPosition> {
     }
     // ONE-SHOT: getCurrentPosition, nunca watchPosition
     navigator.geolocation.getCurrentPosition(
-      pos => resolve({
-        latitude:  pos.coords.latitude,
-        longitude: pos.coords.longitude,
-        accuracy:  pos.coords.accuracy,
-      }),
+      pos => {
+        const accuracy = pos.coords.accuracy;
+        // Rechazar si la precisión es demasiado baja
+        if (accuracy > ACCURACY_LIMIT_M) {
+          reject(new Error(
+            `Señal GPS muy débil (precisión: ${Math.round(accuracy)}m). ` +
+            'Ve a un espacio abierto e intenta de nuevo.'
+          ));
+          return;
+        }
+        resolve({
+          latitude:  pos.coords.latitude,
+          longitude: pos.coords.longitude,
+          accuracy,
+          // Advertencia si la precisión es entre 100m-500m
+          accuracyWarning: accuracy > ACCURACY_WARN_M
+            ? `Precisión GPS: ${Math.round(accuracy)}m (señal débil)`
+            : undefined,
+        });
+      },
       err => {
         const messages: Record<number, string> = {
           1: 'Permiso de GPS denegado. Actívalo en la configuración del dispositivo.',

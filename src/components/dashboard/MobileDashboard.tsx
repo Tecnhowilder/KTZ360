@@ -13,6 +13,7 @@ import { useUI, defaultQConfig } from '../../features/app/UIProvider';
 import { useDerivedQuotes } from '../../hooks/useQuotes';
 import { daysAgo, TODAY } from '../../lib/calc';
 import { getQuoteViewStats } from '../../services/quoteViews';
+import { OperarioDashboard } from './OperarioDashboard';
 
 // ─── Constantes ───────────────────────────────────────────────────────────────
 
@@ -40,16 +41,20 @@ export function MobileDashboard() {
   const { quotes, isLoading } = useDerivedQuotes();
   const [drawerOpen, setDrawerOpen] = useState(false);
 
+  // Hooks must run unconditionally before any early return (React rules of hooks)
   const quoteIds = useMemo(() => quotes.map(q => q.id), [quotes]);
-
   const { data: viewStats = [] } = useQuery({
     queryKey: ['quoteViews', workspace.id],
     queryFn:  () => getQuoteViewStats(quoteIds),
     enabled:  quoteIds.length > 0,
     staleTime: 2 * 60 * 1000,
   });
-
   void viewStats;
+
+  // Operario ve su propio dashboard, no el de cotizaciones
+  if (profile.role === 'operario') {
+    return <OperarioDashboard />;
+  }
 
   if (isLoading) return (
     <div style={{ minHeight: '100vh', background: '#F8FAFC' }} />
@@ -131,10 +136,10 @@ export function MobileDashboard() {
           <p style={{ fontSize: 13, fontWeight: 700, color: '#374151', margin: '0 0 10px' }}>Acciones rápidas</p>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 10 }}>
             {[
-              { icon: '🎤', label: 'Hablar con IA',    color: '#7C3AED', bg: '#F5F3FF', action: () => navigate('/app/ia') },
+              { icon: '🎤', label: 'Hablar con IA',    color: '#7C3AED', bg: '#F5F3FF', action: () => navigate('/app/ia/crear') },
               { icon: '📄', label: 'Nueva cotización', color: '#2563EB', bg: '#EFF6FF', action: () => openQuoteFlow({ cfg: defaultQConfig(company) }) },
-              { icon: '📦', label: 'Nuevo pedido',     color: '#F97316', bg: '#FFF7ED', action: () => navigate('/app/pedidos') },
-              { icon: '📷', label: 'Desde foto',       color: '#64748B', bg: '#F1F5F9', action: () => navigate('/app/ia') },
+              { icon: '📦', label: 'Nuevo pedido',     color: '#F97316', bg: '#FFF7ED', action: () => navigate('/app/pedidos/nuevo') },
+              { icon: '📷', label: 'Desde foto',       color: '#64748B', bg: '#F1F5F9', action: () => navigate('/app/ia/crear?mode=photo') },
             ].map(a => (
               <button key={a.label} onClick={a.action} style={{
                 display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,

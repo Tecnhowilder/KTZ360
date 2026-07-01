@@ -194,7 +194,7 @@ function NoAccess() {
           </li>
         ))}
       </ul>
-      <button onClick={() => openUpgradeModal({ title: 'Automatizaciones', message: 'Shelwi trabaja por ti mientras te dedicas a lo que importa.', targetPlan: 'pro', ctaLabel: 'Ver planes PRO' })}
+      <button onClick={() => openUpgradeModal({ title: 'Automatizaciones — PREMIUM', message: 'Shelwi trabaja por ti mientras te dedicas a lo que importa.', targetPlan: 'premium', ctaLabel: 'Actualizar a PREMIUM' })}
         style={{ background: 'linear-gradient(135deg, #6366F1, #8B5CF6)', color: '#fff', border: 'none', borderRadius: 14, padding: '14px 32px', fontSize: 15, fontWeight: 700, cursor: 'pointer', width: '100%', maxWidth: 300 }}>
         Activar automatizaciones
       </button>

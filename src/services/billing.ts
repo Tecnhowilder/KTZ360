@@ -60,6 +60,43 @@ export async function startSubscriptionCheckout(
   await navigateToUrl(data.initPoint);
 }
 
+/**
+ * Inicia checkout de Mercado Pago para comprar usuarios adicionales.
+ * Zero Trust: workspaceId se extrae del JWT en el backend.
+ * Precio: $11.900/usuario/mes (configurado en la edge function).
+ */
+export async function startAdditionalLicensesCheckout(quantity: number): Promise<void> {
+  const { data: { user } } = await supabase.auth.getUser();
+  const { data: profile }  = user
+    ? await supabase.from('profiles').select('workspace_id').eq('id', user.id).single()
+    : { data: null };
+
+  if (profile?.workspace_id) {
+    await logEvent(
+      profile.workspace_id,
+      user?.id ?? null,
+      'additional_licenses_checkout_click',
+      'subscription',
+      null,
+      { quantity, unit_price: 11900 },
+    );
+  }
+
+  const { data, error } = await supabase.functions.invoke<CreateCheckoutResponse>('create-checkout', {
+    body: {
+      productType: 'additional_licenses',
+      quantity,
+      unitPrice: 11900,
+      // workspaceId y userId se omiten — Zero Trust
+    },
+  });
+
+  if (error) throw error;
+  if (!data?.initPoint) throw new Error('No se pudo iniciar el checkout de Mercado Pago.');
+
+  await navigateToUrl(data.initPoint);
+}
+
 /** Obtiene el estado de suscripción Founder si aplica. */
 export async function getFounderInfo(workspaceId: string) {
   const { data } = await supabase

@@ -34,13 +34,13 @@ function NoAccess() {
       </div>
       <h2 style={{ fontSize: 20, fontWeight: 800, color: '#0F172A', margin: '0 0 8px' }}>Mapa Operativo</h2>
       <p style={{ fontSize: 14, color: '#64748B', margin: '0 0 24px', lineHeight: 1.6 }}>
-        Visualiza en tiempo real dónde está tu equipo, gestiona Check In/Out y monitorea el estado de operarios. Disponible en PREMIUM.
+        Visualiza dónde está tu equipo, gestiona Check In/Out y monitorea el estado de operarios. Disponible en Plan PRO.
       </p>
       <button
-        onClick={() => openUpgradeModal({ title: 'Mapa Operativo GPS', message: 'Rastrea tu equipo en campo en tiempo real.', targetPlan: 'premium', ctaLabel: 'Activar PREMIUM' })}
+        onClick={() => openUpgradeModal({ title: 'Mapa Operativo GPS', message: 'Rastrea tu equipo en campo en tiempo real con el plan PRO.', targetPlan: 'pro', ctaLabel: 'Actualizar a PRO' })}
         style={{ background: '#2563EB', color: '#fff', border: 'none', borderRadius: 14, padding: '13px 28px', fontSize: 15, fontWeight: 700, cursor: 'pointer' }}
       >
-        Ver plan PREMIUM
+        Ver plan PRO
       </button>
     </div>
   );
@@ -131,6 +131,20 @@ function ManagerMapView() {
   const [selectedMember, setSelectedMember] = useState<TeamMapMember | null>(null);
   const dashQ = useOperationalDashboard();
   const d = dashQ.data;
+
+  if (dashQ.isError) {
+    return (
+      <div style={{ padding: 32, textAlign: 'center' }}>
+        <div style={{ fontSize: 14, color: '#EF4444', fontWeight: 600, marginBottom: 16 }}>
+          Error al cargar el mapa operativo
+        </div>
+        <button onClick={() => dashQ.refetch()}
+          style={{ border: 'none', background: '#7C3AED', color: '#fff', padding: '10px 20px', borderRadius: 10, cursor: 'pointer', fontSize: 13, fontWeight: 700 }}>
+          Reintentar
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div style={{ padding: '14px 16px 0', display: 'flex', flexDirection: 'column', gap: 14 }}>

@@ -40,8 +40,11 @@ export async function createOrder(input: CreateOrderInput): Promise<{ orderId: s
 
 // ─── Listar pedidos ───────────────────────────────────────────────────────────
 
-export async function listOrders(status?: string): Promise<OrderWithRelations[]> {
-  const { data, error } = await rpc('list_orders', { p_status: status ?? null });
+export async function listOrders(status?: string, search?: string): Promise<OrderWithRelations[]> {
+  const { data, error } = await rpc('list_orders', {
+    p_status: status ?? null,
+    p_search: search?.trim() || null,
+  });
   if (error) throw error;
   if (!data.ok) throw new Error(data.error ?? 'Error al listar pedidos');
   return (data.orders ?? []) as OrderWithRelations[];

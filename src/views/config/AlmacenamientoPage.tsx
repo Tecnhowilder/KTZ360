@@ -118,11 +118,11 @@ export function AlmacenamientoPage() {
         </div>
         <div style={{ padding: '40px 24px', textAlign: 'center' }}>
           <HardDrive size={40} color="#94A3B8" style={{ marginBottom: 12 }} />
-          <div style={{ fontSize: 16, fontWeight: 700, color: '#0F172A', marginBottom: 6 }}>Solo disponible en PREMIUM</div>
-          <div style={{ fontSize: 13, color: '#64748B', marginBottom: 20 }}>Incluye 5 GB para evidencias, fotos y documentos de tus pedidos.</div>
-          <button onClick={() => openUpgradeModal({ title: 'Almacenamiento', message: '5 GB incluidos en PREMIUM para evidencias de trabajo.', targetPlan: 'premium', ctaLabel: 'Activar PREMIUM' })}
+          <div style={{ fontSize: 16, fontWeight: 700, color: '#0F172A', marginBottom: 6 }}>Disponible en Plan PRO</div>
+          <div style={{ fontSize: 13, color: '#64748B', marginBottom: 20 }}>Incluye almacenamiento para evidencias, fotos y documentos de tus pedidos.</div>
+          <button onClick={() => openUpgradeModal({ title: 'Almacenamiento', message: 'Almacenamiento incluido en el plan PRO para evidencias de trabajo.', targetPlan: 'pro', ctaLabel: 'Actualizar a PRO' })}
             style={{ background: '#2563EB', color: '#fff', border: 'none', borderRadius: 14, padding: '13px 28px', fontWeight: 700, fontSize: 14, cursor: 'pointer' }}>
-            Ver plan PREMIUM
+            Ver plan PRO
           </button>
         </div>
       </div>

@@ -91,6 +91,10 @@ serve(async (req) => {
     let founderPromoId: string | null  = null;
     let expectedAmount: number | null  = null;
 
+    let productType:    string | null  = null;
+    let licenseQty:     number | null  = null;
+    let licenseUnit:    number | null  = null;
+
     try {
       const ref      = JSON.parse(payment.external_reference ?? '{}');
       workspaceId    = typeof ref.workspaceId    === 'string'  ? ref.workspaceId    : null;
@@ -100,6 +104,9 @@ serve(async (req) => {
       isFounder      = ref.isFounder             === true;
       founderPromoId = typeof ref.founderPromoId === 'string'  ? ref.founderPromoId : null;
       expectedAmount = typeof ref.expectedAmount === 'number'  ? ref.expectedAmount : null;
+      productType    = typeof ref.productType    === 'string'  ? ref.productType    : null;
+      licenseQty     = typeof ref.quantity       === 'number'  ? ref.quantity       : null;
+      licenseUnit    = typeof ref.unitPrice      === 'number'  ? ref.unitPrice      : null;
     } catch {
       console.error('[mp-webhook] invalid external_reference');
     }
@@ -128,6 +135,95 @@ serve(async (req) => {
     const isNewEvent = !!inserted;
 
     // ── 6. Procesar SOLO si es nuevo evento aprobado con datos válidos ────────
+
+    // ── BRANCH A: Licencias adicionales ──────────────────────────────────────
+    if (
+      isNewEvent &&
+      paymentStatus === 'approved' &&
+      productType   === 'additional_licenses' &&
+      workspaceId   &&
+      licenseQty    !== null
+    ) {
+      const qty       = licenseQty ?? 1;
+      const unitPrice = licenseUnit ?? 11900;
+      const total     = qty * unitPrice;
+
+      // ── A1. IDEMPOTENCIA: si ya existe un registro con este payment_id → salir ──
+      // MP puede reenviar el webhook varias veces. El UNIQUE INDEX en payment_id
+      // también protege a nivel DB, pero comprobamos antes para no generar errores.
+      const { data: existingLicense } = await supabase
+        .from('additional_licenses')
+        .select('id')
+        .eq('payment_id', String(paymentId))
+        .maybeSingle();
+
+      if (existingLicense) {
+        console.log(`[mp-webhook] additional_licenses already processed for payment ${paymentId} — skipping`);
+        return new Response(JSON.stringify({ received: true, duplicate: true }), {
+          status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      // ── A2. Validar monto (tolerancia $500 COP por redondeo de MP) ────────────
+      if (expectedAmount !== null && receivedAmount !== null) {
+        const delta = Math.abs(receivedAmount - expectedAmount);
+        if (delta > 500) {
+          console.error(`[mp-webhook] ADDITIONAL_LICENSES PRICE MISMATCH: received ${receivedAmount}, expected ${expectedAmount}`);
+          await supabase.from('audit_log').insert({
+            workspace_id: workspaceId, user_id: userId,
+            action: 'price_tampering_detected', entity_type: 'payment',
+            metadata: { payment_id: paymentId, received_amount: receivedAmount, expected_amount: expectedAmount, product_type: 'additional_licenses' },
+          }).then(() => {}).catch(() => {});
+
+          return new Response(JSON.stringify({ received: true, blocked: 'price_mismatch' }), {
+            status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        }
+      }
+
+      // ── A3. Insertar con schema completo (historial inmutable) ────────────────
+      // purchase_price guarda el precio VIGENTE al momento del pago.
+      // Si en 2028 el precio sube a $14.900, esta fila sigue registrando $11.900.
+      const mpPreferenceId = payment?.additional_info?.items?.[0]?.id ?? null;
+
+      const { error: insertErr } = await supabase.from('additional_licenses').insert({
+        workspace_id:     workspaceId,
+        quantity:         qty,
+        status:           'active',
+        purchase_price:   unitPrice,      // precio histórico del momento del pago
+        currency:         'COP',
+        payment_id:       String(paymentId),
+        mp_preference_id: mpPreferenceId,
+        purchased_at:     new Date().toISOString(),
+        activated_at:     new Date().toISOString(),
+        expires_at:       null,           // null = permanente mientras la suscripción esté activa
+        created_by:       userId,
+      });
+
+      if (insertErr && insertErr.code === '23505') {
+        // Duplicado por UNIQUE(payment_id) — ya fue procesado por otra instancia del webhook
+        console.log(`[mp-webhook] duplicate prevented by UNIQUE INDEX for payment ${paymentId}`);
+        return new Response(JSON.stringify({ received: true, duplicate: true }), {
+          status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+      if (insertErr) throw insertErr;
+
+      // ── A4. Auditoría ─────────────────────────────────────────────────────────
+      await supabase.from('audit_log').insert({
+        workspace_id: workspaceId, user_id: userId,
+        action: 'additional_licenses_activated', entity_type: 'subscription',
+        metadata: { payment_id: paymentId, quantity: qty, unit_price: unitPrice, total, currency: 'COP' },
+      }).then(() => {}).catch(() => {});
+
+      console.log(`[mp-webhook] +${qty} additional licenses activated for workspace ${workspaceId} @ $${unitPrice} each`);
+
+      return new Response(JSON.stringify({ received: true, processed: 'additional_licenses', quantity: qty }), {
+        status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    // ── BRANCH B: Suscripción de plan (PRO / PREMIUM / ENTERPRISE) ────────────
     if (
       isNewEvent &&
       paymentStatus === 'approved' &&

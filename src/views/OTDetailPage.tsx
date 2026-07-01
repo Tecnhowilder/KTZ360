@@ -58,6 +58,20 @@ export function OTDetailPage() {
 
   const wo = woQ.data;
 
+  if (woQ.isError) {
+    return (
+      <div style={{ minHeight: '100vh', background: '#F8FAFC', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+        <div style={{ fontSize: 14, color: '#EF4444', fontWeight: 600, marginBottom: 16 }}>
+          Error al cargar la orden de trabajo
+        </div>
+        <button onClick={() => woQ.refetch()}
+          style={{ border: 'none', background: '#7C3AED', color: '#fff', padding: '10px 20px', borderRadius: 10, cursor: 'pointer', fontSize: 13, fontWeight: 700 }}>
+          Reintentar
+        </button>
+      </div>
+    );
+  }
+
   if (woQ.isLoading || !wo) {
     return (
       <div style={{ minHeight: '100vh', background: '#F8FAFC', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>

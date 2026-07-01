@@ -36,12 +36,16 @@ interface UIContextValue {
 }
 
 export interface UpgradeModalInfo {
-  title: string;
-  message: string;
-  targetPlan: 'pro' | 'premium';
-  ctaLabel: string;
-  bullets?: string[];
+  title:          string;
+  message:        string;
+  targetPlan:     'pro' | 'premium';
+  ctaLabel:       string;
+  bullets?:       string[];
   secondaryLabel?: string;
+  /** Si se especifica, el CTA navega aquí en lugar de /app/planes */
+  ctaPath?:        string;
+  /** Si se especifica, el botón secundario navega aquí (por defecto solo cierra) */
+  secondaryPath?:  string;
 }
 
 const UIContext = createContext<UIContextValue | undefined>(undefined);

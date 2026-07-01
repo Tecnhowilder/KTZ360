@@ -3,7 +3,7 @@
  * Mobile First: 390px → tablet → desktop
  * PREMIUM only: feature gated via backend
  */
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Plus, Package, Clock, CheckCircle2, XCircle, AlertTriangle, ChevronRight, Search } from 'lucide-react';
 import { useOrders } from '../hooks/useOrders';
@@ -95,11 +95,23 @@ function OrderCard({ order, onClick }: { order: OrderWithRelations; onClick: () 
 }
 
 export function Pedidos() {
-  const navigate         = useNavigate();
+  const navigate             = useNavigate();
   const { openUpgradeModal } = useUI();
-  const featureQ         = useFeatureAccess('orders_enabled');
-  const [filter, setFilter] = useState<string | undefined>(undefined);
-  const [search, setSearch] = useState('');
+  const featureQ             = useFeatureAccess('orders_enabled');
+  const [filter,    setFilter]    = useState<string | undefined>(undefined);
+  const [search,    setSearch]    = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // FASE 3: debounce 300ms → evita query en cada pulsación
+  useEffect(() => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => {
+      setDebouncedSearch(search.trim());
+    }, 300);
+    return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
+  }, [search]);
+
   const { data: orders = [], isLoading, error } = useOrders(filter);
 
   // Feature gate: PREMIUM only
@@ -124,11 +136,11 @@ export function Pedidos() {
   }
 
   const filtered = orders.filter(o =>
-    !search || o.title.toLowerCase().includes(search.toLowerCase()) ||
-    o.order_number.toLowerCase().includes(search.toLowerCase()) ||
-    (o.client_name ?? '').toLowerCase().includes(search.toLowerCase())
+    !debouncedSearch ||
+    o.title.toLowerCase().includes(debouncedSearch.toLowerCase()) ||
+    o.order_number.toLowerCase().includes(debouncedSearch.toLowerCase()) ||
+    (o.client_name ?? '').toLowerCase().includes(debouncedSearch.toLowerCase())
   );
-
   const activeCount   = orders.filter(o => !['finalizado','cancelado'].includes(o.status)).length;
   const finishedCount = orders.filter(o => o.status === 'finalizado').length;
 
@@ -143,12 +155,20 @@ export function Pedidos() {
               {activeCount} activos · {finishedCount} finalizados
             </p>
           </div>
-          <button
-            onClick={() => navigate('/app/cotizaciones')}
-            style={{ background: '#2563EB', color: '#fff', border: 'none', borderRadius: 12, padding: '10px 14px', fontWeight: 700, fontSize: 13, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}
-          >
-            <Plus size={16} /> Desde cotización
-          </button>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button
+              onClick={() => navigate('/app/pedidos/nuevo')}
+              style={{ background: '#7C3AED', color: '#fff', border: 'none', borderRadius: 12, padding: '10px 14px', fontWeight: 700, fontSize: 13, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}
+            >
+              <Plus size={16} /> Nuevo pedido
+            </button>
+            <button
+              onClick={() => navigate('/app/cotizaciones')}
+              style={{ background: '#F1F5F9', color: '#374151', border: 'none', borderRadius: 12, padding: '10px 14px', fontWeight: 700, fontSize: 13, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}
+            >
+              Desde cotización
+            </button>
+          </div>
         </div>
 
         {/* Buscador */}
@@ -156,9 +176,12 @@ export function Pedidos() {
           <Search size={15} color="#94A3B8" />
           <input
             value={search} onChange={e => setSearch(e.target.value)}
-            placeholder="Buscar pedido o cliente..."
+            placeholder="Buscar por número, cliente, técnico o estado..."
             style={{ border: 'none', background: 'none', flex: 1, fontSize: 13.5, color: '#0F172A', outline: 'none' }}
           />
+          {isLoading && search && (
+            <div style={{ width: 14, height: 14, border: '2px solid #7C3AED', borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin .6s linear infinite', flexShrink: 0 }} />
+          )}
         </div>
 
         {/* Filtros de estado */}
@@ -189,9 +212,19 @@ export function Pedidos() {
           <div style={{ textAlign: 'center', padding: 60 }}>
             <Package size={40} color="#CBD5E1" style={{ marginBottom: 12 }} />
             <div style={{ fontSize: 15, fontWeight: 700, color: '#0F172A', marginBottom: 6 }}>Sin pedidos</div>
-            <div style={{ fontSize: 13, color: '#94A3B8' }}>
-              {filter ? 'No hay pedidos con este estado.' : 'Aprueba una cotización para crear tu primer pedido.'}
+            <div style={{ fontSize: 13, color: '#94A3B8', marginBottom: 16 }}>
+              {filter ? 'No hay pedidos con este estado.' : 'Crea un pedido directo o aprueba una cotización.'}
             </div>
+            {!filter && (
+              <div style={{ display: 'flex', gap: 10, justifyContent: 'center' }}>
+                <button onClick={() => navigate('/app/pedidos/nuevo')} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '10px 18px', border: 'none', borderRadius: 12, background: '#7C3AED', color: '#fff', fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>
+                  <Plus size={14} /> Nuevo pedido
+                </button>
+                <button onClick={() => navigate('/app/cotizaciones')} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '10px 18px', border: '1.5px solid #E2E8F0', borderRadius: 12, background: '#fff', color: '#374151', fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>
+                  Desde cotización
+                </button>
+              </div>
+            )}
           </div>
         )}
         {filtered.map(o => (

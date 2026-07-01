@@ -23,6 +23,8 @@ import {
   changeUserRole,
   setUserStatus,
   sendAdminNotification,
+  listAllInvitations,
+  adminRevokeInvitation,
   type WorkspaceSubscriptionEntry,
   type AuditLogFilters,
 } from '../services/admin';
@@ -50,7 +52,7 @@ const tdStyle:     React.CSSProperties = { padding: '10px 12px', verticalAlign: 
 // ─── Tabs ─────────────────────────────────────────────────────────────────────
 
 type Tab = 'dashboard' | 'subscriptions' | 'plans' | 'founder' | 'ia' | 'storage'
-         | 'users' | 'workspaces' | 'audit' | 'system' | 'support' | 'finanzas' | 'cx';
+         | 'users' | 'workspaces' | 'invitations' | 'audit' | 'system' | 'support' | 'finanzas' | 'cx';
 
 const TAB_LABELS: Record<Tab, string> = {
   dashboard:     'Dashboard',
@@ -61,6 +63,7 @@ const TAB_LABELS: Record<Tab, string> = {
   storage:       'Storage',
   users:         'Usuarios',
   workspaces:    'Workspaces',
+  invitations:   'Invitaciones',
   audit:         'Auditoría',
   system:        'Configuración',
   support:       'Soporte',
@@ -90,7 +93,7 @@ export function AdminPanel() {
   // Para distinguir, consultamos el perfil directamente.
   const canEdit = adminQuery.data === true; // true siempre que is_support_admin() = true
   // Para acciones solo super_admin, usaremos un query separado
-  const tabs: Tab[] = ['dashboard','subscriptions','plans','founder','ia','storage','users','workspaces','audit','system','support','finanzas','cx'];
+  const tabs: Tab[] = ['dashboard','subscriptions','plans','founder','ia','storage','users','workspaces','invitations','audit','system','support','finanzas','cx'];
 
   return (
     <div>
@@ -119,6 +122,7 @@ export function AdminPanel() {
       {tab === 'storage'       && <StorageAdminTab />}
       {tab === 'users'         && <UsersTab    canEdit={canEdit} />}
       {tab === 'workspaces'    && <WorkspacesTab canEdit={canEdit} />}
+      {tab === 'invitations'   && <InvitationsTab />}
       {tab === 'audit'         && <AuditTab />}
       {tab === 'system'        && <ConfigTab />}
       {tab === 'support'       && <SupportTab />}
@@ -418,6 +422,78 @@ function WorkspacesTab({ canEdit }: { canEdit: boolean }) {
               </tr>
             ))}
             {entriesQ.data.length === 0 && <tr><td colSpan={canEdit ? 7 : 6} style={{ ...tdStyle, textAlign: 'center', color: '#94A3B8' }}>Sin workspaces.</td></tr>}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+// ─── InvitationsTab — invitaciones de TODOS los workspaces (cross-tenant) ─────
+
+const INVITATION_STATUS_STYLE: Record<string, { color: string; bg: string }> = {
+  pending: { color: '#D97706', bg: '#FFFBEB' },
+  accepted: { color: '#16A34A', bg: '#F0FDF4' },
+  revoked: { color: '#DC2626', bg: '#FEE2E2' },
+  expired: { color: '#94A3B8', bg: '#F1F5F9' },
+};
+
+function InvitationsTab() {
+  const qc = useQueryClient();
+  const { showToast } = useToast();
+  const entriesQ = useQuery({ queryKey: ['adminAllInvitations'], queryFn: listAllInvitations });
+
+  const revokeMut = useMutation({
+    mutationFn: (id: string) => adminRevokeInvitation(id, 'Revocada desde el CMS por administrador'),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['adminAllInvitations'] }); showToast('Invitación revocada'); },
+    onError: (e: any) => showToast(e.message),
+  });
+
+  if (!entriesQ.data) return null;
+
+  return (
+    <div style={{ ...cardStyle, padding: 0, overflow: 'hidden' }}>
+      <div style={{ overflowX: 'auto' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+          <thead>
+            <tr style={{ background: '#F8FAFC' }}>
+              <th style={thStyle}>Workspace</th>
+              <th style={thStyle}>Email</th>
+              <th style={thStyle}>Rol</th>
+              <th style={thStyle}>Estado</th>
+              <th style={thStyle}>Invitada</th>
+              <th style={thStyle}>Expira</th>
+              <th style={thStyle}>Acciones</th>
+            </tr>
+          </thead>
+          <tbody>
+            {entriesQ.data.map((inv) => {
+              const statusStyle = INVITATION_STATUS_STYLE[inv.status] ?? INVITATION_STATUS_STYLE.expired;
+              return (
+                <tr key={inv.id} style={{ borderTop: '1px solid #F1F5F9' }}>
+                  <td style={tdStyle}>{inv.workspace_name ?? '—'}</td>
+                  <td style={tdStyle}>{inv.email}</td>
+                  <td style={tdStyle}>{inv.role}</td>
+                  <td style={tdStyle}>
+                    <span style={{ fontSize: 11, fontWeight: 700, padding: '3px 8px', borderRadius: 8, color: statusStyle.color, background: statusStyle.bg }}>
+                      {inv.status}
+                    </span>
+                  </td>
+                  <td style={tdStyle}>{new Date(inv.created_at).toLocaleString('es-CO')}</td>
+                  <td style={tdStyle}>{new Date(inv.expires_at).toLocaleString('es-CO')}</td>
+                  <td style={tdStyle}>
+                    {inv.status === 'pending' && (
+                      <button
+                        onClick={() => revokeMut.mutate(inv.id)}
+                        style={{ ...buttonStyle, background: '#FEE2E2', color: '#DC2626', padding: '4px 10px', fontSize: 11 }}>
+                        Revocar
+                      </button>
+                    )}
+                  </td>
+                </tr>
+              );
+            })}
+            {entriesQ.data.length === 0 && <tr><td colSpan={7} style={{ ...tdStyle, textAlign: 'center', color: '#94A3B8' }}>Sin invitaciones.</td></tr>}
           </tbody>
         </table>
       </div>

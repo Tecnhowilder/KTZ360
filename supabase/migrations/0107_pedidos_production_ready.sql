@@ -1,0 +1,5 @@
+-- ============================================================
+-- Este archivo fue renombrado a 0111_pedidos_production_ready.sql
+-- para evitar colisión con 0107_invite_team_member_return_token.sql.
+-- El contenido real está en 0111_pedidos_production_ready.sql.
+-- ============================================================

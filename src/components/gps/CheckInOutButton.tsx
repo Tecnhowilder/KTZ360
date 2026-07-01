@@ -4,9 +4,10 @@
  * NO usa watchPosition(). Protección de batería obligatoria.
  */
 import { useState } from 'react';
-import { MapPin, LogIn, LogOut, AlertTriangle, CheckCircle, X } from 'lucide-react';
+import { MapPin, LogIn, LogOut, AlertTriangle, CheckCircle, X, WifiOff } from 'lucide-react';
 import { useCheckIn, useCheckOut, useGrantGpsConsent } from '../../hooks/useGPS';
 import { useWorkspace } from '../../features/auth/WorkspaceProvider';
+import { useToast } from '../ui/Toast';
 import type { OperationalStatus } from '../../lib/database.types';
 
 interface Props {
@@ -17,8 +18,10 @@ interface Props {
 }
 
 export function CheckInOutButton({ orderId, workOrderId, operationalStatus, gpsConsent }: Props) {
-  const { profile } = useWorkspace();
+  const { profile }    = useWorkspace();
+  const { showToast }  = useToast();
   const [showConsent, setShowConsent] = useState(false);
+  const [isOffline,   setIsOffline]   = useState(false);
 
   const checkIn     = useCheckIn({ orderId, workOrderId });
   const checkOut    = useCheckOut({ orderId, workOrderId });
@@ -31,6 +34,13 @@ export function CheckInOutButton({ orderId, workOrderId, operationalStatus, gpsC
   if (!['operario','supervisor','employee'].includes(profile.role)) return null;
 
   async function handleAction() {
+    // Verificar conexión antes de intentar cualquier operación GPS
+    if (!navigator.onLine) {
+      setIsOffline(true);
+      setTimeout(() => setIsOffline(false), 4000);
+      showToast('Sin conexión a internet. Conéctate e intenta de nuevo.');
+      return;
+    }
     if (!gpsConsent) {
       setShowConsent(true);
       return;
@@ -51,6 +61,14 @@ export function CheckInOutButton({ orderId, workOrderId, operationalStatus, gpsC
 
   return (
     <>
+      {/* Banner sin conexión */}
+      {isOffline && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 10, marginBottom: 8 }}>
+          <WifiOff size={14} color="#DC2626" />
+          <span style={{ fontSize: 12, color: '#DC2626', fontWeight: 600 }}>Sin conexión — el check-in requiere internet</span>
+        </div>
+      )}
+
       <button
         onClick={handleAction}
         disabled={loading}

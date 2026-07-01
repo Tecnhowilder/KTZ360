@@ -29,117 +29,117 @@ export const SKIP_ONBOARDING_ROLES: OnboardingRole[] = ['super_admin', 'support_
 
 export const ROLE_SLIDES: Record<OnboardingRole, OnboardingSlide[]> = {
 
-  // ─── OWNER: onboarding completo de configuración del negocio ──────────────
+  // ─── OWNER: control total del negocio ────────────────────────────────────
   owner: [
     {
-      image:       '/images/onboarding/img1.png',
-      title:       'Crea cotizaciones profesionales',
-      description: 'Diseña cotizaciones claras, personalizadas y listas para impresionar a tus clientes.',
+      image:       '/images/onboarding/owner-1.png',
+      title:       'Controla toda tu empresa desde un solo lugar',
+      description: 'Gestiona clientes, cotizaciones y pedidos. Toda la operación de tu negocio en una sola pantalla.',
     },
     {
-      image:       '/images/onboarding/img2.png',
-      title:       'Organiza y gestiona todo en un solo lugar',
-      description: 'Administra clientes, productos y servicios de forma simple y eficiente.',
+      image:       '/images/onboarding/owner-2.png',
+      title:       'Supervisa tu equipo en tiempo real',
+      description: 'Asigna técnicos, automatiza procesos y mantén el control de cada trabajo en campo.',
     },
     {
-      image:       '/images/onboarding/img3.png',
-      title:       'Recibe notificaciones y nunca pierdas el control',
-      description: 'Mantente al tanto de cada actualización de tus cotizaciones en tiempo real.',
+      image:       '/images/onboarding/owner-3.png',
+      title:       'Analiza indicadores y toma mejores decisiones',
+      description: 'Accede a reportes, BI y métricas clave para crecer con datos reales de tu negocio.',
     },
   ],
 
-  // ─── ADMIN: gestión operativa sin configuración de empresa ────────────────
+  // ─── ADMIN: organización y coordinación ──────────────────────────────────
   admin: [
     {
-      image:       '/images/onboarding/img2.png',
-      title:       'Gestiona el equipo y las operaciones',
-      description: 'Como administrador tienes acceso a clientes, cotizaciones, pedidos y reportes para mantener todo en marcha.',
+      image:       '/images/onboarding/admin-1.png',
+      title:       'Coordina el trabajo de tu equipo',
+      description: 'Asigna técnicos, gestiona pedidos y mantén toda la operación organizada desde un solo lugar.',
     },
     {
-      image:       '/images/onboarding/img1.png',
-      title:       'Cotizaciones y pipeline comercial',
-      description: 'Crea y gestiona cotizaciones, haz seguimiento a clientes y convierte oportunidades en pedidos.',
+      image:       '/images/onboarding/admin-2.png',
+      title:       'Da seguimiento a pedidos en tiempo real',
+      description: 'Revisa el avance de cada trabajo, las evidencias y la bitácora de actividades del equipo.',
     },
     {
-      image:       '/images/onboarding/img3.png',
-      title:       'Reportes y métricas en tiempo real',
-      description: 'Accede a dashboards operativos y toma decisiones basadas en datos reales.',
+      image:       '/images/onboarding/admin-3.png',
+      title:       'Reportes y control operativo',
+      description: 'Visibilidad completa del negocio para tomar decisiones informadas y mantener la calidad.',
     },
   ],
 
-  // ─── EMPLOYEE: operaciones de campo sin acceso a configuración ────────────
+  // ─── EMPLOYEE: operaciones de campo ──────────────────────────────────────
   employee: [
     {
-      image:       '/images/onboarding/img3.png',
+      image:       '/images/onboarding/employee-1.png',
       title:       'Tus tareas asignadas en un solo lugar',
       description: 'Revisa las órdenes de trabajo que te han asignado y mantente al tanto de tus responsabilidades del día.',
     },
     {
-      image:       '/images/onboarding/img2.png',
+      image:       '/images/onboarding/employee-2.png',
       title:       'Registra evidencias y avances',
       description: 'Sube fotos, registra el progreso y actualiza el estado de cada tarea directamente desde tu móvil.',
     },
     {
-      image:       '/images/onboarding/img1.png',
+      image:       '/images/onboarding/employee-3.png',
       title:       'Conectado con tu equipo en todo momento',
       description: 'Recibe actualizaciones instantáneas, comunica avances y nunca pierdas el hilo de tu trabajo.',
     },
   ],
 
-  // ─── SUPERVISOR: gestión de equipo y productividad operativa ─────────────
+  // ─── SUPERVISOR: control operativo en campo ───────────────────────────────
   supervisor: [
     {
-      image:       '/images/onboarding/img2.png',
-      title:       'Supervisa tu equipo en tiempo real',
-      description: 'Visualiza el estado de todos los operarios, sus órdenes de trabajo y su ubicación en el mapa operativo.',
+      image:       '/images/onboarding/supervisor-1.png',
+      title:       'Visualiza dónde está cada técnico',
+      description: 'Mapa operativo en tiempo real con el estado y ubicación de todo tu equipo de campo.',
     },
     {
-      image:       '/images/onboarding/img1.png',
-      title:       'Órdenes de trabajo y productividad',
-      description: 'Asigna tareas, monitorea el progreso y asegura que los pedidos se completen a tiempo.',
+      image:       '/images/onboarding/supervisor-2.png',
+      title:       'Da seguimiento a órdenes de trabajo',
+      description: 'Controla tiempos, avances y asignaciones. Recibe alertas cuando una OT se retrasa.',
     },
     {
-      image:       '/images/onboarding/img3.png',
-      title:       'Alertas y control de calidad',
-      description: 'Recibe alertas cuando una OT se retrasa y revisa las evidencias enviadas por el equipo de campo.',
+      image:       '/images/onboarding/supervisor-3.png',
+      title:       'Revisa evidencias del campo',
+      description: 'Controla la calidad del trabajo con fotos, notas y reportes de cada orden de trabajo.',
     },
   ],
 
-  // ─── COMERCIAL: CRM, pipeline y cotizaciones ──────────────────────────────
+  // ─── COMERCIAL: vender más y mejor ───────────────────────────────────────
   comercial: [
     {
-      image:       '/images/onboarding/img1.png',
-      title:       'Tu pipeline comercial, siempre claro',
-      description: 'Gestiona clientes, cotizaciones y oportunidades en un kanban visual que te muestra exactamente dónde está cada negocio.',
+      image:       '/images/onboarding/comercial-1.png',
+      title:       'Crea cotizaciones más rápido',
+      description: 'Diseña propuestas profesionales y compártelas por WhatsApp o correo en segundos.',
     },
     {
-      image:       '/images/onboarding/img2.png',
-      title:       'Crea cotizaciones que cierran',
-      description: 'Diseña propuestas profesionales en minutos, compártelas por WhatsApp o correo y recibe notificaciones cuando el cliente las abre.',
+      image:       '/images/onboarding/comercial-2.png',
+      title:       'Usa IA para vender mejor',
+      description: 'Shelwi IA mejora tus propuestas y te ayuda a convertir más oportunidades de negocio.',
     },
     {
-      image:       '/images/onboarding/img3.png',
-      title:       'IA para vender más',
-      description: 'Usa Shelwi IA para mejorar tus propuestas, calcular probabilidades de cierre y recibir recomendaciones personalizadas.',
+      image:       '/images/onboarding/comercial-3.png',
+      title:       'Da seguimiento a tus clientes',
+      description: 'Tu pipeline siempre claro. Nunca pierdas una oportunidad de cierre por falta de seguimiento.',
     },
   ],
 
-  // ─── OPERARIO: tareas de campo, check-in/out y evidencias ────────────────
+  // ─── OPERARIO: sencillo, rápido, desde el celular ────────────────────────
   operario: [
     {
-      image:       '/images/onboarding/img3.png',
-      title:       'Tus órdenes de trabajo del día',
-      description: 'Revisa las tareas asignadas, su prioridad y la información necesaria para ejecutarlas con precisión.',
+      image:       '/images/onboarding/operario-1.png',
+      title:       'Recibe tus órdenes de trabajo',
+      description: 'Tus tareas asignadas del día, organizadas y listas para ejecutar desde tu celular.',
     },
     {
-      image:       '/images/onboarding/img2.png',
-      title:       'Check in / Check out en cada OT',
-      description: 'Registra tu llegada y salida en cada orden de trabajo para mantener el control de tiempo y avance.',
+      image:       '/images/onboarding/operario-2.png',
+      title:       'Registra llegada, fotos y novedades',
+      description: 'Check in al llegar al sitio, sube fotos del trabajo y reporta novedades con un toque.',
     },
     {
-      image:       '/images/onboarding/img1.png',
-      title:       'Evidencias en tiempo real',
-      description: 'Sube fotos del trabajo realizado directamente desde la app y completa tus órdenes con un solo toque.',
+      image:       '/images/onboarding/operario-3.png',
+      title:       'Todo desde tu celular',
+      description: 'Sin papeles ni llamadas innecesarias. Shelwi te acompaña en campo de principio a fin.',
     },
   ],
 

@@ -43,11 +43,11 @@ export function EvidenceUploader({ orderId, workOrderId }: Props) {
   function handleMainClick() {
     if (featureQ.data === false) {
       openUpgradeModal({
-        title: 'Evidencias — PREMIUM',
+        title: 'Evidencias — Plan PRO',
         message: 'Sube fotos, videos, PDFs y firmas digitales asociadas a tus pedidos y OTs.',
-        targetPlan: 'premium',
-        ctaLabel: 'Activar PREMIUM',
-        bullets: ['Fotos y videos de trabajo','PDFs y documentos','Firmas digitales','5 GB de almacenamiento'],
+        targetPlan: 'pro',
+        ctaLabel: 'Actualizar a PRO',
+        bullets: ['Fotos y videos de trabajo','PDFs y documentos','Firmas digitales','Almacenamiento incluido'],
       });
       return;
     }

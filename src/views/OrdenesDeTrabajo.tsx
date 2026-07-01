@@ -78,10 +78,10 @@ export function OrdenesDeTrabajo() {
           Organiza el trabajo en órdenes ejecutables, asigna técnicos y registra la bitácora operativa.
         </p>
         <button
-          onClick={() => openUpgradeModal({ title: 'Órdenes de trabajo en PREMIUM', message: 'Asigna, gestiona y finaliza órdenes de trabajo con bitácora completa.', targetPlan: 'premium', ctaLabel: 'Actualizar a PREMIUM' })}
+          onClick={() => openUpgradeModal({ title: 'Órdenes de trabajo en PRO', message: 'Asigna, gestiona y finaliza órdenes de trabajo con bitácora completa.', targetPlan: 'pro', ctaLabel: 'Actualizar a PRO' })}
           style={{ background: '#2563EB', color: '#fff', border: 'none', borderRadius: 12, padding: '12px 24px', fontWeight: 700, fontSize: 14, cursor: 'pointer' }}
         >
-          Actualizar a PREMIUM
+          Actualizar a PRO
         </button>
       </div>
     );

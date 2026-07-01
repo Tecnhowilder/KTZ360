@@ -2,14 +2,25 @@ import { supabase } from '../lib/supabaseClient';
 import type { Profile, Workspace, CompanySettings } from '../lib/types';
 import type { WorkspaceFeaturesRow } from '../lib/database.types';
 
-export async function getProfile(userId: string): Promise<Profile> {
-  const { data, error } = await supabase.from('profiles').select('*').eq('id', userId).single();
+/**
+ * getProfile — la ausencia de perfil es un ESTADO ESPERADO, no una excepción.
+ * Causas legítimas: trigger de signup aún no terminó (race condition), perfil
+ * eliminado, o el usuario nunca tuvo perfil. Usamos maybeSingle() para que
+ * "0 filas" se modele como `null`, no como un throw/406 de PostgREST.
+ * El llamador (WorkspaceProvider) decide cómo tratar el `null`.
+ */
+export async function getProfile(userId: string): Promise<Profile | null> {
+  const { data, error } = await supabase.from('profiles').select('*').eq('id', userId).maybeSingle();
   if (error) throw error;
   return data;
 }
 
-export async function getWorkspace(workspaceId: string): Promise<Workspace> {
-  const { data, error } = await supabase.from('workspaces').select('*').eq('id', workspaceId).single();
+/**
+ * getWorkspace — defensa en profundidad: si el workspace fue eliminado o RLS
+ * lo oculta (cross-tenant), debe resolver a `null` en vez de lanzar 406.
+ */
+export async function getWorkspace(workspaceId: string): Promise<Workspace | null> {
+  const { data, error } = await supabase.from('workspaces').select('*').eq('id', workspaceId).maybeSingle();
   if (error) throw error;
   return data;
 }
@@ -36,9 +47,15 @@ export async function updateWorkspace(workspaceId: string, patch: Partial<Worksp
   return data;
 }
 
-export async function getCompanySettings(workspaceId: string): Promise<CompanySettings> {
-  const { data, error } = await supabase.from('company_settings').select('*').eq('workspace_id', workspaceId).single();
+/**
+ * getCompanySettings — la fila se crea por trigger al mismo tiempo que el
+ * workspace, pero si ese trigger falló parcialmente la ausencia es un estado
+ * real que debe poder representarse sin lanzar una excepción.
+ */
+export async function getCompanySettings(workspaceId: string): Promise<CompanySettings | null> {
+  const { data, error } = await supabase.from('company_settings').select('*').eq('workspace_id', workspaceId).maybeSingle();
   if (error) throw error;
+  if (!data) return null;
   return { ...data, terms_conditions: Array.isArray(data.terms_conditions) ? (data.terms_conditions as unknown as string[]) : [] };
 }
 

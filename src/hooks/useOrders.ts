@@ -7,10 +7,10 @@ import {
   type CreateOrderInput,
 } from '../services/orders';
 
-export function useOrders(status?: string) {
+export function useOrders(status?: string, search?: string) {
   return useQuery({
-    queryKey:  ['orders', status ?? 'all'],
-    queryFn:   () => listOrders(status),
+    queryKey:  ['orders', status ?? 'all', search ?? ''],
+    queryFn:   () => listOrders(status, search),
     staleTime: 30_000,
   });
 }

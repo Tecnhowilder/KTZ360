@@ -18,6 +18,10 @@ export type AIOperation =
   | 'bi_business_forecast'        // 3 créditos — Sprint 19
   | 'bi_risk_assessment'          // 3 créditos — Sprint 19
   | 'bi_growth_recs'              // 3 créditos — Sprint 19
+  // Agente IA Operativo (crear)
+  | 'ia_voice_interpret'          // 2 créditos — interpreta voz/texto → cotización/pedido
+  | 'ia_photo_interpret'          // 3 créditos — interpreta foto → cotización
+  | 'ia_full_create'              // 4 créditos — generación completa
   // IA Operativa
   | 'ops_risk_detection'          // 3 créditos — IA Operativa
   | 'ops_delay_analysis'          // 3 créditos — IA Operativa

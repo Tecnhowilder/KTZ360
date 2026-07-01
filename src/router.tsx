@@ -44,11 +44,15 @@ import { WebhooksPage } from './views/config/WebhooksPage';
 import { AutomatizacionesPage } from './views/AutomatizacionesPage';
 import { CustomerSuccessPage } from './views/CustomerSuccessPage';
 import { MapaOperativoPage } from './views/MapaOperativoPage';
+import { AsistenciaPage } from './views/AsistenciaPage';
+import { AdicionalesPage } from './views/AdicionalesPage';
 import { GrowthPage } from './views/GrowthPage';
 import { ReferralRedirect } from './views/public/ReferralRedirect';
 import { FinancePage } from './views/FinancePage';
 import { BIPage } from './views/BIPage';
 import { IAOperacionesPage } from './views/IAOperacionesPage';
+import { IACrearPage } from './views/IACrearPage';
+import { PedidoNuevoPage } from './views/PedidoNuevoPage';
 
 export const router = createBrowserRouter([
   {
@@ -94,6 +98,7 @@ export const router = createBrowserRouter([
       { path: 'team', element: <RequireOwner><Team /></RequireOwner> },
       { path: 'admin', element: <RequireSuperAdmin><AdminPanel /></RequireSuperAdmin> },
       { path: 'pedidos',                   element: <Pedidos /> },
+      { path: 'pedidos/nuevo',             element: <PedidoNuevoPage /> },
       { path: 'pedidos/:id',               element: <PedidoDetailPage /> },
       { path: 'ordenes-trabajo',            element: <OrdenesDeTrabajo /> },
       { path: 'ordenes-trabajo/:id',        element: <OTDetailPage /> },
@@ -105,11 +110,14 @@ export const router = createBrowserRouter([
       { path: 'automatizaciones', element: <AutomatizacionesPage /> },
       { path: 'customer-success', element: <CustomerSuccessPage /> },
       { path: 'mapa-operativo',         element: <MapaOperativoPage /> },
+      { path: 'asistencia',             element: <AsistenciaPage /> },
+      { path: 'team/adicionales',       element: <AdicionalesPage /> },
       { path: 'operaciones/mapa',       element: <MapaOperativoPage /> },
       { path: 'growth',    element: <GrowthPage /> },
       { path: 'finanzas', element: <FinancePage /> },
       { path: 'bi',               element: <BIPage /> },
       { path: 'ia/operaciones',  element: <IAOperacionesPage /> },
+      { path: 'ia/crear',        element: <IACrearPage /> },
     ],
   },
   { path: '*', element: <Navigate to="/" replace /> },

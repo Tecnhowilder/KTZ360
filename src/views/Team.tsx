@@ -240,8 +240,11 @@ function TeamDesktop() {
     return true;
   });
 
-  const seatsPct = seats.seats_limit > 0 ? Math.min(100, Math.round((seats.seats_used / seats.seats_limit) * 100)) : 0;
-  const seatsFull = seats.seats_used >= seats.seats_limit;
+  const seatsLimitNum = seats.seats_limit ?? Infinity;
+  const seatsPct  = seatsLimitNum > 0 && seatsLimitNum !== Infinity
+    ? Math.min(100, Math.round((seats.seats_used / seatsLimitNum) * 100))
+    : 0;
+  const seatsFull = seatsLimitNum !== Infinity && seats.seats_used >= seatsLimitNum;
 
   return (
     <div>
@@ -283,7 +286,7 @@ function TeamDesktop() {
         </div>
         <div style={cardStyle}>
           <div style={sectionTitleStyle}>Licencias disponibles</div>
-          <div style={{ fontSize: 22, fontWeight: 800 }}>{Math.max(0, seats.seats_limit - seats.seats_used)}</div>
+          <div style={{ fontSize: 22, fontWeight: 800 }}>{seatsLimitNum === Infinity ? '∞' : Math.max(0, seatsLimitNum - seats.seats_used)}</div>
           <div style={{ fontSize: 12, color: '#94A3B8', marginTop: 4 }}>{seats.pending_invites} invitación(es) pendiente(s)</div>
         </div>
         <div style={cardStyle}>

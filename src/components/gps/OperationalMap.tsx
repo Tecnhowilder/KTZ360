@@ -136,10 +136,10 @@ export function OperationalMap({ onMemberClick }: Props) {
       <div style={{ height: 300, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 10, background: '#F8FAFC', borderRadius: 16 }}>
         <Lock size={24} color="#94A3B8" />
         <div style={{ fontSize: 14, color: '#64748B', textAlign: 'center' }}>
-          El mapa operativo requiere plan PREMIUM y rol Supervisor o superior.
+          El mapa operativo requiere plan PRO y rol Supervisor o superior.
         </div>
         <button
-          onClick={() => openUpgradeModal({ title: 'Mapa Operativo', message: 'Visualiza la ubicación de tu equipo en tiempo real.', targetPlan: 'premium', ctaLabel: 'Activar PREMIUM' })}
+          onClick={() => openUpgradeModal({ title: 'Mapa Operativo GPS', message: 'Visualiza la ubicación de tu equipo en tiempo real con el plan PRO.', targetPlan: 'pro', ctaLabel: 'Actualizar a PRO' })}
           style={{ border: 'none', background: '#2563EB', color: '#fff', padding: '10px 20px', borderRadius: 12, fontWeight: 700, fontSize: 13, cursor: 'pointer' }}
         >
           Ver planes

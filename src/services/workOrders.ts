@@ -101,10 +101,14 @@ export async function addWorkLogComment(opts: {
 
 export const ORDER_STATUS_LABELS: Record<string, string> = {
   pendiente:    'Pendiente',
+  asignado:     'Asignado',
   programado:   'Programado',
+  en_ruta:      'En ruta',
+  en_sitio:     'En sitio',
   en_ejecucion: 'En ejecución',
   pausado:      'Pausado',
   finalizado:   'Finalizado',
+  facturado:    'Facturado',
   cancelado:    'Cancelado',
 };
 
@@ -126,10 +130,14 @@ export const PRIORITY_LABELS: Record<string, string> = {
 
 export const ORDER_STATUS_COLORS: Record<string, { color: string; bg: string }> = {
   pendiente:    { color: '#92400E', bg: '#FEF3C7' },
+  asignado:     { color: '#0E7490', bg: '#CFFAFE' },
   programado:   { color: '#1E40AF', bg: '#DBEAFE' },
+  en_ruta:      { color: '#B45309', bg: '#FEF3C7' },
+  en_sitio:     { color: '#6D28D9', bg: '#EDE9FE' },
   en_ejecucion: { color: '#166534', bg: '#DCFCE7' },
   pausado:      { color: '#6B21A8', bg: '#F3E8FF' },
   finalizado:   { color: '#065F46', bg: '#D1FAE5' },
+  facturado:    { color: '#14532D', bg: '#BBF7D0' },
   cancelado:    { color: '#9F1239', bg: '#FFE4E6' },
 };
 

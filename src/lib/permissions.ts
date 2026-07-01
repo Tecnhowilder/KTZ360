@@ -23,9 +23,12 @@ export type PlanFeature =
   | 'orders_enabled'
   | 'work_orders_enabled'
   | 'gps_enabled'
+  | 'storage_enabled'
+  | 'automation_enabled'
+  | 'webhook_enabled'
+  // Legacy flags (devuelven false si columna no existe en plan_features)
   | 'ai_credits_enabled'
-  | 'founder_eligible'
-  | 'storage_enabled';
+  | 'founder_eligible';
 
 export type PlanLimitKey = 'quotes_month' | 'clients' | 'users';
 
@@ -92,6 +95,59 @@ export async function checkSubscriptionStatus(workspaceId: string): Promise<Subs
   const { data, error } = await supabase.rpc('check_subscription_status', { p_workspace_id: workspaceId });
   if (error) throw error;
   return data as unknown as SubscriptionStatusResult;
+}
+
+// ─── Utilidad: plan mínimo requerido para cada feature ───────────────────────
+// Usado por los modales de upgrade para mostrar el CTA correcto.
+// "Actualizar a PRO" si la feature es PRO, "Actualizar a PREMIUM" si es PREMIUM.
+
+export type PlanCode = 'free' | 'pro' | 'premium' | 'enterprise';
+
+const FEATURE_TO_MIN_PLAN: Record<string, PlanCode> = {
+  // PRO features
+  orders_enabled:          'pro',
+  work_orders_enabled:     'pro',
+  gps_enabled:             'pro',
+  storage_enabled:         'pro',
+  pipeline_enabled:        'pro',
+  templates_enabled:       'pro',
+  branding_enabled:        'pro',
+  custom_qr_enabled:       'pro',
+  advanced_reports_enabled:'pro',
+  ai_enabled:              'pro',
+  // PREMIUM features
+  multiuser_enabled:       'premium',
+  automation_enabled:      'premium',
+  webhook_enabled:         'premium',
+  photo_quote_enabled:     'premium',
+};
+
+/**
+ * Devuelve el plan mínimo requerido para acceder a un feature.
+ * Úsalo en openUpgradeModal para mostrar el CTA correcto:
+ *   FREE  → "Actualizar a PRO"   (si el feature es PRO)
+ *   FREE/PRO → "Actualizar a PREMIUM" (si el feature es PREMIUM)
+ */
+export function getRequiredPlan(feature: PlanFeature): PlanCode {
+  return FEATURE_TO_MIN_PLAN[feature] ?? 'premium';
+}
+
+/**
+ * Genera el label del CTA de upgrade según el plan actual del usuario.
+ * Un usuario PREMIUM nunca ve "Actualizar a PREMIUM".
+ */
+export function getUpgradeCta(
+  currentPlan: PlanCode,
+  requiredPlan: PlanCode
+): { ctaLabel: string; targetPlan: PlanCode } | null {
+  const order: PlanCode[] = ['free', 'pro', 'premium', 'enterprise'];
+  const currentIdx  = order.indexOf(currentPlan);
+  const requiredIdx = order.indexOf(requiredPlan);
+  if (currentIdx >= requiredIdx) return null; // ya tiene el plan necesario
+  return {
+    targetPlan: requiredPlan,
+    ctaLabel:   `Actualizar a ${requiredPlan.toUpperCase()}`,
+  };
 }
 
 export async function isSuperAdmin(): Promise<boolean> {

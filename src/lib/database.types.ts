@@ -411,7 +411,7 @@ export interface OperationsDashboard {
   recent_work_orders: WorkOrderWithRelations[];
 }
 
-export type QuoteStatusDb = 'Borrador' | 'Enviada' | 'Aprobada' | 'Rechazada' | 'Vencida';
+export type QuoteStatusDb = 'Borrador' | 'Enviada' | 'Aprobada' | 'Rechazada' | 'Vencida' | 'convertida';
 
 export type QuoteRow = {
   id: string;
@@ -954,13 +954,17 @@ export type WorkspaceInvitationRow = {
   workspace_id: string;
   email: string;
   full_name: string | null;
-  role: 'admin' | 'employee';
+  role: 'admin' | 'supervisor' | 'comercial' | 'operario';
   status: 'pending' | 'accepted' | 'revoked' | 'expired';
-  token: string;
+  token: string | null;
   invited_by: string;
   created_at: string;
   expires_at: string;
   accepted_at: string | null;
+  accepted_by: string | null;
+  delivery_channel: string | null;
+  archived: boolean;
+  archived_at: string | null;
 };
 
 export type AdditionalUserLicenseRow = {
@@ -1519,6 +1523,10 @@ export interface Database {
       create_ai_usage_partition: {
         Args: { p_year: number; p_month: number };
         Returns: void;
+      };
+      create_direct_order: {
+        Args: { p_client_id: string; p_title: string; p_description?: string | null; p_items_snapshot?: Json; p_total_amount?: number; p_notes?: string | null; p_assigned_to?: string | null; p_scheduled_at?: string | null };
+        Returns: Json;
       };
       get_sales_by_rep: {
         Args: { p_workspace_id: string; p_period_start?: string | null; p_period_end?: string | null };

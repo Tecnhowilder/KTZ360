@@ -5,6 +5,7 @@
  */
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { ClientQuickCreateSheet } from '../clients/ClientQuickCreateSheet';
 import { openPhone, openExternalUrl } from '../../lib/capacitorBridge';
 import {
   Search, SlidersHorizontal, Plus, UserPlus, Download, Upload,
@@ -197,6 +198,7 @@ export function ClientesMobile() {
   const [search, setSearch]             = useState('');
   const [searchOpen, setSearchOpen]     = useState(false);
   const [page, setPage]                 = useState(1);
+  const [createOpen, setCreateOpen]     = useState(false);
   const PAGE_SIZE = 8;
 
   const clients = clientsQ.data ?? [];
@@ -343,7 +345,7 @@ export function ClientesMobile() {
           <button style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '0 12px', border: '1px solid #E2E8F0', borderRadius: 10, background: '#fff', cursor: 'pointer', fontSize: 12.5, fontWeight: 600, color: '#475569', fontFamily: 'inherit', flexShrink: 0 }}>
             <Download size={13} /> Exportar
           </button>
-          <button onClick={() => navigate('/app/clientes')}
+          <button onClick={() => setCreateOpen(true)}
             style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '0 14px', border: 'none', borderRadius: 10, background: '#2563EB', cursor: 'pointer', fontSize: 12.5, fontWeight: 700, color: '#fff', fontFamily: 'inherit', flexShrink: 0, height: 38 }}>
             <Plus size={14} /> Nuevo
           </button>
@@ -360,6 +362,23 @@ export function ClientesMobile() {
             <div style={{ fontSize: 15, fontWeight: 700, color: '#0F172A', marginBottom: 6 }}>
               {search ? 'Sin resultados' : 'No hay clientes aún'}
             </div>
+            <div style={{ fontSize: 13, color: '#64748B', marginBottom: 16 }}>
+              {search
+                ? `No encontramos "${search}". ¿Quieres crearlo?`
+                : 'Agrega tu primer cliente para comenzar a cotizar.'}
+            </div>
+            <button
+              onClick={() => setCreateOpen(true)}
+              style={{
+                display: 'inline-flex', alignItems: 'center', gap: 6,
+                padding: '10px 20px', border: 'none', borderRadius: 12,
+                background: '#2563EB', color: '#fff',
+                fontWeight: 700, fontSize: 14, cursor: 'pointer', fontFamily: 'inherit',
+              }}
+            >
+              <UserPlus size={16} />
+              {search ? `Crear "${search}"` : '+ Nuevo cliente'}
+            </button>
           </div>
         ) : (
           paged.map(c => (
@@ -493,7 +512,7 @@ export function ClientesMobile() {
         <div style={{ fontSize: 11, fontWeight: 700, color: '#94A3B8', textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 10 }}>Acciones rápidas</div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 10 }}>
           {[
-            { icon: UserPlus, label: 'Nuevo cliente',    color: '#2563EB', bg: '#EFF6FF', action: () => {} },
+            { icon: UserPlus, label: 'Nuevo cliente',    color: '#2563EB', bg: '#EFF6FF', action: () => setCreateOpen(true) },
             { icon: FileText, label: 'Nueva cotiz.',     color: '#7C3AED', bg: '#F5F3FF', action: () => navigate('/app/cotizaciones/nueva') },
             { icon: Upload,   label: 'Importar',         color: '#0891B2', bg: '#ECFEFF', action: () => {} },
             { icon: Download, label: 'Exportar',         color: '#D97706', bg: '#FFFBEB', action: () => {} },
@@ -508,6 +527,11 @@ export function ClientesMobile() {
           ))}
         </div>
       </div>
+
+      <ClientQuickCreateSheet
+        open={createOpen}
+        onClose={() => setCreateOpen(false)}
+      />
     </div>
   );
 }
