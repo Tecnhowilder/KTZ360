@@ -120,6 +120,8 @@ BEGIN
   END IF;
 
   v_search_lower := LOWER(TRIM(COALESCE(p_search, '')));
+  -- Escapar metacaracteres LIKE: \ primero para no re-escapar las sustituciones
+  v_search_lower := replace(replace(replace(v_search_lower, '\', '\\'), '%', '\%'), '_', '\_');
 
   SELECT jsonb_agg(
     jsonb_build_object(
@@ -170,13 +172,13 @@ BEGIN
     )
     AND (
       v_search_lower = ''
-      OR LOWER(o.order_number)              LIKE '%' || v_search_lower || '%'
-      OR LOWER(o.title)                     LIKE '%' || v_search_lower || '%'
-      OR LOWER(COALESCE(c.name, ''))        LIKE '%' || v_search_lower || '%'
-      OR LOWER(COALESCE(c.phone, ''))       LIKE '%' || v_search_lower || '%'
-      OR LOWER(COALESCE(c.email, ''))       LIKE '%' || v_search_lower || '%'
-      OR LOWER(COALESCE(p_a.full_name, '')) LIKE '%' || v_search_lower || '%'
-      OR LOWER(COALESCE(o.status, ''))      LIKE '%' || v_search_lower || '%'
+      OR LOWER(o.order_number)              LIKE '%' || v_search_lower || '%' ESCAPE '\'
+      OR LOWER(o.title)                     LIKE '%' || v_search_lower || '%' ESCAPE '\'
+      OR LOWER(COALESCE(c.name, ''))        LIKE '%' || v_search_lower || '%' ESCAPE '\'
+      OR LOWER(COALESCE(c.phone, ''))       LIKE '%' || v_search_lower || '%' ESCAPE '\'
+      OR LOWER(COALESCE(c.email, ''))       LIKE '%' || v_search_lower || '%' ESCAPE '\'
+      OR LOWER(COALESCE(p_a.full_name, '')) LIKE '%' || v_search_lower || '%' ESCAPE '\'
+      OR LOWER(COALESCE(o.status, ''))      LIKE '%' || v_search_lower || '%' ESCAPE '\'
     );
 
   RETURN jsonb_build_object('ok', true, 'orders', COALESCE(v_result, '[]'::jsonb));

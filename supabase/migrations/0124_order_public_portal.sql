@@ -68,14 +68,9 @@ CREATE POLICY "workspace members manage order events"
   USING (workspace_id = public.current_workspace_id())
   WITH CHECK (workspace_id = public.current_workspace_id());
 
--- Acceso anónimo solo por token (portal público)
-CREATE POLICY "anon read order token by token"
-  ON public.order_access_tokens FOR SELECT TO anon
-  USING (true);  -- la validación real ocurre en el RPC SECURITY DEFINER
-
-CREATE POLICY "anon insert order events"
-  ON public.order_events FOR INSERT TO anon
-  WITH CHECK (true);  -- inserción controlada por RPC
+-- Sin policies de acceso directo para anon:
+-- get_public_order() y register_order_event() son SECURITY DEFINER → bypass RLS.
+-- USING(true) / WITH CHECK(true) para anon expondrían todos los tokens via REST.
 
 -- ─── RPC: get_or_create_order_token ──────────────────────────────────────────
 
@@ -135,7 +130,7 @@ DECLARE
   v_company    RECORD;
 BEGIN
   -- Buscar token
-  SELECT * INTO v_token_row
+  SELECT order_id, workspace_id INTO v_token_row
     FROM public.order_access_tokens
    WHERE token = p_token;
 
@@ -143,10 +138,13 @@ BEGIN
     RETURN jsonb_build_object('ok', false, 'error', 'token_invalid');
   END IF;
 
-  -- Obtener pedido
-  SELECT * INTO v_order
-    FROM public.orders
-   WHERE id = v_token_row.order_id AND deleted_at IS NULL;
+  -- Obtener pedido (solo campos públicos — excluye workspace_id, created_by, assigned_to, etc.)
+  SELECT o.id, o.order_number, o.title, o.description, o.status,
+         o.order_snapshot, o.total_amount, o.scheduled_at, o.started_at,
+         o.finished_at, o.notes, o.created_at, o.client_id
+    INTO v_order
+    FROM public.orders o
+   WHERE o.id = v_token_row.order_id AND o.deleted_at IS NULL;
 
   IF NOT FOUND THEN
     RETURN jsonb_build_object('ok', false, 'error', 'order_not_found');
@@ -162,7 +160,7 @@ BEGIN
   -- Obtener configuración de la empresa (nombre, logo, etc.)
   SELECT name, nit, phone, email, city, logo_path INTO v_company
     FROM public.company_settings
-   WHERE workspace_id = v_order.workspace_id;
+   WHERE workspace_id = v_token_row.workspace_id;
 
   -- Registrar visualización
   INSERT INTO public.order_events (workspace_id, order_id, event_type)
@@ -170,11 +168,24 @@ BEGIN
   ON CONFLICT DO NOTHING;
 
   RETURN jsonb_build_object(
-    'ok',          true,
-    'order',       row_to_json(v_order),
-    'client',      CASE WHEN v_client.id IS NOT NULL THEN row_to_json(v_client) ELSE NULL END,
-    'company',     row_to_json(v_company),
-    'token',       p_token
+    'ok',      true,
+    'order',   jsonb_build_object(
+      'id',             v_order.id,
+      'order_number',   v_order.order_number,
+      'title',          v_order.title,
+      'description',    v_order.description,
+      'status',         v_order.status,
+      'order_snapshot', v_order.order_snapshot,
+      'total_amount',   v_order.total_amount,
+      'scheduled_at',   v_order.scheduled_at,
+      'started_at',     v_order.started_at,
+      'finished_at',    v_order.finished_at,
+      'notes',          v_order.notes,
+      'created_at',     v_order.created_at
+    ),
+    'client',  CASE WHEN v_client.id IS NOT NULL THEN row_to_json(v_client) ELSE NULL END,
+    'company', row_to_json(v_company),
+    'token',   p_token
   );
 END;
 $$;
