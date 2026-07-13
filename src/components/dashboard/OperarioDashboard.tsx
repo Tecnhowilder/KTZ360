@@ -10,9 +10,10 @@
  * Todo usa datos reales de Supabase vía React Query.
  * Sin mock data, sin hardcodes.
  */
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useRealtimeSubscription } from '../../lib/realtimeManager';
 import {
   LogIn, LogOut, Coffee, Clock, Wrench, MapPin,
   ChevronRight, Camera, AlertCircle, CheckCircle2,
@@ -44,6 +45,7 @@ const WO_STATUS_LABEL: Record<string, { label: string; color: string; bg: string
 function AttendanceCard() {
   const { showToast } = useToast();
   const { profile }   = useWorkspace();
+  const qc            = useQueryClient();
   const [loading, setLoading] = useState(false);
 
   const todayQ = useQuery({
@@ -60,16 +62,20 @@ function AttendanceCard() {
       };
     },
     staleTime: 30_000,
-    refetchInterval: 60_000,
   });
 
-  const rec = todayQ.data;
+  // Realtime: invalidar asistencia propia cuando otro dispositivo actualice el registro
+  const onAttendanceChange = useCallback(() => {
+    qc.invalidateQueries({ queryKey: ['my-attendance-today', profile.id] });
+  }, [qc, profile.id]);
 
-  const nextEvent = !rec?.check_in_at    ? 'check_in'
-    : !rec.lunch_start_at                ? 'lunch_start'
-    : !rec.lunch_end_at                  ? 'lunch_end'
-    : !rec.check_out_at                  ? 'check_out'
-    : null;
+  useRealtimeSubscription(
+    `attendance_records:${profile.id}`,
+    { table: 'attendance_records', event: '*', filter: `user_id=eq.${profile.id}` },
+    onAttendanceChange,
+  );
+
+  const rec = todayQ.data;
 
   const EVENT_META: Record<string, { label: string; icon: React.ElementType; color: string; bg: string }> = {
     check_in:    { label: 'Registrar ingreso',   icon: LogIn,    color: '#16A34A', bg: '#F0FDF4' },
@@ -78,23 +84,37 @@ function AttendanceCard() {
     check_out:   { label: 'Registrar salida',    icon: LogOut,   color: '#DC2626', bg: '#FEF2F2' },
   };
 
-  async function handleNext() {
-    if (!nextEvent || loading) return;
+  // Acción primaria: check_in → (si hay almuerzo abierto: lunch_end) → check_out.
+  // Almuerzo es opcional: si no se inició, el usuario puede ir directo a check_out.
+  const primaryEvent = !rec?.check_in_at                              ? 'check_in'
+    : rec.lunch_start_at && !rec.lunch_end_at                        ? 'lunch_end'
+    : !rec.check_out_at                                              ? 'check_out'
+    : null;
+
+  // Acción secundaria: ofrecer "Inicio almuerzo" si ya hizo check_in
+  // y todavía no inició almuerzo ni registró salida.
+  const secondaryEvent = rec?.check_in_at && !rec.lunch_start_at && !rec.check_out_at
+    ? 'lunch_start'
+    : null;
+
+  async function handleEvent(event: string) {
+    if (loading) return;
     setLoading(true);
     try {
-      const { data, error } = await (supabase as any).rpc('record_attendance', { p_event: nextEvent });
+      const { data, error } = await (supabase as any).rpc('record_attendance', { p_event: event });
       if (error || !data?.ok) throw new Error(data?.error ?? 'Error al registrar');
       const labels: Record<string, string> = {
         check_in: 'Ingreso registrado ✓', lunch_start: 'Almuerzo iniciado ✓',
         lunch_end: 'Regreso del almuerzo ✓', check_out: 'Salida registrada ✓',
       };
-      showToast(labels[nextEvent] ?? 'Registrado ✓');
+      showToast(labels[event] ?? 'Registrado ✓');
       todayQ.refetch();
     } catch (e: any) { showToast(e.message ?? 'Error'); }
     finally { setLoading(false); }
   }
 
-  const meta = nextEvent ? EVENT_META[nextEvent] : null;
+  const meta = primaryEvent ? EVENT_META[primaryEvent] : null;
+  const secondaryMeta = secondaryEvent ? EVENT_META[secondaryEvent] : null;
 
   return (
     <div style={{ background: '#fff', borderRadius: 16, padding: '14px 16px', boxShadow: '0 1px 4px rgba(0,0,0,.06)', marginBottom: 14 }}>
@@ -137,12 +157,20 @@ function AttendanceCard() {
         })}
       </div>
 
-      {/* Botón de próximo evento */}
+      {/* Botón primario */}
       {meta && (
-        <button onClick={handleNext} disabled={loading}
-          style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '11px 0', borderRadius: 12, border: 'none', background: meta.bg, color: meta.color, fontWeight: 700, fontSize: 14, cursor: loading ? 'default' : 'pointer', fontFamily: 'inherit' }}>
+        <button onClick={() => handleEvent(primaryEvent!)} disabled={loading}
+          style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '11px 0', borderRadius: 12, border: 'none', background: meta.bg, color: meta.color, fontWeight: 700, fontSize: 14, cursor: loading ? 'default' : 'pointer', fontFamily: 'inherit', marginBottom: secondaryMeta ? 6 : 0 }}>
           <meta.icon size={16} />
           {loading ? 'Registrando...' : meta.label}
+        </button>
+      )}
+      {/* Botón secundario: inicio de almuerzo (opcional) */}
+      {secondaryMeta && !loading && (
+        <button onClick={() => handleEvent(secondaryEvent!)}
+          style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '9px 0', borderRadius: 12, border: `1.5px solid ${secondaryMeta.bg}`, background: '#fff', color: secondaryMeta.color, fontWeight: 600, fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' }}>
+          <secondaryMeta.icon size={14} />
+          {secondaryMeta.label}
         </button>
       )}
       {!meta && rec?.check_out_at && (

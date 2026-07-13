@@ -194,6 +194,79 @@ export async function getOperationalDashboard(workspaceId: string): Promise<Oper
   return rpc<OperationalDashboard>('get_operational_dashboard', { p_workspace_id: workspaceId });
 }
 
+// ─── Pausa / Reanudación ─────────────────────────────────────────────────────
+
+export interface PausaResult {
+  event_type: 'pausa';
+  operational_status: 'en_pausa';
+  gps_event_id: string;
+}
+
+export interface ReanudacionResult {
+  event_type: 'reanudacion';
+  operational_status: 'en_sitio';
+  gps_event_id: string;
+}
+
+export async function recordPausa(opts: {
+  orderId?:      string | null;
+  workOrderId?:  string | null;
+  motivo?:       string | null;
+  withGps?:      boolean;
+}): Promise<PausaResult> {
+  let coords: Partial<GpsPosition> = {};
+  if (opts.withGps !== false) {
+    try { coords = await getCurrentPosition(); } catch { /* opcional */ }
+  }
+  return rpc<PausaResult>('record_pausa', {
+    p_latitude:      coords.latitude      ?? null,
+    p_longitude:     coords.longitude     ?? null,
+    p_accuracy:      coords.accuracy      ?? null,
+    p_order_id:      opts.orderId         ?? null,
+    p_work_order_id: opts.workOrderId     ?? null,
+    p_motivo:        opts.motivo          ?? null,
+  });
+}
+
+export async function recordReanudacion(opts: {
+  orderId?:      string | null;
+  workOrderId?:  string | null;
+  withGps?:      boolean;
+}): Promise<ReanudacionResult> {
+  let coords: Partial<GpsPosition> = {};
+  if (opts.withGps !== false) {
+    try { coords = await getCurrentPosition(); } catch { /* opcional */ }
+  }
+  return rpc<ReanudacionResult>('record_reanudacion', {
+    p_latitude:      coords.latitude      ?? null,
+    p_longitude:     coords.longitude     ?? null,
+    p_accuracy:      coords.accuracy      ?? null,
+    p_order_id:      opts.orderId         ?? null,
+    p_work_order_id: opts.workOrderId     ?? null,
+  });
+}
+
+// ─── Tracking automático (sin watchPosition) ──────────────────────────────────
+// Llama update_location_if_active. El RPC verifica si hay OT activa antes de
+// actualizar la ubicación, nunca almacena si no hay OT en progreso.
+
+export async function updateLocationIfActive(): Promise<{ updated: boolean; skipped?: string }> {
+  try {
+    const pos = await getCurrentPosition();
+    const result = await rpc<{ ok: boolean; updated?: boolean; skipped?: string }>(
+      'update_location_if_active',
+      {
+        p_latitude:  pos.latitude,
+        p_longitude: pos.longitude,
+        p_accuracy:  pos.accuracy,
+      }
+    );
+    return { updated: result.updated ?? false, skipped: result.skipped };
+  } catch {
+    return { updated: false };
+  }
+}
+
 // ─── Labels y colores por rol/estado ─────────────────────────────────────────
 
 export const ROLE_META: Record<string, { label: string; bg: string; color: string }> = {
@@ -214,6 +287,7 @@ export const OPERATIONAL_STATUS_META: Record<OperationalStatus, {
   en_ruta:    { label: 'En ruta',      color: '#2563EB', bg: '#EFF6FF', dotColor: '#3B82F6', emoji: '🔵' },
   en_sitio:   { label: 'En sitio',     color: '#D97706', bg: '#FFFBEB', dotColor: '#F59E0B', emoji: '🟡' },
   finalizado: { label: 'Finalizado',   color: '#7C3AED', bg: '#F5F3FF', dotColor: '#8B5CF6', emoji: '✅' },
+  en_pausa:   { label: 'En pausa',     color: '#EA580C', bg: '#FFF7ED', dotColor: '#F97316', emoji: '⏸' },
 };
 
 export function canViewFullTeam(role: string): boolean {

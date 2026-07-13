@@ -61,8 +61,9 @@ export function usePdfTier() {
 // Un solo queryKey = invalidar uno invalida todo = siempre consistente.
 
 export function useTeamState() {
+  const { workspace } = useWorkspace();
   return useQuery<TeamState>({
-    queryKey: ['teamState'],
+    queryKey: ['teamState', workspace.id],
     queryFn:  getTeamState,
     staleTime: 30_000,
     retry: 2,

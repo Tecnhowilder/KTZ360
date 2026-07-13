@@ -3,6 +3,7 @@ import type {
   WorkspaceRow, SubscriptionRow, PlanRow, SystemConfigurationRow, AdminSettingRow,
   ProfileRow, PlanFeaturesRow, PlanLimitsRow, AuditLogRow, Json,
   FounderPromotionRow, AiOperationCostRow, WorkspaceInvitationRow,
+  PushNotificationTemplateRow,
 } from '../lib/database.types';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -370,4 +371,123 @@ export async function adminRevokeInvitation(invitationId: string, reason?: strin
   const { data, error } = await rpc('admin_revoke_invitation', { p_invitation_id: invitationId, p_reason: reason ?? null });
   if (error) throw error;
   if (!data.ok) throw new Error(data.error);
+}
+
+// ─── Push Notification Templates ─────────────────────────────────────────────
+
+export async function listPushTemplates(): Promise<PushNotificationTemplateRow[]> {
+  const { data, error } = await supabase
+    .from('push_notification_templates')
+    .select('*')
+    .order('key');
+  if (error) throw error;
+  return data ?? [];
+}
+
+export interface UpsertPushTemplateInput {
+  key: string; name: string; description?: string | null;
+  title: string; body: string; deep_link?: string | null; image_url?: string | null;
+  variables?: string[]; priority?: 'normal' | 'high'; active?: boolean;
+}
+
+export async function upsertPushTemplate(input: UpsertPushTemplateInput): Promise<void> {
+  const { data, error } = await rpc('admin_upsert_push_template', {
+    p_key:         input.key,
+    p_name:        input.name,
+    p_description: input.description ?? null,
+    p_title:       input.title,
+    p_body:        input.body,
+    p_deep_link:   input.deep_link ?? null,
+    p_image_url:   input.image_url ?? null,
+    p_variables:   input.variables ?? [],
+    p_priority:    input.priority ?? 'normal',
+    p_active:      input.active ?? true,
+  });
+  if (error) throw error;
+  if (!data?.ok) throw new Error(data?.error ?? 'Error al guardar plantilla');
+}
+
+export async function togglePushTemplate(key: string, active: boolean): Promise<void> {
+  const { data, error } = await rpc('admin_toggle_push_template', { p_key: key, p_active: active });
+  if (error) throw error;
+  if (!data?.ok) throw new Error(data?.error ?? 'Error');
+}
+
+// ─── Email Templates ──────────────────────────────────────────────────────────
+
+export interface EmailTemplateRow {
+  key:         string;
+  name:        string;
+  description: string | null;
+  subject:     string;
+  body_html:   string;
+  variables:   string[];
+  locale:      string;
+  version:     number;
+  is_active:   boolean;
+  updated_at:  string;
+}
+
+export interface EmailTemplateVersion {
+  id:        string;
+  version:   number;
+  subject:   string;
+  body_html: string;
+  variables: string[];
+  locale:    string;
+  note:      string | null;
+  saved_at:  string;
+}
+
+export interface UpsertEmailTemplateInput {
+  key:         string;
+  name:        string;
+  description?: string | null;
+  subject:     string;
+  body_html:   string;
+  variables:   string[];
+  locale:      string;
+  note?:       string | null;
+}
+
+export async function listEmailTemplates(): Promise<EmailTemplateRow[]> {
+  const { data, error } = await rpc('admin_list_email_templates');
+  if (error) throw error;
+  if (!data?.ok) throw new Error(data?.error ?? 'Error listando templates');
+  return (data.templates ?? []) as EmailTemplateRow[];
+}
+
+export async function upsertEmailTemplate(input: UpsertEmailTemplateInput): Promise<{ version: number }> {
+  const { data, error } = await rpc('admin_upsert_email_template', {
+    p_key:         input.key,
+    p_name:        input.name,
+    p_description: input.description ?? null,
+    p_subject:     input.subject,
+    p_body_html:   input.body_html,
+    p_variables:   input.variables,
+    p_locale:      input.locale,
+    p_note:        input.note ?? null,
+  });
+  if (error) throw error;
+  if (!data?.ok) throw new Error(data?.error ?? 'Error guardando template');
+  return { version: data.version as number };
+}
+
+export async function toggleEmailTemplate(key: string, active: boolean): Promise<void> {
+  const { data, error } = await rpc('admin_toggle_email_template', { p_key: key, p_active: active });
+  if (error) throw error;
+  if (!data?.ok) throw new Error(data?.error ?? 'Error al cambiar estado del template');
+}
+
+export async function getEmailTemplateVersions(key: string): Promise<EmailTemplateVersion[]> {
+  const { data, error } = await rpc('admin_get_email_template_versions', { p_key: key });
+  if (error) throw error;
+  if (!data?.ok) throw new Error(data?.error ?? 'Error obteniendo historial');
+  return (data.versions ?? []) as EmailTemplateVersion[];
+}
+
+export async function rollbackEmailTemplate(key: string, version: number): Promise<void> {
+  const { data, error } = await rpc('admin_rollback_email_template', { p_key: key, p_version: version });
+  if (error) throw error;
+  if (!data?.ok) throw new Error(data?.error ?? 'Error en rollback');
 }

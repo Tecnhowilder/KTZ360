@@ -3,6 +3,7 @@ import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useUI } from '../../features/app/UIProvider';
 import { useWindowWidth, navModeFor } from '../../hooks/useWindowWidth';
 import { useSessionGuard } from '../../hooks/useSessionGuard';
+import { useWorkspaceMaybe } from '../../features/auth/WorkspaceProvider';
 import { Sidebar } from './Sidebar';
 import { MobileHeader } from './MobileHeader';
 import { MobileDrawer } from './MobileDrawer';
@@ -13,7 +14,10 @@ import { UpgradeModal } from '../upgrade/UpgradeModal';
 import { FAB } from '../ui/FAB';
 
 export function AppShell() {
-  useSessionGuard(); // Sprint 24: Session Security — detecta revocación y fuerza logout
+  const wsCtx = useWorkspaceMaybe();
+  // workspace solo existe en el estado ready (loading:false, sin error/notFound/forbidden)
+  const workspaceId = (wsCtx as { workspace?: { id: string } }).workspace?.id;
+  useSessionGuard(workspaceId); // Sprint 24: Session Security — detecta revocación y fuerza logout
 
   const navigate = useNavigate();
   const { _registerNavigate } = useUI();
@@ -33,12 +37,10 @@ export function AppShell() {
     || location.pathname.match(/^\/app\/cotizaciones\/.+/) !== null;
 
   // Dashboard gestiona su propio header compacto — no usar el global
-  const isDashboard = location.pathname === '/app/dashboard';
-
   const [drawerOpen, setDrawerOpen] = useState(false);
 
   const mainLeft = showSidebar ? sidebarW : 0;
-  const mainPadTop = navBottom ? (isInnerFlow || isDashboard ? 0 : 64) : 28;
+  const mainPadTop = navBottom ? (isInnerFlow ? 0 : 64) : 28;
   const mainPadBottom = navBottom ? 88 : 48;
 
   return (
@@ -46,7 +48,7 @@ export function AppShell() {
       {showSidebar && <Sidebar width={sidebarW} rail={navMode === 'rail'} />}
 
       {/* Header mobile en vistas principales (no en inner flows ni dashboard) */}
-      {navBottom && !isInnerFlow && !isDashboard && (
+      {navBottom && !isInnerFlow && (
         <>
           <MobileHeader onMenuOpen={() => setDrawerOpen(true)} />
           <MobileDrawer open={drawerOpen} onClose={() => setDrawerOpen(false)} />

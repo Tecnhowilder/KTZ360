@@ -11,13 +11,14 @@
  *
  * Zero Trust: workspace_id del JWT. Toda validación en RPC.
  */
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Clock, Coffee, LogIn, LogOut, CheckCircle2, AlertCircle, Users } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useWorkspace } from '../features/auth/WorkspaceProvider';
 import { useToast } from '../components/ui/Toast';
 import { supabase } from '../lib/supabaseClient';
+import { useRealtimeSubscription } from '../lib/realtimeManager';
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
@@ -211,7 +212,6 @@ export function AsistenciaPage() {
       return (data?.record ?? null) as AttendanceRecord | null;
     },
     staleTime: 30_000,
-    refetchInterval: 60_000,
   });
 
   // Asistencia del equipo con período seleccionable
@@ -229,8 +229,30 @@ export function AsistenciaPage() {
     },
     enabled:   isManager,
     staleTime: 60_000,
-    refetchInterval: period === 'today' ? 120_000 : 0,
   });
+
+  // Realtime: mantener datos frescos sin polling
+  const onMyAttendanceChange = useCallback(() => {
+    qc.invalidateQueries({ queryKey: ['my-attendance-today', profile.id] });
+  }, [qc, profile.id]);
+
+  const onTeamAttendanceChange = useCallback(() => {
+    if (isManager) qc.invalidateQueries({ queryKey: ['team-attendance'] });
+  }, [qc, isManager]);
+
+  useRealtimeSubscription(
+    `attendance_records:${profile.id}`,
+    { table: 'attendance_records', event: '*', filter: `user_id=eq.${profile.id}` },
+    onMyAttendanceChange,
+  );
+
+  // Canal workspace-level para cambios del equipo (solo managers)
+  useRealtimeSubscription(
+    isManager ? `attendance_records_team:${profile.workspace_id}` : null,
+    { table: 'attendance_records', event: '*', filter: `workspace_id=eq.${profile.workspace_id}` },
+    onTeamAttendanceChange,
+    isManager,
+  );
 
   const eventMut = useMutation({
     mutationFn: async (event: string) => {

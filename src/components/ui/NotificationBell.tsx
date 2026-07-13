@@ -1,10 +1,11 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { Bell, CheckCheck, X } from 'lucide-react';
 import { useWorkspace } from '../../features/auth/WorkspaceProvider';
 import {
   listNotifications, countUnread, markAsRead, markAllAsRead,
   type AppNotification,
 } from '../../services/notifications';
+import { useRealtimeSubscription } from '../../lib/realtimeManager';
 
 const TYPE_COLORS: Record<string, { bg: string; dot: string }> = {
   success: { bg: '#F0FDF4', dot: '#22C55E' },
@@ -25,29 +26,54 @@ function timeAgo(dateStr: string): string {
 
 export function NotificationBell() {
   const { workspace } = useWorkspace();
-  const [open,         setOpen]         = useState(false);
-  const [unread,       setUnread]       = useState(0);
+  const [open,          setOpen]          = useState(false);
+  const [unread,        setUnread]        = useState(0);
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
-  const [loading,      setLoading]      = useState(false);
-  const dropRef = useRef<HTMLDivElement>(null);
+  const [loading,       setLoading]       = useState(false);
+  const dropRef       = useRef<HTMLDivElement>(null);
+  const realtimeReady = useRef(false);
 
-  // Contar no leídas cada 30s
+  // Carga inicial del contador
   useEffect(() => {
-    let cancelled = false;
-    async function poll() {
-      const n = await countUnread(workspace.id);
-      if (!cancelled) setUnread(n);
-    }
-    poll();
-    const t = setInterval(poll, 30_000);
-    return () => { cancelled = true; clearInterval(t); };
+    countUnread(workspace.id).then(setUnread).catch(() => {});
   }, [workspace.id]);
+
+  // Fallback polling a 60s — solo activo mientras Realtime no confirme conexión
+  useEffect(() => {
+    const t = setInterval(() => {
+      if (realtimeReady.current) return; // Realtime ok — skip
+      countUnread(workspace.id).then(setUnread).catch(() => {});
+    }, 60_000);
+    return () => clearInterval(t);
+  }, [workspace.id]);
+
+  // Realtime: escucha INSERT en notifications para este workspace
+  // RLS garantiza que solo llegan filas propias del usuario autenticado.
+  const handleRealtimeInsert = useCallback((payload: { eventType?: string; new?: Record<string, unknown> }) => {
+    realtimeReady.current = true;
+    if (payload.eventType !== 'INSERT') return;
+    const row = payload.new as AppNotification | undefined;
+    if (!row) return;
+    // Incrementar badge
+    setUnread(prev => prev + 1);
+    // Si el panel está abierto, prefijar la nueva notificación
+    setNotifications(prev => prev.length > 0 ? [row, ...prev] : prev);
+  }, []);
+
+  useRealtimeSubscription(
+    `notifications:${workspace.id}`,
+    { table: 'notifications', event: 'INSERT', filter: `workspace_id=eq.${workspace.id}` },
+    handleRealtimeInsert as Parameters<typeof useRealtimeSubscription>[2],
+  );
 
   async function openPanel() {
     setOpen(true);
     setLoading(true);
     const data = await listNotifications(workspace.id, 20);
     setNotifications(data);
+    // Sincronizar badge con realidad (Realtime pudo perderse eventos offline)
+    const count = data.filter(n => !n.is_read).length;
+    setUnread(count);
     setLoading(false);
   }
 

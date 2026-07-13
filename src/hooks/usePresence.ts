@@ -3,14 +3,14 @@
  *
  * Cuando el usuario abre la app:
  *   → Se une al canal de presencia del workspace
- *   → Emite heartbeat automático cada 30s (update_presence RPC)
  *   → Retorna mapa de userId → { online, last_seen }
  *
  * Cuando otro usuario cambia su estado:
  *   → El canal notifica en tiempo real (< 500ms)
  *
+ * Nota: el heartbeat de DB (update_presence) fue eliminado en IT-5.
+ * useSessionGuard llama session_heartbeat() cada 30s y cubre esa función.
  * Zero Trust: workspace_id del contexto JWT, nunca del frontend.
- * No hace polling. Supabase Realtime maneja la reconexión.
  */
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { supabase } from '../lib/supabaseClient';
@@ -31,8 +31,7 @@ interface UsePresenceOptions {
 
 export function usePresence({ workspaceId, userId, enabled = true }: UsePresenceOptions): PresenceMap {
   const [presenceMap, setPresenceMap] = useState<PresenceMap>({});
-  const channelRef  = useRef<RealtimeChannel | null>(null);
-  const heartbeatRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const channelRef = useRef<RealtimeChannel | null>(null);
 
   const syncPresence = useCallback((state: Record<string, { user_id: string; online_at: string }[]>) => {
     const map: PresenceMap = {};
@@ -88,20 +87,7 @@ export function usePresence({ workspaceId, userId, enabled = true }: UsePresence
 
     channelRef.current = channel;
 
-    // Heartbeat: actualizar last_seen_at en DB cada 30s
-    async function sendHeartbeat() {
-      try {
-        await (supabase as any).rpc('update_presence');
-      } catch {
-        // Silencioso — no romper la UI por un heartbeat fallido
-      }
-    }
-
-    sendHeartbeat();
-    heartbeatRef.current = setInterval(sendHeartbeat, 30_000);
-
     return () => {
-      if (heartbeatRef.current) clearInterval(heartbeatRef.current);
       channel.unsubscribe();
       supabase.removeChannel(channel);
       channelRef.current = null;

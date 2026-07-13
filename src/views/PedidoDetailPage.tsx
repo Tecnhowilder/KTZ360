@@ -31,6 +31,10 @@ import { useUI } from '../features/app/UIProvider';
 import { formatCurrencyCOP } from '../lib/currency';
 import { supabase } from '../lib/supabaseClient';
 import { inviteTeamMember } from '../services/team';
+import { OrderDocumentOverlay } from '../components/overlays/OrderDocumentOverlay';
+import { openWhatsAppShare, shareByEmail } from '../lib/shareUtils';
+import { getOrCreateOrderToken } from '../services/orderPortal';
+import { ShareBar } from '../components/ui/ShareBar';
 import { isValidEmail, isValidPhone } from '../lib/validation';
 import {
   ORDER_STATUS_LABELS, ORDER_STATUS_COLORS,
@@ -703,6 +707,8 @@ export function PedidoDetailPage() {
   const navigate       = useNavigate();
   const { showToast }  = useToast();
   const queryClient    = useQueryClient();
+  // hooks siempre al tope — NUNCA después de early returns (React Rules of Hooks)
+  const { company, planName } = useWorkspace();
 
   const [showCreateWO,   setShowCreateWO]   = useState(false);
   const [woTitle,        setWoTitle]         = useState('');
@@ -712,6 +718,8 @@ export function PedidoDetailPage() {
   const [activeTab,      setActiveTab]       = useState<TabKey>('ots');
   const [evidencePhase,  setEvidencePhase]   = useState<string>('todas');
   const [assignOpen,     setAssignOpen]      = useState(false);
+  const [showDocOverlay, setShowDocOverlay]  = useState(false);
+  const [sharing,        setSharing]         = useState(false);
 
   const detailQ    = useOrderDetail(id);
   const statusMut  = useUpdateOrderStatus();
@@ -807,6 +815,62 @@ export function PedidoDetailPage() {
     detailQ.refetch();
   }
 
+  // ── Compartir pedido ────────────────────────────────────────────────────────
+  const clientName = snap?.client?.name ?? order.client_name ?? 'Cliente';
+  const totalAmt   = Number(order.total_amount ?? 0);
+
+  async function getShareUrl(): Promise<string | null> {
+    try {
+      const token = await getOrCreateOrderToken(order.id);
+      return `${window.location.origin}/o/${token}`;
+    } catch { return null; }
+  }
+
+  async function handleShareWhatsApp() {
+    setSharing(true);
+    try {
+      const url = await getShareUrl();
+      await openWhatsAppShare({
+        clientName,
+        projectName:  order.title ?? order.order_number,
+        companyName:  company?.name ?? '',
+        publicUrl:    url ?? window.location.href,
+        total:        totalAmt,
+        quoteNumber:  order.order_number,
+      });
+    } catch { showToast('Error al abrir WhatsApp'); }
+    finally { setSharing(false); }
+  }
+
+  async function handleShareEmail() {
+    setSharing(true);
+    try {
+      const url = await getShareUrl();
+      await shareByEmail({
+        clientName,
+        projectName:  order.title ?? order.order_number,
+        companyName:  company?.name ?? '',
+        publicUrl:    url ?? window.location.href,
+        total:        totalAmt,
+        quoteNumber:  order.order_number,
+        planCode:     planName?.toLowerCase() ?? 'free',
+      });
+    } catch (e: unknown) {
+      if ((e as Error)?.name !== 'AbortError') showToast('Error al abrir correo');
+    } finally { setSharing(false); }
+  }
+
+  async function handleCopyLink() {
+    setSharing(true);
+    try {
+      const url = await getShareUrl();
+      if (!url) { showToast('Enlace no disponible aún'); return; }
+      await navigator.clipboard.writeText(url);
+      showToast('Enlace copiado ✓');
+    } catch { showToast('Error al copiar'); }
+    finally { setSharing(false); }
+  }
+
   return (
     <div style={{ minHeight: '100vh', background: '#F8FAFC', paddingBottom: 80 }}>
 
@@ -857,6 +921,18 @@ export function PedidoDetailPage() {
             <div style={{ fontSize: 13.5, fontWeight: 800, color: k.color, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{k.value}</div>
           </div>
         ))}
+      </div>
+
+      {/* ── COMPARTIR ────────────────────────────────────────────────────────── */}
+      <div style={{ margin: '14px 16px 0', background: '#fff', borderRadius: 14, padding: '14px 16px', boxShadow: '0 1px 3px rgba(0,0,0,.06)' }}>
+        <div style={{ fontSize: 11, fontWeight: 700, color: '#94A3B8', letterSpacing: '.5px', marginBottom: 12 }}>COMPARTIR</div>
+        <ShareBar
+          onWhatsApp={handleShareWhatsApp}
+          onEmail={handleShareEmail}
+          onCopyLink={handleCopyLink}
+          onPDF={() => setShowDocOverlay(true)}
+          disabled={sharing}
+        />
       </div>
 
       {/* ── LÍNEA DE TIEMPO ─────────────────────────────────────────────────── */}
@@ -1181,6 +1257,11 @@ export function PedidoDetailPage() {
           onClose={() => setAssignOpen(false)}
           onAssigned={handleAssigned}
         />
+      )}
+
+      {/* Overlay PDF del pedido */}
+      {showDocOverlay && id && (
+        <OrderDocumentOverlay orderId={id} onClose={() => setShowDocOverlay(false)} />
       )}
     </div>
   );

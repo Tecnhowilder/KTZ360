@@ -13,9 +13,11 @@ interface MobileHeaderProps {
 export function MobileHeader({ onMenuOpen }: MobileHeaderProps) {
   return (
     <header style={{
-      position: 'sticky',
+      position: 'fixed',
       top: 0,
-      zIndex: 35,
+      left: 0,
+      right: 0,
+      zIndex: 50,
       background: '#fff',
       borderBottom: '1px solid #F1F5F9',
       padding: '0 16px',

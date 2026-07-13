@@ -10,6 +10,7 @@ import { useRef, useState, useCallback, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { completeOnboarding } from '../lib/onboarding';
 import { getSlidesForRole, shouldSkipOnboarding, type OnboardingSlide } from '../lib/roleOnboarding';
+import { getHomeForRole } from '../lib/navigation';
 import { supabase } from '../lib/supabaseClient';
 
 // ─── Botón circular con progreso SVG ─────────────────────────────────────────
@@ -105,7 +106,7 @@ export function OnboardingPage() {
         // Roles sin onboarding: completar automáticamente y redirigir
         if (shouldSkipOnboarding(role)) {
           completeOnboarding();
-          navigate('/app/dashboard', { replace: true });
+          navigate(getHomeForRole(role), { replace: true });
           return;
         }
 
@@ -117,13 +118,20 @@ export function OnboardingPage() {
     })();
   }, [navigate]);
 
-  const goNext = useCallback(() => {
+  const goNext = useCallback(async () => {
     if (!slides) return;
     if (current < slides.length - 1) {
       setCurrent(c => c + 1);
     } else {
       completeOnboarding();
-      navigate('/app/dashboard', { replace: true });
+      // Cargar rol desde DB para el redirect correcto
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        const { data: prof } = await supabase.from('profiles').select('role').eq('id', user.id).maybeSingle();
+        navigate(getHomeForRole(prof?.role ?? 'owner'), { replace: true });
+      } else {
+        navigate('/app/dashboard', { replace: true });
+      }
     }
   }, [current, navigate, slides]);
 
@@ -138,7 +146,7 @@ export function OnboardingPage() {
   function onTouchEnd(e: React.TouchEvent) {
     if (touchStartX.current === null) return;
     const diff = touchStartX.current - e.changedTouches[0].clientX;
-    if (Math.abs(diff) > 50) { diff > 0 ? goNext() : goPrev(); }
+    if (Math.abs(diff) > 50) { if (diff > 0) { void goNext(); } else { goPrev(); } }
     touchStartX.current = null;
   }
 
@@ -148,7 +156,7 @@ export function OnboardingPage() {
   // Fallback por si el array es vacío (no debería pasar por shouldSkipOnboarding)
   if (slides.length === 0) {
     completeOnboarding();
-    navigate('/app/dashboard', { replace: true });
+    navigate('/app/dashboard', { replace: true }); // fallback — sin rol disponible aquí
     return null;
   }
 
@@ -164,7 +172,7 @@ export function OnboardingPage() {
       <div style={{ display: 'flex', justifyContent: 'flex-end', padding: '16px 20px 0', flexShrink: 0 }}>
         {current < TOTAL - 1 && (
           <button
-            onClick={() => { completeOnboarding(); navigate('/app/dashboard', { replace: true }); }}
+            onClick={() => { void goNext(); }}
             style={{ border: 'none', background: 'none', color: '#94A3B8', fontSize: 14, fontWeight: 600, cursor: 'pointer', padding: '4px 8px' }}
           >
             Omitir

@@ -1,163 +1,164 @@
 /**
- * pushNotifications.ts — Arquitectura de Push Notifications (Sprint 22)
+ * pushNotifications.ts — Integración FCM/APNs vía @capacitor/push-notifications
  *
- * Estado: PREPARADO, sin Firebase todavía.
- * Solo tipos, interfaces y abstracciones.
+ * Arquitectura Zero Trust:
+ *   • El token del dispositivo se sube al backend vía RPC autenticada.
+ *   • La edge function send-push usa las credenciales Firebase del secret
+ *     FIREBASE_SERVICE_ACCOUNT_JSON — nunca expuestas al frontend.
+ *   • Sin claves FCM en variables VITE_.
  *
- * Cuando se integre Firebase (FCM para Android / APNs para iOS):
- *   1. Instalar @capacitor-firebase/messaging
- *   2. Configurar google-services.json (Android) y GoogleService-Info.plist (iOS)
- *   3. Descomentar el código de registro en initPushNotifications()
- *   4. Crear edge function 'send-push' que llame a FCM REST API
- *
- * Zero Trust: el token de dispositivo se sube al backend autenticado.
- * El backend valida workspace membership antes de enviar push.
+ * Flujo:
+ *   1. App abre → initPushNotifications()
+ *   2. Pide permiso al usuario
+ *   3. Obtiene token FCM/APNs
+ *   4. Llama register_push_token RPC → guardado en push_tokens
+ *   5. Al cerrar sesión → unregister_push_token RPC → token desactivado
  */
 import { isNative } from '../lib/capacitorBridge';
+import { supabase } from '../lib/supabaseClient';
+import { getStoredDeviceId } from './auth';
+
+// Handles de listeners activos — se limpian al re-inicializar o en logout
+let _activeHandles: Array<{ remove: () => Promise<void> }> = [];
 
 // ─── Tipos de notificación push ───────────────────────────────────────────────
 
 export type PushNotificationType =
-  | 'order_created'        // Nuevo pedido creado
-  | 'work_order_assigned'  // OT asignada al usuario
-  | 'work_order_completed' // OT finalizada
-  | 'check_in_reminder'    // Recordatorio de Check In
-  | 'quote_viewed'         // Cliente abrió cotización
-  | 'quote_approved'       // Cotización aprobada
-  | 'ai_credits_80'        // Créditos IA al 80%
-  | 'ai_credits_100'       // Créditos IA agotados
-  | 'general';             // Notificación genérica del admin
+  | 'order_created'
+  | 'work_order_assigned'
+  | 'work_order_completed'
+  | 'check_in_reminder'
+  | 'quote_viewed'
+  | 'quote_approved'
+  | 'ai_credits_80'
+  | 'ai_credits_100'
+  | 'general';
 
 export interface PushPayload {
   type:        PushNotificationType;
   title:       string;
   body:        string;
-  deepLink?:   string;        // URL para navegar al abrir (deeplink)
-  entityId?:   string;        // ID de la entidad relacionada
-  entityType?: string;        // 'order' | 'work_order' | 'quote' etc.
+  deepLink?:   string;
+  entityId?:   string;
+  entityType?: string;
   metadata?:   Record<string, unknown>;
 }
 
-export interface DeviceToken {
-  token:        string;
-  platform:     'ios' | 'android' | 'web';
-  appVersion?:  string;
-  registeredAt: string;
+// ─── Registro de token en backend ────────────────────────────────────────────
+
+async function registerTokenInBackend(token: string, platform: 'ios' | 'android' | 'web'): Promise<void> {
+  const deviceId = getStoredDeviceId();
+  if (!deviceId) return;
+
+  const appVersion: string | undefined = undefined; // versión inyectada por CI en builds nativos
+
+  const { error } = await supabase.rpc('register_push_token' as never, {
+    p_token:       token,
+    p_platform:    platform,
+    p_device_id:   deviceId,
+    p_app_version: appVersion ?? null,
+  } as never);
+
+  if (error) {
+    console.warn('[push] Error al registrar token:', error.message);
+  }
 }
 
-// ─── Registro de dispositivo ──────────────────────────────────────────────────
+export async function unregisterDeviceToken(): Promise<void> {
+  // Remover listeners activos antes de desregistrar el token
+  if (_activeHandles.length > 0) {
+    await Promise.all(_activeHandles.map(h => h.remove()));
+    _activeHandles = [];
+  }
 
-/**
- * Registra el token FCM/APNs del dispositivo en el backend.
- * El backend lo usa para enviar push notifications dirigidas.
- *
- * @future Llamar después de que el usuario autorice notificaciones push.
- */
-export async function registerDeviceToken(deviceToken: DeviceToken): Promise<void> {
-  // TODO cuando Firebase esté configurado:
-  // const { error } = await supabase.rpc('register_push_token', { p_token: deviceToken.token, p_platform: deviceToken.platform });
-  // if (error) throw error;
-  console.log('[push] Device token registrado (stub):', deviceToken.token.slice(0, 10) + '...');
+  const deviceId = getStoredDeviceId();
+  if (!deviceId) return;
+
+  await supabase.rpc('unregister_push_token' as never, {
+    p_device_id: deviceId,
+  } as never);
 }
 
-/**
- * Des-registra el token del dispositivo al cerrar sesión.
- */
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-export async function unregisterDeviceToken(_token: string): Promise<void> {
-  // TODO cuando Firebase esté configurado:
-  // const { error } = await supabase.rpc('unregister_push_token', { p_token: _token });
-  console.log('[push] Device token des-registrado (stub)');
-}
+// ─── Inicialización (solo native) ────────────────────────────────────────────
 
-// ─── Inicialización ───────────────────────────────────────────────────────────
-
-/**
- * Inicializa el sistema de push notifications.
- * En native: solicita permisos + obtiene token + lo registra en backend.
- * En web: usa la Web Push API (preparado, no implementado).
- *
- * @param onNotificationReceived Callback cuando llega una notificación con la app abierta.
- * @param onNotificationTapped   Callback cuando el usuario toca una notificación (app en background).
- */
 export async function initPushNotifications(
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  _onNotificationReceived?: (payload: PushPayload) => void,
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  _onNotificationTapped?:   (payload: PushPayload) => void,
+  onNotificationReceived?: (payload: PushPayload) => void,
+  onNotificationTapped?:   (payload: PushPayload) => void,
 ): Promise<void> {
   if (!isNative) {
-    // Web Push preparado para futuro
-    console.log('[push] Web Push: preparado para integración futura');
-    return;
+    return; // Web Push: no implementado — Realtime cubre notificaciones en foreground
   }
 
-  // TODO: descomentar cuando Firebase esté configurado
-  /*
-  const { PushNotifications } = await import('@capacitor/push-notifications');
-
-  // Solicitar permiso
-  const perm = await PushNotifications.requestPermissions();
-  if (perm.receive !== 'granted') {
-    console.log('[push] Permiso denegado');
-    return;
+  // Limpiar listeners anteriores antes de re-inicializar
+  if (_activeHandles.length > 0) {
+    await Promise.all(_activeHandles.map(h => h.remove()));
+    _activeHandles = [];
   }
 
-  // Registrar con FCM/APNs
-  await PushNotifications.register();
+  try {
+    const { PushNotifications } = await import('@capacitor/push-notifications');
+    const { Capacitor } = await import('@capacitor/core');
 
-  // Recibir token
-  PushNotifications.addListener('registration', async (token) => {
-    const platform = Capacitor.getPlatform() === 'ios' ? 'ios' : 'android';
-    await registerDeviceToken({ token: token.value, platform, registeredAt: new Date().toISOString() });
-  });
+    const perm = await PushNotifications.requestPermissions();
+    if (perm.receive !== 'granted') {
+      console.log('[push] Permiso denegado por el usuario');
+      return;
+    }
 
-  PushNotifications.addListener('registrationError', (err) => {
-    console.error('[push] Error de registro:', err);
-  });
+    await PushNotifications.register();
 
-  // Notificación recibida con app abierta
-  PushNotifications.addListener('pushNotificationReceived', (notification) => {
-    const payload = _parsePushPayload(notification.data);
-    onNotificationReceived?.(payload);
-  });
+    // Guardar handles para poder remover listeners en cleanup/logout
+    const h1 = await PushNotifications.addListener('registration', async ({ value: token }) => {
+      const platform = Capacitor.getPlatform() === 'ios' ? 'ios' : 'android';
+      await registerTokenInBackend(token, platform);
+    });
+    const h2 = await PushNotifications.addListener('registrationError', (err) => {
+      console.error('[push] Error de registro FCM/APNs:', err);
+    });
+    const h3 = await PushNotifications.addListener('pushNotificationReceived', (notification) => {
+      const payload = parsePushPayload(notification.data);
+      onNotificationReceived?.(payload);
+    });
+    const h4 = await PushNotifications.addListener('pushNotificationActionPerformed', (action) => {
+      const payload = parsePushPayload(action.notification.data);
+      onNotificationTapped?.(payload);
+    });
 
-  // Usuario tocó la notificación
-  PushNotifications.addListener('pushNotificationActionPerformed', (action) => {
-    const payload = _parsePushPayload(action.notification.data);
-    onNotificationTapped?.(payload);
-  });
-  */
+    _activeHandles = [h1, h2, h3, h4];
 
-  console.log('[push] Native push: preparado para Firebase (FCM/APNs). Ver pushNotifications.ts para activar.');
+  } catch (err) {
+    console.warn('[push] initPushNotifications error:', err);
+  }
 }
 
-// ─── Helper para parsear payload de FCM ──────────────────────────────────────
+// ─── Helper: parsear payload FCM ─────────────────────────────────────────────
 
-// @ts-expect-error used inside commented-out Capacitor listener code
-function _parsePushPayload(data: Record<string, unknown>): PushPayload {
+function parsePushPayload(data: Record<string, unknown>): PushPayload {
+  let metadata: Record<string, unknown> | undefined;
+  if (data.metadata && typeof data.metadata === 'string') {
+    try { metadata = JSON.parse(data.metadata); } catch { /* noop */ }
+  }
   return {
     type:       (data.type as PushNotificationType) ?? 'general',
     title:      String(data.title ?? ''),
-    body:       String(data.body ?? ''),
-    deepLink:   data.deepLink as string | undefined,
-    entityId:   data.entityId as string | undefined,
+    body:       String(data.body  ?? ''),
+    deepLink:   data.deepLink   as string | undefined,
+    entityId:   data.entityId   as string | undefined,
     entityType: data.entityType as string | undefined,
-    metadata:   data.metadata as Record<string, unknown> | undefined,
+    metadata,
   };
 }
 
-// ─── Envío desde admin (preparado) ───────────────────────────────────────────
+// ─── Envío desde backend (solo para tests internos, no usar desde UI) ─────────
 
-/**
- * Envía una push notification a un workspace específico.
- * @future Requiere edge function 'send-push' y Firebase Admin SDK.
- */
-export async function sendPushToWorkspace(
-  workspaceId: string,
-  payload: Omit<PushPayload, 'type'> & { type: PushNotificationType },
-): Promise<void> {
-  // TODO: cuando Firebase esté configurado:
-  // await supabase.functions.invoke('send-push', { body: { workspaceId, ...payload } });
-  console.log('[push] sendPushToWorkspace (stub):', workspaceId, payload.type);
+export async function sendPushViaEdgeFunction(
+  notificationId: string,
+  userId:         string,
+  workspaceId:    string,
+): Promise<{ ok: boolean; sent?: number }> {
+  const { data, error } = await supabase.functions.invoke('send-push', {
+    body: { notification_id: notificationId, user_id: userId, workspace_id: workspaceId },
+  });
+  if (error) throw error;
+  return data as { ok: boolean; sent?: number };
 }

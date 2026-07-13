@@ -3,11 +3,10 @@
  * Se renderiza únicamente cuando navMode === 'bottom' (< 760 px).
  * El AppShell suprime el MobileHeader global en esta ruta.
  */
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { Bell, Menu, ChevronRight } from 'lucide-react';
-import { MobileDrawer } from '../layout/MobileDrawer';
+import { ChevronRight } from 'lucide-react';
 import { useWorkspace } from '../../features/auth/WorkspaceProvider';
 import { useUI, defaultQConfig } from '../../features/app/UIProvider';
 import { useDerivedQuotes } from '../../hooks/useQuotes';
@@ -39,7 +38,6 @@ export function MobileDashboard() {
   const { profile, company, workspace } = useWorkspace();
   const { openQuoteFlow, openQuoteDetail } = useUI();
   const { quotes, isLoading } = useDerivedQuotes();
-  const [drawerOpen, setDrawerOpen] = useState(false);
 
   // Hooks must run unconditionally before any early return (React rules of hooks)
   const quoteIds = useMemo(() => quotes.map(q => q.id), [quotes]);
@@ -98,26 +96,6 @@ export function MobileDashboard() {
 
   return (
     <div style={{ background: '#F8FAFC', minHeight: '100vh', paddingBottom: 96 }}>
-      <MobileDrawer open={drawerOpen} onClose={() => setDrawerOpen(false)} />
-
-      {/* ── Header interno ────────────────────────────────────────────────── */}
-      <div style={{
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        padding: '12px 16px', background: '#fff',
-        borderBottom: '1px solid #F1F5F9',
-        paddingTop: 'calc(env(safe-area-inset-top) + 12px)',
-      }}>
-        <button onClick={() => setDrawerOpen(true)} aria-label="Menú" style={{ border: 'none', background: 'none', cursor: 'pointer', padding: 4 }}>
-          <Menu size={22} color="#374151" />
-        </button>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <div style={{ width: 28, height: 28, borderRadius: 7, background: '#7C3AED', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <span style={{ color: '#fff', fontWeight: 900, fontSize: 14 }}>S</span>
-          </div>
-          <span style={{ fontSize: 17, fontWeight: 800, color: '#0F172A' }}>Shelwi</span>
-        </div>
-        <NotifBell />
-      </div>
 
       <div style={{ padding: '0 16px', display: 'flex', flexDirection: 'column', gap: 16, paddingTop: 16 }}>
 
@@ -330,11 +308,3 @@ export function MobileDashboard() {
   );
 }
 
-// Campana de notificaciones inline (evita importar NotificationBell que puede cambiar)
-function NotifBell() {
-  return (
-    <button aria-label="Notificaciones" style={{ border: 'none', background: 'none', cursor: 'pointer', padding: 4, position: 'relative' }}>
-      <Bell size={22} color="#374151" />
-    </button>
-  );
-}

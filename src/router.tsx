@@ -29,8 +29,10 @@ import { AdminPanel } from './views/AdminPanel';
 import { SimpleEmpty } from './views/SimpleEmpty';
 import { ConfiguracionPage } from './views/ConfiguracionPage';
 import { PublicQuotePortal } from './views/public/PublicQuotePortal';
+import { PublicOrderPortal } from './views/public/PublicOrderPortal';
 import { ClientPortalPage } from './views/portal/ClientPortalPage';
-import { AcceptInvite } from './views/public/AcceptInvite';
+import { InviteWizard } from './views/invite/InviteWizard';
+import { ProfilePage } from './views/ProfilePage';
 import { Terms } from './views/public/Terms';
 import { PrivacyPolicy } from './views/public/PrivacyPolicy';
 import { BillingSuccess } from './views/billing/BillingSuccess';
@@ -64,8 +66,9 @@ export const router = createBrowserRouter([
   { path: '/registro', element: <RegisterPage /> },
   { path: '/recuperar-contrasena', element: <ForgotPasswordPage /> },
   { path: '/p/:token', element: <PublicQuotePortal /> },
+  { path: '/o/:token', element: <PublicOrderPortal /> },
   { path: '/portal/:token', element: <ClientPortalPage /> },
-  { path: '/invite/:token', element: <AcceptInvite /> },
+  { path: '/invite/:token', element: <InviteWizard /> },
   { path: '/ref/:refCode', element: <ReferralRedirect /> },
   { path: '/terminos', element: <Terms /> },
   { path: '/politica-privacidad', element: <PrivacyPolicy /> },
@@ -103,6 +106,7 @@ export const router = createBrowserRouter([
       { path: 'ordenes-trabajo',            element: <OrdenesDeTrabajo /> },
       { path: 'ordenes-trabajo/:id',        element: <OTDetailPage /> },
       { path: 'proyectos', element: <SimpleEmpty variant="proyectos" /> },
+      { path: 'perfil',  element: <ProfilePage /> },
       { path: 'config', element: <ConfiguracionPage /> },
       { path: 'config/integraciones', element: <IntegracionesPage /> },
       { path: 'config/almacenamiento', element: <AlmacenamientoPage /> },

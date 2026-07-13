@@ -87,7 +87,7 @@ export type UserRole =
   | 'owner' | 'admin' | 'supervisor' | 'comercial' | 'operario'
   | 'super_admin' | 'support_admin';
 
-export type OperationalStatus = 'off' | 'disponible' | 'en_ruta' | 'en_sitio' | 'finalizado';
+export type OperationalStatus = 'off' | 'disponible' | 'en_ruta' | 'en_sitio' | 'finalizado' | 'en_pausa';
 
 export type ProfileRow = {
   id: string;
@@ -106,6 +106,9 @@ export type ProfileRow = {
   onboarding_seen: boolean;
   onboarding_card_collapsed: boolean;
   onboarding_card_hidden_at: string | null;
+  city:        string | null;
+  profession:  string | null;
+  specialty:   string | null;
 };
 
 export type PlanFeaturesRow = {
@@ -198,6 +201,49 @@ export type AiOperationCostRow = {
   credits_cost: number;
   description:  string | null;
   active:       boolean;
+};
+
+// ─── Sprint Final: Feature Flags dinámicos ────────────────────────────────────
+
+export type FeatureFlagCategory = 'ui' | 'ai' | 'ops' | 'billing' | 'push' | 'email' | 'security' | 'general';
+
+export type FeatureFlagRow = {
+  id:            string;
+  key:           string;
+  name:          string;
+  description:   string | null;
+  enabled:       boolean;
+  plan_codes:    string[] | null;
+  workspace_ids: string[] | null;
+  user_ids:      string[] | null;
+  roles:         string[] | null;
+  rollout_pct:   number | null;
+  category:      FeatureFlagCategory;
+  tags:          string[];
+  created_at:    string;
+  updated_at:    string;
+  created_by:    string | null;
+  updated_by:    string | null;
+};
+
+// ─── Sprint Final: Push Notification Templates ────────────────────────────────
+
+export type PushNotificationTemplateRow = {
+  id:          string;
+  key:         string;
+  name:        string;
+  description: string | null;
+  title:       string;
+  body:        string;
+  deep_link:   string | null;
+  image_url:   string | null;
+  variables:   string[];
+  priority:    'normal' | 'high';
+  active:      boolean;
+  created_at:  string;
+  updated_at:  string;
+  created_by:  string | null;
+  updated_by:  string | null;
 };
 
 export type ClientRow = {

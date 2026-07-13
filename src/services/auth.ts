@@ -1,4 +1,5 @@
 import { supabase } from '../lib/supabaseClient';
+import { unregisterDeviceToken } from './pushNotifications';
 // Sprint 22: getAppBaseUrl importado via DeepLinks
 
 import { DeepLinks } from '../lib/deepLinks';
@@ -37,11 +38,11 @@ export async function signIn(email: string, password: string) {
 }
 
 export async function signOut() {
+  // Revocar token push del dispositivo antes de cerrar sesión
+  await unregisterDeviceToken().catch(() => {});
+
   try {
     await supabase.rpc('log_auth_event', { p_action: 'logout' });
-    // Sprint 24: el device_id permanece para identificar el dispositivo.
-    // La sesión se marca como revocada en el próximo check_session_valid() o
-    // cuando WorkspaceProvider detecte que no hay sesión activa.
   } catch {
     // best-effort
   }

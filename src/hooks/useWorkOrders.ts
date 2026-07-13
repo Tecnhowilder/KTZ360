@@ -9,7 +9,7 @@ import {
 
 export function useWorkOrders(opts?: { orderId?: string; status?: string; priority?: string }) {
   return useQuery({
-    queryKey:  ['workOrders', opts?.orderId ?? 'all', opts?.status ?? 'all'],
+    queryKey:  ['workOrders', opts?.orderId ?? 'all', opts?.status ?? 'all', opts?.priority ?? 'all'],
     queryFn:   () => listWorkOrders(opts),
     staleTime: 30_000,
   });

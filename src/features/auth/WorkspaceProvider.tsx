@@ -4,6 +4,7 @@ import { useAuth } from './AuthProvider';
 import { getProfile, getWorkspace, getCompanySettings, getCurrentPlanName } from '../../services/workspaces';
 import type { Profile, Workspace, CompanySettings } from '../../lib/types';
 import { supabase } from '../../lib/supabaseClient';
+import { initPushNotifications } from '../../services/pushNotifications';
 
 // ─── Tipos de estado del contexto ────────────────────────────────────────────
 //
@@ -13,7 +14,7 @@ import { supabase } from '../../lib/supabaseClient';
 //   loading   — queries en vuelo, aún no hay resultado
 //   error     — excepción real (red, RLS que lanza, error inesperado)
 //   notFound  — la query RESOLVIÓ correctamente pero la fila no existe
-//               (maybeSingle() → null). Esto NO es una excepción: es un
+//               (maybySingle() → null). Esto NO es una excepción: es un
 //               estado de datos legítimo (perfil borrado, workspace
 //               eliminado, trigger de signup incompleto, cross-tenant).
 //   forbidden — el perfil existe pero status !== 'active' (invited,
@@ -90,14 +91,48 @@ type WorkspaceContextState =
 
 const WorkspaceContext = createContext<WorkspaceContextState | undefined>(undefined);
 
-// ─── Session registration (Sprint 24 D1) ─────────────────────────────────────
-// Registra el dispositivo actual como sesión activa la primera vez que un
-// perfil activo se resuelve. Complementa useSessionGuard (heartbeat de 30s).
-// Separado de WorkspaceProvider para mantener su función en responsabilidad única.
+// ─── Data fetching + session registration ─────────────────────────────────────
+// ORDEN DE HOOKS — crítico para cumplir las Rules of Hooks de React.
+//
+// React identifica cada hook por su POSICIÓN en el call stack del componente.
+// El orden en este hook es el mismo que tenía WorkspaceProvider originalmente:
+//
+//   [1] useQuery (profileQuery)
+//   [2] useRef   (sessionRegistered)       <- session registration
+//   [3] useEffect(session registration)    <- session registration
+//   [4] useQuery (workspaceQuery)
+//   [5] useQuery (companyQuery)
+//   [6] useQuery (planQuery)
+//
+// Sacar useRef/useEffect de sesión fuera de esta función (al final de todo)
+// cambiaría las posiciones 2 y 3, lo que viola las Rules of Hooks durante
+// HMR/Fast Refresh en desarrollo y puede causar comportamiento impredecible.
+//
+// Diseño de queries:
+//   queryKey:  idénticas a la versión original (caché compartida)
+//   enabled:   workspace/company/plan bloqueados hasta profileActive (Zero Trust)
+//   staleTime: 60 s perfil/workspace/company · 5 min plan
 
-function useSessionRegistration(workspaceId: string | undefined, profileActive: boolean) {
+function useWorkspaceQueries(userId: string | undefined) {
+
+  // [1] Profile — getProfile usa maybySingle(): null es resultado válido.
+  const profileQuery = useQuery({
+    queryKey:  ['profile', userId],
+    queryFn:   () => getProfile(userId!),
+    enabled:   !!userId,
+    retry:     2,
+    staleTime: 60_000,
+  });
+
+  const profile       = profileQuery.data ?? null;
+  const workspaceId   = profile?.workspace_id;
+  // Zero Trust: solo perfiles activos acceden al workspace.
+  const profileActive = profile?.status === 'active';
+
+  // [2-3] Session registration (Sprint 24 D1) — DEBE quedar en esta posición.
+  // Registra el dispositivo la primera vez que un perfil activo se resuelve.
+  // Complementa useSessionGuard (heartbeat de 30 s para revocar sesiones).
   const sessionRegistered = useRef(false);
-
   useEffect(() => {
     if (!workspaceId || !profileActive || sessionRegistered.current) return;
     sessionRegistered.current = true;
@@ -115,7 +150,7 @@ function useSessionRegistration(workspaceId: string | undefined, profileActive: 
     const ua = navigator.userAgent;
     const deviceName = /iPhone|iPad/.test(ua) ? 'iOS'
       : /Android/.test(ua) ? 'Android'
-      : /Mac/.test(ua) ? 'Mac'
+      : /Mac/.test(ua)     ? 'Mac'
       : /Windows/.test(ua) ? 'Windows'
       : 'Navegador';
 
@@ -126,34 +161,8 @@ function useSessionRegistration(workspaceId: string | undefined, profileActive: 
       p_user_agent:   ua.slice(0, 500),
     } as never).then(() => {});
   }, [workspaceId, profileActive]);
-}
 
-// ─── Data fetching (4 queries en cascada) ────────────────────────────────────
-// Encapsula los 4 useQuery y los derivados inmediatos de sus resultados.
-// Responsabilidad única: obtener los datos del tenant — sin side effects,
-// sin lógica de estado de pantalla, sin contexto React.
-//
-// Diseño de las claves y opciones:
-//   queryKey:  idénticas a la versión original (caché compartida)
-//   enabled:   idénticas — workspace/company/plan bloqueados hasta profileActive
-//   staleTime: idénticos (60s perfil/workspace/company, 5 min plan)
-
-function useWorkspaceQueries(userId: string | undefined) {
-  // getProfile usa maybeSingle(): data === null es resultado válido, no excepción.
-  const profileQuery = useQuery({
-    queryKey:  ['profile', userId],
-    queryFn:   () => getProfile(userId!),
-    enabled:   !!userId,
-    retry:     2,
-    staleTime: 60_000,
-  });
-
-  const profile      = profileQuery.data ?? null;
-  const workspaceId  = profile?.workspace_id;
-  // Zero Trust: solo perfiles activos acceden al workspace.
-  const profileActive = profile?.status === 'active';
-
-  // workspace/company/plan solo se consultan si el perfil existe Y está activo.
+  // [4-6] Workspace, Company, Plan — solo si perfil activo (cascada Zero Trust).
   const workspaceQuery = useQuery({
     queryKey:  ['workspace', workspaceId],
     queryFn:   () => getWorkspace(workspaceId!),
@@ -182,17 +191,17 @@ function useWorkspaceQueries(userId: string | undefined) {
     profileQuery.isLoading ||
     (profileActive && (workspaceQuery.isLoading || companyQuery.isLoading || planQuery.isLoading));
 
-  // Excepciones reales (red, RLS que lanza). Nunca incluye "0 filas" → eso es null.
+  // Excepciones reales (red, RLS que lanza). Nunca incluye "0 filas" -> eso es null.
   const isError =
-    profileQuery.isError  ||
+    profileQuery.isError   ||
     workspaceQuery.isError ||
-    companyQuery.isError  ||
+    companyQuery.isError   ||
     planQuery.isError;
 
   const firstError =
-    profileQuery.error  ||
+    profileQuery.error   ||
     workspaceQuery.error ||
-    companyQuery.error  ||
+    companyQuery.error   ||
     planQuery.error;
 
   return {
@@ -202,13 +211,12 @@ function useWorkspaceQueries(userId: string | undefined) {
   };
 }
 
-// ─── Máquina de estados del workspace ─────────────────────────────────────────
+// ─── Máquina de estados del workspace ────────────────────────────────────────
 // Función PURA: sin hooks, sin side effects, completamente testeable.
 // Recibe los resultados de los queries + estado local y retorna uno de los
 // 5 estados semánticos definidos en WorkspaceContextState.
 //
-// Separada del provider para permitir unit tests directos:
-//   computeWorkspaceState({ hasUser: false, ... }) → { loading: false, notFound: 'profile' }
+//   computeWorkspaceState({ hasUser: false, ... }) -> { loading: false, notFound: 'profile' }
 
 interface WorkspaceStateArgs {
   hasUser:            boolean;
@@ -227,8 +235,8 @@ interface WorkspaceStateArgs {
 }
 
 function computeWorkspaceState(a: WorkspaceStateArgs): WorkspaceContextState {
-  // 0) Sin usuario autenticado — ProtectedRoute redirige antes de montar este
-  //    provider, pero se cubre aquí como defensa en profundidad.
+  // 0) Sin usuario autenticado. ProtectedRoute redirige antes de montar
+  //    este provider, pero se cubre aquí como defensa en profundidad.
   if (!a.hasUser) return { loading: false, notFound: 'profile' };
 
   // 1) Error real (red, RLS que lanza) — no se oculta ni reintenta infinitamente.
@@ -252,7 +260,13 @@ function computeWorkspaceState(a: WorkspaceStateArgs): WorkspaceContextState {
     if (a.companyIsSuccess   && a.companyData   === null) return { loading: false, notFound: 'company'   };
 
     if (a.workspaceData && a.companyData && a.planData) {
-      return { profile: a.profile, workspace: a.workspaceData, company: a.companyData, planName: a.planData, loading: false };
+      return {
+        profile:   a.profile,
+        workspace: a.workspaceData,
+        company:   a.companyData,
+        planName:  a.planData,
+        loading:   false,
+      };
     }
   }
 
@@ -260,7 +274,7 @@ function computeWorkspaceState(a: WorkspaceStateArgs): WorkspaceContextState {
   return { loading: true };
 }
 
-// ─── WorkspaceProvider ────────────────────────────────────────────────────────
+// ─── WorkspaceProvider ───────────────────────────────────────────────────────
 
 export function WorkspaceProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
@@ -272,14 +286,13 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     return () => clearTimeout(t);
   }, []);
 
+  // Queries + session registration. El orden interno de hooks está fijo
+  // y documentado dentro de useWorkspaceQueries.
   const {
-    profile, workspaceId, profileActive,
+    profile, profileActive,
     profileQuery, workspaceQuery, companyQuery, planQuery,
     isLoading, isError, firstError,
   } = useWorkspaceQueries(user?.id);
-
-  // Sprint 24 D1: registrar dispositivo como sesión activa (ver useSessionRegistration).
-  useSessionRegistration(workspaceId, profileActive);
 
   const value = computeWorkspaceState({
     hasUser:            !!user,
@@ -297,10 +310,19 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     planData:           planQuery.data,
   });
 
+  // Inicializar push notifications una sola vez cuando el perfil está activo.
+  // initPushNotifications es no-op en web; en native pide permiso y registra token.
+  const pushInited = useRef(false);
+  useEffect(() => {
+    if (!profileActive || pushInited.current) return;
+    pushInited.current = true;
+    void initPushNotifications();
+  }, [profileActive]);
+
   return <WorkspaceContext.Provider value={value}>{children}</WorkspaceContext.Provider>;
 }
 
-// ─── Hooks ────────────────────────────────────────────────────────────────────
+// ─── Hooks públicos ──────────────────────────────────────────────────────────
 
 export function useWorkspace(): WorkspaceContextValue {
   const ctx = useContext(WorkspaceContext);

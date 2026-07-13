@@ -23,12 +23,12 @@ function PdfIcon({ size = 20 }: { size?: number }) {
 }
 
 interface Props {
-  onWhatsApp: () => void | Promise<void>;
-  onEmail: () => void | Promise<void>;
-  onCopyLink: () => void | Promise<void>;
-  onPDF: () => void | Promise<void>;
-  onPrint?: () => void;
-  disabled?: boolean;
+  onWhatsApp:  () => void | Promise<void>;
+  onEmail:     () => void | Promise<void>;
+  onCopyLink?: () => void | Promise<void>; // opcional: si no se pasa, el botón no se muestra
+  onPDF?:      () => void | Promise<void>; // opcional: si no se pasa, el botón no se muestra
+  onPrint?:    () => void;
+  disabled?:   boolean;
 }
 
 /**
@@ -58,21 +58,17 @@ export function ShareBar({ onWhatsApp, onEmail, onCopyLink, onPDF, disabled }: P
       key: 'whatsapp',
       icon: <WhatsAppIcon size={22} />,
       label: 'WhatsApp',
-      activeColor: '#16A34A',
-      activeBg: '#DCFCE7',
-      borderColor: '#BBF7D0',
+      activeColor: '#16A34A', activeBg: '#DCFCE7', borderColor: '#BBF7D0',
       onClick: onWhatsApp,
     },
     {
       key: 'email',
       icon: <Mail size={20} strokeWidth={1.8} />,
       label: 'Correo',
-      activeColor: '#2563EB',
-      activeBg: '#DBEAFE',
-      borderColor: '#BFDBFE',
+      activeColor: '#2563EB', activeBg: '#DBEAFE', borderColor: '#BFDBFE',
       onClick: onEmail,
     },
-    {
+    ...(onCopyLink ? [{
       key: 'link',
       icon: linkCopied ? <Check size={20} strokeWidth={2.2} /> : <Link2 size={20} strokeWidth={1.8} />,
       label: linkCopied ? '¡Copiado!' : 'Copiar',
@@ -80,16 +76,14 @@ export function ShareBar({ onWhatsApp, onEmail, onCopyLink, onPDF, disabled }: P
       activeBg: linkCopied ? '#DCFCE7' : '#EDE9FE',
       borderColor: linkCopied ? '#BBF7D0' : '#DDD6FE',
       onClick: onCopyLink,
-    },
-    {
+    }] : []),
+    ...(onPDF ? [{
       key: 'pdf',
       icon: <PdfIcon size={20} />,
       label: 'PDF',
-      activeColor: '#DC2626',
-      activeBg: '#FEE2E2',
-      borderColor: '#FECACA',
+      activeColor: '#DC2626', activeBg: '#FEE2E2', borderColor: '#FECACA',
       onClick: onPDF,
-    },
+    }] : []),
   ];
 
   return (

@@ -52,7 +52,9 @@ export function LoginPage() {
     setLoading(true);
     try {
       await signIn(email, password);
-      navigate(redirect || '/app/dashboard', { replace: true });
+      // Si hay redirect explícito (ej. flujo de invitación) → usarlo.
+      // Sin redirect → /app (AppIndexRedirect aplica getHomeForRole con el perfil cargado).
+      navigate(redirect || '/app', { replace: true });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'No se pudo iniciar sesión');
       supabase.rpc('log_login_failed', { p_email: email }).then(() => {}, () => {});

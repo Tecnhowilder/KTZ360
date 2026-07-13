@@ -1,4 +1,5 @@
 import { supabase } from '../lib/supabaseClient';
+import { APP_URL } from '../lib/brand';
 import type { ProfileRow, WorkspaceInvitationRow } from '../lib/database.types';
 
 export interface TeamSeats {
@@ -275,7 +276,7 @@ async function sendInvitationEmail(invitation: WorkspaceInvitationRow, inviterNa
           workspaceName,
           role: invitation.role,
           token: invitation.token,
-          appUrl: window.location.origin,
+          appUrl: APP_URL,
         },
       },
     });

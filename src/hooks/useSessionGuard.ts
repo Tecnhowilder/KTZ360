@@ -1,13 +1,14 @@
 /**
- * useSessionGuard — Sprint 24 Session Security
- * Valida sesión activa via heartbeat cada 30s usando check_session_valid().
+ * useSessionGuard — Sprint 24 Session Security (IT-5: session_heartbeat)
+ * Valida sesión activa via heartbeat cada 30s usando session_heartbeat().
+ * session_heartbeat() fusiona update_presence() + check_session_valid() en
+ * una sola llamada RPC, reduciendo 4 ops/30s → 1 RPC/30s por usuario.
  * Zero Trust: workspace_id del contexto, device_id del localStorage.
- * Si la sesión fue revocada (nuevo login en otro dispositivo) → signOut forzado.
+ * Si la sesión fue revocada → signOut forzado.
  */
 import { useEffect, useRef, useCallback } from 'react';
 import { supabase } from '../lib/supabaseClient';
-import { signOut } from '../services/auth';
-import { getStoredDeviceId } from '../services/auth';
+import { signOut, getStoredDeviceId } from '../services/auth';
 
 const HEARTBEAT_INTERVAL_MS = 30_000;
 const GRACE_PERIOD_MS       = 5_000;
@@ -20,10 +21,10 @@ export function useSessionGuard(workspaceId?: string) {
     if (isForcingOut.current || !workspaceId) return;
 
     const deviceId = getStoredDeviceId();
-    if (!deviceId) return; // usuario que hizo login antes de Sprint 24 → no-op
+    if (!deviceId) return; // usuario con login previo a Sprint 24 → no-op
 
     try {
-      const { data } = await supabase.rpc('check_session_valid' as never, {
+      const { data } = await supabase.rpc('session_heartbeat' as never, {
         p_workspace_id: workspaceId,
         p_device_id:    deviceId,
       } as never);

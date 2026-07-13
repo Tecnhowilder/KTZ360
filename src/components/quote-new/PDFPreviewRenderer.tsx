@@ -14,13 +14,14 @@ interface Props {
   quoteNumber?: string;
   company?: Partial<CompanySettings>;
   primaryColor?: string;
+  documentLabel?: string; // por defecto "COTIZACIÓN"; usar "PEDIDO" en el módulo Pedidos
 }
 
 const fmt = formatCurrencyCOP;
 
 export function PDFPreviewRenderer({
   items, laborItems = [], config, clientName, clientPhone, clientEmail, quoteName, quoteNumber,
-  company, primaryColor,
+  company, primaryColor, documentLabel = 'COTIZACIÓN',
 }: Props) {
   const totals       = computeTotals(items, config, laborItems);
   const now          = new Date();
@@ -60,7 +61,7 @@ export function PDFPreviewRenderer({
             </div>
           </div>
           <div style={{ textAlign: 'right' }}>
-            <div style={{ fontSize: 10.5, opacity: .75, fontWeight: 700, letterSpacing: '.8px' }}>COTIZACIÓN</div>
+            <div style={{ fontSize: 10.5, opacity: .75, fontWeight: 700, letterSpacing: '.8px' }}>{documentLabel}</div>
             <div style={{ fontSize: 20, fontWeight: 800, fontFamily: 'monospace', marginTop: 2 }}>{quoteNumber || '—'}</div>
           </div>
         </div>
@@ -104,7 +105,7 @@ export function PDFPreviewRenderer({
         {/* Ítems — tabla desktop */}
         {items.length > 0 && (
           <div style={{ padding: '14px 20px' }}>
-            <div style={{ fontSize: 10.5, fontWeight: 700, color: primaryColor, letterSpacing: '.5px', marginBottom: 8 }}>DETALLE DE LA COTIZACIÓN</div>
+            <div style={{ fontSize: 10.5, fontWeight: 700, color: primaryColor, letterSpacing: '.5px', marginBottom: 8 }}>DETALLE DE LA {documentLabel}</div>
             <div className="pdf-desktop-table">
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5 }}>
                 <thead>

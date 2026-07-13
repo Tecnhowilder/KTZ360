@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { X, Search, Star, Clock, Package, TrendingUp, Plus, Check } from 'lucide-react';
+import { X, Search, Star, Clock, Package, TrendingUp, Plus, Check, Info } from 'lucide-react';
 import { useWorkspace } from '../../features/auth/WorkspaceProvider';
 import { useAuth } from '../../features/auth/AuthProvider';
 import {
@@ -9,6 +9,29 @@ import {
 } from '../../services/catalogItems';
 import { computeItemSubtotal, type QuoteItem, type ItemType } from '../../lib/itemEngine';
 import { NumericInput } from '../ui/NumericInput';
+import { ToggleSwitch } from '../ui/ToggleSwitch';
+import { formatCurrencyCOP } from '../../lib/currency';
+
+// ─── Preferencia de IVA incluido ─────────────────────────────────────────────
+// Persiste en localStorage por usuario para evitar tener que activar el toggle cada vez.
+// Clave de conteo: sugiere guardar como predeterminado después de N usos.
+const PREF_KEY  = 'shelwi_iva_included_pref';
+const COUNT_KEY = 'shelwi_iva_toggle_count';
+const SUGGEST_AFTER = 3; // usos antes de mostrar la sugerencia de guardar como default
+
+function loadIvaPref(): boolean {
+  try { return localStorage.getItem(PREF_KEY) === 'true'; } catch { return false; }
+}
+function saveIvaPref(v: boolean) {
+  try { localStorage.setItem(PREF_KEY, String(v)); } catch { /* noop */ }
+}
+function incrementIvaCount(): number {
+  try {
+    const n = parseInt(localStorage.getItem(COUNT_KEY) ?? '0', 10) + 1;
+    localStorage.setItem(COUNT_KEY, String(n));
+    return n;
+  } catch { return 0; }
+}
 
 type SheetTab = 'favorites' | 'recents' | 'most_used' | 'catalog' | 'manual';
 
@@ -44,6 +67,26 @@ export function AddItemSheet({ onAdd, onClose }: Props) {
   const [pendingManualItem, setPendingManualItem] = useState<QuoteItem | null>(null);
   const [savingToCatalog, setSavingToCatalog] = useState(false);
 
+  // ── Toggle IVA incluido ───────────────────────────────────────────────────
+  const [ivaIncluded,    setIvaIncluded]    = useState<boolean>(loadIvaPref);
+  const [showIvaSuggest, setShowIvaSuggest] = useState(false);
+  const TAX_RATE = 0.19; // IVA estándar Colombia — visual helper únicamente
+
+  function handleIvaToggle(v: boolean) {
+    setIvaIncluded(v);
+    saveIvaPref(v);
+    if (v) {
+      const count = incrementIvaCount();
+      // Sugerir guardar como predeterminado después de N usos
+      if (count >= SUGGEST_AFTER && !showIvaSuggest) setShowIvaSuggest(true);
+    }
+  }
+
+  // Cálculos en tiempo real (solo visuales, no modifican el motor)
+  const rawPrice  = manual.unit_price;
+  const basePrice = ivaIncluded && rawPrice > 0 ? rawPrice / (1 + TAX_RATE) : rawPrice;
+  const ivaAmount = ivaIncluded && rawPrice > 0 ? rawPrice - basePrice : 0;
+
   useEffect(() => {
     getFavoriteCatalogItems(workspace.id).then(setFavorites).catch(() => {});
     getRecentCatalogItems(workspace.id).then(setRecents).catch(() => {});
@@ -69,9 +112,14 @@ export function AddItemSheet({ onAdd, onClose }: Props) {
 
   async function submitManual() {
     if (!manual.item_name.trim()) return;
-    const subtotal = computeItemSubtotal(manual);
-    const qi: QuoteItem = { ...manual, subtotal };
-    // Si el tipo no es MANUAL, ofrecer guardar en catálogo
+    // Si el toggle IVA incluido está activo, guardamos el precio BASE (sin IVA).
+    // El IVA se aplicará en el paso "Costos y totales" como siempre.
+    const effectivePrice = ivaIncluded && manual.unit_price > 0
+      ? manual.unit_price / (1 + TAX_RATE)
+      : manual.unit_price;
+    const itemToSave = { ...manual, unit_price: effectivePrice };
+    const subtotal   = computeItemSubtotal(itemToSave);
+    const qi: QuoteItem = { ...itemToSave, subtotal };
     setPendingManualItem(qi);
   }
 
@@ -205,12 +253,65 @@ export function AddItemSheet({ onAdd, onClose }: Props) {
                   <NumericInput value={manual.unit_price} onChange={v => setManual(p => ({ ...p, unit_price: v }))} min={0} prefix="$" />
                 </Field>
               </div>
+
+              {/* ── Toggle IVA incluido ──────────────────────────────────── */}
+              <div style={{ background: '#F8FAFC', borderRadius: 12, padding: '12px 14px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: ivaIncluded && rawPrice > 0 ? 12 : 0 }}>
+                  <span style={{ fontSize: 13, fontWeight: 600, color: '#374151' }}>
+                    El precio ingresado incluye IVA
+                  </span>
+                  <ToggleSwitch checked={ivaIncluded} onChange={handleIvaToggle} size="sm" />
+                </div>
+
+                {/* Desglose (solo cuando está activo y hay precio) */}
+                {ivaIncluded && rawPrice > 0 && (
+                  <div style={{ borderTop: '1px solid #E2E8F0', paddingTop: 10, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <span style={{ fontSize: 12.5, color: '#64748B' }}>Precio base</span>
+                      <span style={{ fontSize: 12.5, fontWeight: 700, color: '#0F172A' }}>{formatCurrencyCOP(basePrice)}</span>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <span style={{ fontSize: 12.5, color: '#64748B' }}>IVA (19%)</span>
+                      <span style={{ fontSize: 12.5, fontWeight: 700, color: '#64748B' }}>{formatCurrencyCOP(ivaAmount)}</span>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: 6, marginTop: 4, background: '#EFF6FF', borderRadius: 8, padding: '8px 10px' }}>
+                      <Info size={13} color="#2563EB" style={{ marginTop: 1, flexShrink: 0 }} />
+                      <span style={{ fontSize: 11.5, color: '#1D4ED8', lineHeight: 1.5 }}>
+                        El sistema guardará el precio base (<strong>{formatCurrencyCOP(basePrice)}</strong>).
+                        El IVA se aplicará automáticamente en el paso <em>Costos y totales</em>.
+                      </span>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Sugerencia de preferencia (aparece después de N usos) */}
+              {showIvaSuggest && (
+                <div style={{ background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 12, padding: '10px 12px', display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+                  <span style={{ fontSize: 16, flexShrink: 0 }}>💡</span>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 12.5, fontWeight: 700, color: '#92400E', marginBottom: 2 }}>
+                      ¿Siempre ingresas precios con IVA incluido?
+                    </div>
+                    <div style={{ fontSize: 12, color: '#92400E', lineHeight: 1.5 }}>
+                      Tu preferencia ya está guardada para esta sesión. Próximamente podrás establecerla como predeterminada en <strong>Configuración de empresa</strong>.
+                    </div>
+                    <button onClick={() => setShowIvaSuggest(false)}
+                      style={{ marginTop: 6, border: 'none', background: 'none', color: '#D97706', fontSize: 11.5, fontWeight: 700, cursor: 'pointer', padding: 0 }}>
+                      Entendido
+                    </button>
+                  </div>
+                </div>
+              )}
+
               <Field label="Descuento %">
                 <NumericInput value={manual.discount} onChange={v => setManual(p => ({ ...p, discount: Math.min(100, v) }))} min={0} max={100} suffix="%" />
               </Field>
               <div style={{ background: '#F8FAFC', borderRadius: 10, padding: '10px 14px', display: 'flex', justifyContent: 'space-between' }}>
                 <span style={{ fontSize: 13, color: '#64748B', fontWeight: 600 }}>Subtotal</span>
-                <span style={{ fontSize: 16, fontWeight: 800, color: '#0F172A' }}>${Math.round(computeItemSubtotal(manual)).toLocaleString('es-CO')}</span>
+                <span style={{ fontSize: 16, fontWeight: 800, color: '#0F172A' }}>
+                  {formatCurrencyCOP(Math.round(computeItemSubtotal({ ...manual, unit_price: ivaIncluded && manual.unit_price > 0 ? manual.unit_price / (1 + TAX_RATE) : manual.unit_price })))}
+                </span>
               </div>
               <button onClick={submitManual} disabled={!manual.item_name.trim()}
                 style={{ width: '100%', height: 48, border: 'none', background: manual.item_name.trim() ? '#2563EB' : '#E2E8F0', color: manual.item_name.trim() ? '#fff' : '#94A3B8', fontWeight: 700, fontSize: 15, borderRadius: 12, cursor: 'pointer' }}>

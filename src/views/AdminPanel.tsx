@@ -7,6 +7,7 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router-dom';
 import { isSuperAdmin } from '../lib/permissions';
+import { supabase } from '../lib/supabaseClient';
 import {
   listWorkspaceSubscriptions,
   listPlans,
@@ -28,11 +29,16 @@ import {
   type WorkspaceSubscriptionEntry,
   type AuditLogFilters,
 } from '../services/admin';
-import { PlansEditor }      from '../components/admin/PlansEditor';
+import { PlansEditor }              from '../components/admin/PlansEditor';
 import { FounderTab }              from '../components/admin/FounderTab';
 import { IAAdminTab }              from '../components/admin/IAAdminTab';
 import { StorageAdminTab }         from '../components/admin/StorageAdminTab';
 import { CustomerExperienceTab }   from '../components/admin/CustomerExperienceTab';
+import { FeatureFlagsTab }         from '../components/admin/FeatureFlagsTab';
+import { PushTemplatesTab }        from '../components/admin/PushTemplatesTab';
+import { ObservabilityTab }        from '../components/admin/ObservabilityTab';
+import { UserSupportPanel }        from '../components/admin/UserSupportPanel';
+import { EmailTemplatesTab }       from '../components/admin/EmailTemplatesTab';
 import type { SubscriptionRow, SystemConfigurationRow, AdminSettingRow } from '../lib/database.types';
 import { useToast } from '../components/ui/Toast';
 import { fmt } from '../lib/calc';
@@ -52,23 +58,28 @@ const tdStyle:     React.CSSProperties = { padding: '10px 12px', verticalAlign: 
 // ─── Tabs ─────────────────────────────────────────────────────────────────────
 
 type Tab = 'dashboard' | 'subscriptions' | 'plans' | 'founder' | 'ia' | 'storage'
-         | 'users' | 'workspaces' | 'invitations' | 'audit' | 'system' | 'support' | 'finanzas' | 'cx';
+         | 'users' | 'workspaces' | 'invitations' | 'audit' | 'system' | 'support'
+         | 'finanzas' | 'cx' | 'flags' | 'push_templates' | 'observability' | 'email_templates';
 
 const TAB_LABELS: Record<Tab, string> = {
-  dashboard:     'Dashboard',
-  subscriptions: 'Suscripciones',
-  plans:         'Planes & Features',
-  founder:       'Founder Program',
-  ia:            'IA Admin',
-  storage:       'Storage',
-  users:         'Usuarios',
-  workspaces:    'Workspaces',
-  invitations:   'Invitaciones',
-  audit:         'Auditoría',
-  system:        'Configuración',
-  support:       'Soporte',
-  finanzas:      'Finanzas Shelwi',
-  cx:            'Customer Experience',
+  dashboard:      'Dashboard',
+  subscriptions:  'Suscripciones',
+  plans:          'Planes & Features',
+  founder:        'Founder Program',
+  ia:             'IA Admin',
+  storage:        'Storage',
+  users:          'Usuarios',
+  workspaces:     'Workspaces',
+  invitations:    'Invitaciones',
+  audit:          'Auditoría',
+  system:         'Configuración',
+  support:        'Soporte',
+  finanzas:       'Finanzas Shelwi',
+  cx:             'Customer Experience',
+  flags:           '⚑ Feature Flags',
+  push_templates:  '🔔 Push Templates',
+  observability:   '📊 Observabilidad',
+  email_templates: '✉️ Email Templates',
 };
 
 // ─── AdminPanel root ──────────────────────────────────────────────────────────
@@ -76,7 +87,8 @@ const TAB_LABELS: Record<Tab, string> = {
 const PLAN_LABELS: Record<string, string> = { free: 'FREE', pro: 'PRO', premium: 'PREMIUM' };
 
 export function AdminPanel() {
-  const adminQuery = useQuery({ queryKey: ['isSuperAdmin'], queryFn: isSuperAdmin });
+  const adminQuery      = useQuery({ queryKey: ['isSuperAdmin'],       queryFn: isSuperAdmin });
+  const superAdminQuery = useQuery({ queryKey: ['isStrictSuperAdmin'], queryFn: () => supabase.rpc('is_super_admin').then(r => Boolean(r.data)) });
   const [searchParams, setSearchParams] = useSearchParams();
   const tab = (searchParams.get('tab') as Tab) ?? 'dashboard';
 
@@ -88,12 +100,9 @@ export function AdminPanel() {
     </div>
   );
 
-  // Determinar si es super_admin estricto (puede editar) vs support_admin (solo lectura)
-  // isSuperAdmin() llama is_support_admin() que devuelve true para ambos roles.
-  // Para distinguir, consultamos el perfil directamente.
-  const canEdit = adminQuery.data === true; // true siempre que is_support_admin() = true
-  // Para acciones solo super_admin, usaremos un query separado
-  const tabs: Tab[] = ['dashboard','subscriptions','plans','founder','ia','storage','users','workspaces','invitations','audit','system','support','finanzas','cx'];
+  const canEdit      = adminQuery.data === true;
+  const isSuperAdm   = superAdminQuery.data === true;
+  const tabs: Tab[]  = ['dashboard','subscriptions','plans','founder','ia','storage','users','workspaces','invitations','audit','system','support','finanzas','cx','flags','push_templates','observability','email_templates'];
 
   return (
     <div>
@@ -120,7 +129,7 @@ export function AdminPanel() {
       {tab === 'founder'       && <FounderTab  canEdit={canEdit} />}
       {tab === 'ia'            && <IAAdminTab  canEdit={canEdit} />}
       {tab === 'storage'       && <StorageAdminTab />}
-      {tab === 'users'         && <UsersTab    canEdit={canEdit} />}
+      {tab === 'users'         && <UsersTab    canEdit={canEdit} isSuperAdmin={isSuperAdm} />}
       {tab === 'workspaces'    && <WorkspacesTab canEdit={canEdit} />}
       {tab === 'invitations'   && <InvitationsTab />}
       {tab === 'audit'         && <AuditTab />}
@@ -128,6 +137,10 @@ export function AdminPanel() {
       {tab === 'support'       && <SupportTab />}
       {tab === 'finanzas'      && <FinanzasAdminTab />}
       {tab === 'cx'            && <CustomerExperienceTab />}
+      {tab === 'flags'         && <FeatureFlagsTab   canEdit={canEdit} />}
+      {tab === 'push_templates'&& <PushTemplatesTab  canEdit={canEdit} />}
+      {tab === 'observability'   && <ObservabilityTab />}
+      {tab === 'email_templates' && <EmailTemplatesTab canEdit={canEdit} />}
     </div>
   );
 }
@@ -254,11 +267,12 @@ const ROLE_LABELS: Record<string, string> = {
   super_admin: 'Super admin', support_admin: 'Soporte',
 };
 
-function UsersTab({ canEdit }: { canEdit: boolean }) {
+function UsersTab({ canEdit, isSuperAdmin }: { canEdit: boolean; isSuperAdmin: boolean }) {
   const qc = useQueryClient();
   const { showToast } = useToast();
   const profilesQ = useQuery({ queryKey: ['adminAllProfiles'], queryFn: listAllProfiles });
   const [search, setSearch] = useState('');
+  const [expandedUserId, setExpandedUserId] = useState<string | null>(null);
 
   const roleMut = useMutation({
     mutationFn: ({ userId, role }: { userId: string; role: string }) => changeUserRole(userId, role),
@@ -282,6 +296,8 @@ function UsersTab({ canEdit }: { canEdit: boolean }) {
       || workspaceName.toLowerCase().includes(q);
   });
 
+  const colSpan = canEdit ? 8 : 7;
+
   return (
     <div>
       <input value={search} onChange={e => setSearch(e.target.value)}
@@ -298,51 +314,82 @@ function UsersTab({ canEdit }: { canEdit: boolean }) {
                 <th style={thStyle}>Rol</th>
                 <th style={thStyle}>Estado</th>
                 <th style={thStyle}>Desde</th>
+                <th style={thStyle}>Soporte</th>
                 {canEdit && <th style={thStyle}>Acciones</th>}
               </tr>
             </thead>
             <tbody>
-              {filtered.map(({ profile, workspaceName }) => (
-                <tr key={profile.id} style={{ borderTop: '1px solid #F1F5F9' }}>
-                  <td style={tdStyle}>{profile.full_name || '—'}</td>
-                  <td style={tdStyle}>{profile.email || '—'}</td>
-                  <td style={tdStyle}>{workspaceName}</td>
-                  <td style={tdStyle}>
-                    {canEdit && !['super_admin','support_admin'].includes(profile.role) ? (
-                      <select
-                        value={profile.role}
-                        onChange={e => roleMut.mutate({ userId: profile.id, role: e.target.value })}
-                        style={{ ...inputStyle, padding: '4px 8px', fontSize: 12 }}
-                      >
-                        {['owner','admin','employee'].map(r => <option key={r} value={r}>{ROLE_LABELS[r]}</option>)}
-                      </select>
-                    ) : ROLE_LABELS[profile.role] ?? profile.role}
-                  </td>
-                  <td style={tdStyle}>
-                    <span style={{ fontSize: 11, fontWeight: 700, padding: '3px 8px', borderRadius: 8,
-                      color: profile.status === 'active' ? '#16A34A' : '#94A3B8',
-                      background: profile.status === 'active' ? '#F0FDF4' : '#F1F5F9' }}>
-                      {profile.status}
-                    </span>
-                  </td>
-                  <td style={tdStyle}>{new Date(profile.created_at).toLocaleDateString('es-CO')}</td>
-                  {canEdit && (
-                    <td style={tdStyle}>
-                      {!['super_admin','support_admin'].includes(profile.role) && (
+              {filtered.map(({ profile, workspaceName }) => {
+                const isExpanded = expandedUserId === profile.id;
+                return (
+                  <>
+                    <tr key={profile.id} style={{ borderTop: '1px solid #F1F5F9', background: isExpanded ? '#F8FAFF' : undefined }}>
+                      <td style={tdStyle}>{profile.full_name || '—'}</td>
+                      <td style={tdStyle}>{profile.email || '—'}</td>
+                      <td style={tdStyle}>{workspaceName}</td>
+                      <td style={tdStyle}>
+                        {canEdit && !['super_admin','support_admin'].includes(profile.role) ? (
+                          <select
+                            value={profile.role}
+                            onChange={e => roleMut.mutate({ userId: profile.id, role: e.target.value })}
+                            style={{ ...inputStyle, padding: '4px 8px', fontSize: 12 }}
+                          >
+                            {['owner','admin','employee'].map(r => <option key={r} value={r}>{ROLE_LABELS[r]}</option>)}
+                          </select>
+                        ) : ROLE_LABELS[profile.role] ?? profile.role}
+                      </td>
+                      <td style={tdStyle}>
+                        <span style={{ fontSize: 11, fontWeight: 700, padding: '3px 8px', borderRadius: 8,
+                          color: profile.status === 'active' ? '#16A34A' : '#94A3B8',
+                          background: profile.status === 'active' ? '#F0FDF4' : '#F1F5F9' }}>
+                          {profile.status}
+                        </span>
+                      </td>
+                      <td style={tdStyle}>{new Date(profile.created_at).toLocaleDateString('es-CO')}</td>
+                      <td style={tdStyle}>
                         <button
-                          onClick={() => statusMut.mutate({ userId: profile.id, status: profile.status === 'active' ? 'inactive' : 'active' })}
+                          onClick={() => setExpandedUserId(isExpanded ? null : profile.id)}
                           style={{ ...buttonStyle, padding: '4px 10px', fontSize: 11,
-                            background: profile.status === 'active' ? '#FEE2E2' : '#F0FDF4',
-                            color: profile.status === 'active' ? '#DC2626' : '#16A34A' }}
+                            background: isExpanded ? '#EFF6FF' : '#F8FAFC',
+                            color: isExpanded ? '#2563EB' : '#64748B',
+                            border: `1px solid ${isExpanded ? '#BFDBFE' : '#E2E8F0'}` }}
                         >
-                          {profile.status === 'active' ? 'Desactivar' : 'Activar'}
+                          {isExpanded ? '▲ Cerrar' : '⚙ Soporte'}
                         </button>
+                      </td>
+                      {canEdit && (
+                        <td style={tdStyle}>
+                          {!['super_admin','support_admin'].includes(profile.role) && (
+                            <button
+                              onClick={() => statusMut.mutate({ userId: profile.id, status: profile.status === 'active' ? 'inactive' : 'active' })}
+                              style={{ ...buttonStyle, padding: '4px 10px', fontSize: 11,
+                                background: profile.status === 'active' ? '#FEE2E2' : '#F0FDF4',
+                                color: profile.status === 'active' ? '#DC2626' : '#16A34A' }}
+                            >
+                              {profile.status === 'active' ? 'Desactivar' : 'Activar'}
+                            </button>
+                          )}
+                        </td>
                       )}
-                    </td>
-                  )}
-                </tr>
-              ))}
-              {filtered.length === 0 && <tr><td colSpan={canEdit ? 7 : 6} style={{ ...tdStyle, textAlign: 'center', color: '#94A3B8' }}>Sin resultados.</td></tr>}
+                    </tr>
+                    {isExpanded && (
+                      <tr key={`support-${profile.id}`}>
+                        <td colSpan={colSpan} style={{ padding: 0, borderTop: '2px solid #BFDBFE' }}>
+                          <div style={{ padding: '12px 16px', background: '#F8FAFF' }}>
+                            <UserSupportPanel
+                              userId={profile.id}
+                              email={profile.email ?? ''}
+                              userName={profile.full_name ?? profile.email ?? profile.id}
+                              isSuperAdmin={isSuperAdmin}
+                            />
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                  </>
+                );
+              })}
+              {filtered.length === 0 && <tr><td colSpan={colSpan} style={{ ...tdStyle, textAlign: 'center', color: '#94A3B8' }}>Sin resultados.</td></tr>}
             </tbody>
           </table>
         </div>

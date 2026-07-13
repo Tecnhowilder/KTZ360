@@ -107,7 +107,7 @@ const FEATURE_TO_MIN_PLAN: Record<string, PlanCode> = {
   // PRO features
   orders_enabled:          'pro',
   work_orders_enabled:     'pro',
-  gps_enabled:             'pro',
+  gps_enabled:             'premium',
   storage_enabled:         'pro',
   pipeline_enabled:        'pro',
   templates_enabled:       'pro',
