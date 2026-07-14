@@ -64,15 +64,17 @@ serve(async (req) => {
       const apiKey = Deno.env.get(p.api_key_secret);
 
       if (!apiKey) {
-        await adminClient.rpc('record_provider_health', {
-          p_provider_key:    p.provider_key,
-          p_status:          'unconfigured',
-          p_latency_ms:      null,
-          p_error_count:     0,
-          p_success_count:   0,
-          p_is_circuit_open: false,
-          p_last_error:      `Secret ${p.api_key_secret} no configurado en Deno secrets`,
-        }).catch(() => {});
+        try {
+          await adminClient.rpc('record_provider_health', {
+            p_provider_key:    p.provider_key,
+            p_status:          'unconfigured',
+            p_latency_ms:      null,
+            p_error_count:     0,
+            p_success_count:   0,
+            p_is_circuit_open: false,
+            p_last_error:      `Secret ${p.api_key_secret} no configurado en Deno secrets`,
+          });
+        } catch { /* registro no crítico */ }
         results.push({ provider: p.provider_key, status: 'unconfigured', latencyMs: null, error: `${p.api_key_secret} not set` });
         continue;
       }
@@ -94,15 +96,17 @@ serve(async (req) => {
         ? (pingResult.latencyMs > 5000 ? 'degraded' : 'ok')
         : 'down';
 
-      await adminClient.rpc('record_provider_health', {
-        p_provider_key:    p.provider_key,
-        p_status:          status,
-        p_latency_ms:      pingResult.latencyMs,
-        p_error_count:     pingResult.ok ? 0 : 1,
-        p_success_count:   pingResult.ok ? 1 : 0,
-        p_is_circuit_open: status === 'down',
-        p_last_error:      pingResult.error ?? null,
-      }).catch(() => {});
+      try {
+        await adminClient.rpc('record_provider_health', {
+          p_provider_key:    p.provider_key,
+          p_status:          status,
+          p_latency_ms:      pingResult.latencyMs,
+          p_error_count:     pingResult.ok ? 0 : 1,
+          p_success_count:   pingResult.ok ? 1 : 0,
+          p_is_circuit_open: status === 'down',
+          p_last_error:      pingResult.error ?? null,
+        });
+      } catch { /* registro no crítico */ }
 
       results.push({
         provider:  p.provider_key,

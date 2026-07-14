@@ -280,15 +280,19 @@ export async function orchestrate(
   const latencyMs = Date.now() - t0;
 
   // ── 6. Registro de salud (async, no bloquea) ──────────────────────────────
-  adminClient.rpc('record_provider_health', {
-    p_provider_key:    usedProvider,
-    p_status:          result ? 'ok' : 'down',
-    p_latency_ms:      result ? result.latencyMs : null,
-    p_error_count:     (lastError || fallbackUsed) ? 1 : 0,
-    p_success_count:   result ? 1 : 0,
-    p_is_circuit_open: !result,
-    p_last_error:      lastError?.message ?? null,
-  }).catch(() => {});
+  void (async () => {
+    try {
+      await adminClient.rpc('record_provider_health', {
+        p_provider_key:    usedProvider,
+        p_status:          result ? 'ok' : 'down',
+        p_latency_ms:      result ? result.latencyMs : null,
+        p_error_count:     (lastError || fallbackUsed) ? 1 : 0,
+        p_success_count:   result ? 1 : 0,
+        p_is_circuit_open: !result,
+        p_last_error:      lastError?.message ?? null,
+      });
+    } catch { /* fire-and-forget, no bloquea */ }
+  })();
 
   // ── 7. Si todo falló, lanzar error ────────────────────────────────────────
   if (!result) {
@@ -307,15 +311,19 @@ export async function orchestrate(
   // ── 8. Guardar en cache ────────────────────────────────────────────────────
   if (effectiveConfig.cache_enabled && req.workspaceId && !req.images?.length && result.text.length > 0) {
     const cacheKey = buildCacheKey(req.workspaceId, req.operation, req.prompt);
-    adminClient.rpc('set_ai_cache', {
-      p_cache_key:     cacheKey,
-      p_workspace_id:  req.workspaceId,
-      p_operation:     req.operation,
-      p_response_text: result.text,
-      p_tokens_used:   result.tokensTotal,
-      p_credits:       effectiveConfig.credits_cost,
-      p_ttl_minutes:   effectiveConfig.cache_ttl_minutes,
-    }).catch(() => {});
+    void (async () => {
+      try {
+        await adminClient.rpc('set_ai_cache', {
+          p_cache_key:     cacheKey,
+          p_workspace_id:  req.workspaceId,
+          p_operation:     req.operation,
+          p_response_text: result.text,
+          p_tokens_used:   result.tokensTotal,
+          p_credits:       effectiveConfig.credits_cost,
+          p_ttl_minutes:   effectiveConfig.cache_ttl_minutes,
+        });
+      } catch { /* fire-and-forget, no bloquea */ }
+    })();
   }
 
   // ── 9. Log de observabilidad ───────────────────────────────────────────────
@@ -404,24 +412,26 @@ interface LogParams {
 
 async function logRequest(adminClient: AdminClient, p: LogParams): Promise<void> {
   if (!p.workspaceId) return;
-  await adminClient.from('ai_request_log').insert({
-    request_id:        p.requestId,
-    workspace_id:      p.workspaceId,
-    user_id:           p.userId ?? null,
-    operation:         p.operation,
-    ai_mode:           p.aiMode,
-    provider_selected: p.providerSelected,
-    model_selected:    p.modelSelected,
-    success:           p.success,
-    fallback_used:     p.fallbackUsed,
-    cache_hit:         p.cacheHit,
-    latency_ms:        p.latencyMs,
-    tokens_total:      p.tokensTotal,
-    credits_consumed:  p.creditsConsumed,
-    real_cost_usd:     p.realCostUsd,
-    margin_pct:        p.marginPct ?? null,
-    provider_score:    p.providerScore ?? null,
-    error_code:        p.errorCode ?? null,
-    error_message:     p.errorMessage ?? null,
-  }).catch(() => {});
+  try {
+    await adminClient.from('ai_request_log').insert({
+      request_id:        p.requestId,
+      workspace_id:      p.workspaceId,
+      user_id:           p.userId ?? null,
+      operation:         p.operation,
+      ai_mode:           p.aiMode,
+      provider_selected: p.providerSelected,
+      model_selected:    p.modelSelected,
+      success:           p.success,
+      fallback_used:     p.fallbackUsed,
+      cache_hit:         p.cacheHit,
+      latency_ms:        p.latencyMs,
+      tokens_total:      p.tokensTotal,
+      credits_consumed:  p.creditsConsumed,
+      real_cost_usd:     p.realCostUsd,
+      margin_pct:        p.marginPct ?? null,
+      provider_score:    p.providerScore ?? null,
+      error_code:        p.errorCode ?? null,
+      error_message:     p.errorMessage ?? null,
+    });
+  } catch { /* log de observabilidad, no crítico */ }
 }

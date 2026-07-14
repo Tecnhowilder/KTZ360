@@ -10,9 +10,13 @@ const ITEMS: PricingBenefitItem[] = [
   { label: 'QR personalizado', included: true },
   { label: 'Portal personalizado', included: true },
   { label: 'Seguimiento de cotizaciones', included: true },
-  { label: 'Reportes básicos', included: true },
+  { label: 'Reportes avanzados', included: true },
   { label: 'PDF profesional', included: true },
   { label: 'Edición de cotizaciones', included: true },
+  { label: 'IA Comercial (500 créditos/mes)', included: true },
+  { label: 'Automatizaciones de marketing', included: true },
+  { label: 'Pipeline CRM', included: true },
+  { label: 'Integración de calendario', included: true },
 ];
 
 function money(n: number): string {
@@ -28,7 +32,7 @@ export function PricingCardPro({
   isCurrent: boolean;
   onUpgrade: () => void;
 }) {
-  const monthlyPrice = billing === 'yearly' ? 29900 : 39900;
+  const monthlyPrice = billing === 'yearly' ? 49900 : 59900;
 
   return (
     <article className="pricing-card pricing-card--pro">
@@ -44,7 +48,7 @@ export function PricingCardPro({
             <span className="pricing-price-value pro-price">
               {money(monthlyPrice)}<span className="pricing-price-period">/mes</span>
             </span>
-            {billing === 'yearly' && <span className="pricing-price-annual">{money(358800)} cobrado anual</span>}
+            {billing === 'yearly' && <span className="pricing-price-annual">{money(598800)} cobrado anual</span>}
             <span className="pricing-price-savings">Ahorra $120.000/año</span>
           </div>
         </div>

@@ -43,7 +43,7 @@ interface FabQuickActionsProps {
 export function FabQuickActions({ actions = DEFAULT_FAB_ACTIONS }: FabQuickActionsProps) {
   const navigate = useNavigate();
   const location = useLocation();
-  const { openQuoteFlow } = useUI();
+  const { openQuoteFlow, hideFab } = useUI();
   const { company } = useWorkspace();
 
   const [open,       setOpen]       = useState(false);
@@ -71,8 +71,10 @@ export function FabQuickActions({ actions = DEFAULT_FAB_ACTIONS }: FabQuickActio
     return () => document.removeEventListener('keydown', fn);
   }, [open]); // eslint-disable-line
 
-  // Ocultar en flows internos
+  // Ocultar en flows internos o cuando hay CTAs propias en pantalla
   const hide =
+    hideFab ||
+    location.pathname.startsWith('/app/admin') ||
     location.pathname.startsWith('/app/cotizaciones/nueva') ||
     !!location.pathname.match(/^\/app\/cotizaciones\/.+\/editar/) ||
     location.pathname.startsWith('/app/ordenes-trabajo/') ||

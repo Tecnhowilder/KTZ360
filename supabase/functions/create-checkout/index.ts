@@ -106,11 +106,11 @@ serve(async (req) => {
 
       const totalAmount = quantity * unitPrice;
 
-      await adminClient.from('audit_log').insert({
+      try { await adminClient.from('audit_log').insert({
         workspace_id: workspaceId, user_id: user.id,
         action: 'additional_licenses_checkout_initiated', entity_type: 'subscription',
         metadata: { quantity, unit_price: unitPrice, total: totalAmount },
-      }).then(() => {}).catch(() => {});
+      }); } catch { /* audit log, non-critical */ }
 
       const externalReference = JSON.stringify({
         workspaceId,
@@ -174,7 +174,7 @@ serve(async (req) => {
     const resolved = await resolvePrice(supabaseUrl, serviceRoleKey, planCode, billingCycle, isFounder);
 
     // ── 5. Registrar auditoría del intento de checkout ────────────────────────
-    await adminClient.from('audit_log').insert({
+    try { await adminClient.from('audit_log').insert({
       workspace_id: workspaceId,
       user_id:      user.id,
       action:       'checkout_initiated',
@@ -186,7 +186,7 @@ serve(async (req) => {
         amount:       resolved.amount,
         currency:     resolved.currency,
       },
-    }).then(() => {}).catch(() => {});
+    }); } catch { /* audit log, non-critical */ }
 
     // ── 6. Construir external_reference (firmado por MP, seguro) ─────────────
     const externalReference = JSON.stringify({

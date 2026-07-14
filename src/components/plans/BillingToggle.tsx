@@ -19,7 +19,7 @@ export function BillingToggle({ value, onChange }: { value: BillingCycle; onChan
         >
           <span className="billing-toggle-title">Anual</span>
           <span className="billing-toggle-note">Paga 12 meses, 2 gratis</span>
-          <span className="billing-toggle-badge">Ahorra $120.000/año</span>
+          <span className="billing-toggle-badge">Ahorra hasta 17%</span>
         </button>
       </div>
       <div className="billing-toggle-hint">

@@ -66,20 +66,22 @@ export function createLogger(functionName: string, incomingRequestId?: string | 
 
   function persistToDb(level: LogLevel, message: string, ctx: LogContext, durationMs?: number) {
     if (!DB_LOGGING_ENABLED) return;
-    _logClient
-      .from('edge_function_logs')
-      .insert({
-        function_name: functionName,
-        request_id:    requestId,
-        level,
-        message,
-        context:       ctx,
-        duration_ms:   durationMs ?? null,
-        workspace_id:  ctx.workspace_id ?? null,
-      })
-      .then(({ error }) => {
+    void (async () => {
+      try {
+        const { error } = await _logClient
+          .from('edge_function_logs')
+          .insert({
+            function_name: functionName,
+            request_id:    requestId,
+            level,
+            message,
+            context:       ctx,
+            duration_ms:   durationMs ?? null,
+            workspace_id:  ctx.workspace_id ?? null,
+          });
         if (error) console.warn(JSON.stringify({ level: 'warn', function: '_logger', message: 'DB log failed', error: error.message }));
-      });
+      } catch { /* DB logging is non-critical */ }
+    })();
   }
 
   return {

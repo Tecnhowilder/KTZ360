@@ -494,6 +494,48 @@ export async function triggerBenchmark(operations?: string[]): Promise<{ ok: boo
   return data as { ok: boolean; total_runs?: number; providers_tested?: string[] };
 }
 
+// ─── Request Logs ─────────────────────────────────────────────────────────────
+
+export interface AIRequestLogEntry {
+  id:                string;
+  request_id:        string;
+  operation:         string;
+  ai_mode:           string;
+  provider_selected: string;
+  model_selected:    string | null;
+  success:           boolean;
+  fallback_used:     boolean;
+  cache_hit:         boolean;
+  latency_ms:        number | null;
+  tokens_total:      number | null;
+  credits_consumed:  number;
+  real_cost_usd:     number | null;
+  error_code:        string | null;
+  error_message:     string | null;
+  created_at:        string;
+}
+
+export async function getAIRequestLogs(filters: {
+  provider?:  string;
+  operation?: string;
+  success?:   boolean;
+  limit?:     number;
+} = {}): Promise<AIRequestLogEntry[]> {
+  let q = db
+    .from('ai_request_log')
+    .select('id,request_id,operation,ai_mode,provider_selected,model_selected,success,fallback_used,cache_hit,latency_ms,tokens_total,credits_consumed,real_cost_usd,error_code,error_message,created_at')
+    .order('created_at', { ascending: false })
+    .limit(filters.limit ?? 50);
+
+  if (filters.provider  !== undefined) q = q.eq('provider_selected', filters.provider);
+  if (filters.operation !== undefined) q = q.ilike('operation', `%${filters.operation}%`);
+  if (filters.success   !== undefined) q = q.eq('success', filters.success);
+
+  const { data, error } = await q;
+  if (error) throw error;
+  return (data ?? []) as AIRequestLogEntry[];
+}
+
 // ─── Estimador de créditos (pre-call) ────────────────────────────────────────
 
 export async function estimateOperationCredits(operation: string): Promise<{

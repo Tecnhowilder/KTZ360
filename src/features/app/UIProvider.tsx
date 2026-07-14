@@ -33,6 +33,9 @@ interface UIContextValue {
   upgradeModal: UpgradeModalInfo | null;
   openUpgradeModal: (info: UpgradeModalInfo) => void;
   closeUpgradeModal: () => void;
+
+  hideFab: boolean;
+  setHideFab: (v: boolean) => void;
 }
 
 export interface UpgradeModalInfo {
@@ -91,6 +94,7 @@ export function UIProvider({ children }: { children: ReactNode }) {
   const [detailClientId, setDetailClientId] = useState<string | null>(null);
   const [docQuoteId, setDocQuoteId] = useState<string | null>(null);
   const [upgradeModal, setUpgradeModal] = useState<UpgradeModalInfo | null>(null);
+  const [hideFab,      setHideFab]      = useState(false);
 
   function openQuoteFlow(opts?: { step?: number; quoteId?: string | null; mode?: 'create' | 'edit'; cfg?: Partial<QConfig> }) {
     // Si el bridge de navegación está disponible, usar la nueva página
@@ -144,6 +148,8 @@ export function UIProvider({ children }: { children: ReactNode }) {
         upgradeModal,
         openUpgradeModal: setUpgradeModal,
         closeUpgradeModal: () => setUpgradeModal(null),
+        hideFab,
+        setHideFab,
       }}
     >
       {children}

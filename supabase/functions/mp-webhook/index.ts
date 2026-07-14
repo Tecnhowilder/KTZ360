@@ -169,11 +169,11 @@ serve(async (req) => {
         const delta = Math.abs(receivedAmount - expectedAmount);
         if (delta > 500) {
           console.error(`[mp-webhook] ADDITIONAL_LICENSES PRICE MISMATCH: received ${receivedAmount}, expected ${expectedAmount}`);
-          await supabase.from('audit_log').insert({
+          try { await supabase.from('audit_log').insert({
             workspace_id: workspaceId, user_id: userId,
             action: 'price_tampering_detected', entity_type: 'payment',
             metadata: { payment_id: paymentId, received_amount: receivedAmount, expected_amount: expectedAmount, product_type: 'additional_licenses' },
-          }).then(() => {}).catch(() => {});
+          }); } catch { /* audit log, non-critical */ }
 
           return new Response(JSON.stringify({ received: true, blocked: 'price_mismatch' }), {
             status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -210,11 +210,11 @@ serve(async (req) => {
       if (insertErr) throw insertErr;
 
       // ── A4. Auditoría ─────────────────────────────────────────────────────────
-      await supabase.from('audit_log').insert({
+      try { await supabase.from('audit_log').insert({
         workspace_id: workspaceId, user_id: userId,
         action: 'additional_licenses_activated', entity_type: 'subscription',
         metadata: { payment_id: paymentId, quantity: qty, unit_price: unitPrice, total, currency: 'COP' },
-      }).then(() => {}).catch(() => {});
+      }); } catch { /* audit log, non-critical */ }
 
       console.log(`[mp-webhook] +${qty} additional licenses activated for workspace ${workspaceId} @ $${unitPrice} each`);
 
@@ -242,7 +242,7 @@ serve(async (req) => {
         if (!amountCheck.valid) {
           // Registrar alerta de price tampering (no bloquear — el pago ya fue procesado por MP)
           console.error(`[mp-webhook] PRICE TAMPERING ALERT: received ${amountCheck.received}, expected ${amountCheck.expected}, delta ${amountCheck.delta}`);
-          await supabase.from('audit_log').insert({
+          try { await supabase.from('audit_log').insert({
             workspace_id: workspaceId,
             user_id:      userId,
             action:       'price_tampering_detected',
@@ -255,7 +255,7 @@ serve(async (req) => {
               plan_code:       planCode,
               is_founder:      isFounder,
             },
-          }).then(() => {}).catch(() => {});
+          }); } catch { /* audit log, non-critical */ }
 
           // Si la diferencia es mayor a $500 COP (tolerancia de redondeo MP), no activar el plan
           if (amountCheck.delta > 500) {
@@ -326,7 +326,7 @@ serve(async (req) => {
       }
 
       // ── 6e. Auditoría del evento ──────────────────────────────────────────
-      await supabase.from('audit_log').insert({
+      try { await supabase.from('audit_log').insert({
         workspace_id: workspaceId,
         user_id:      userId,
         action:       isFounder ? 'subscription_activated_founder' : 'subscription_activated',
@@ -339,23 +339,25 @@ serve(async (req) => {
           amount:          receivedAmount,
           founder_promo_id: founderPromoId,
         },
-      }).then(() => {}).catch(() => {});
+      }); } catch { /* audit log, non-critical */ }
 
       // ── 6f. Registrar factura SaaS pendiente en saas_invoices ────────────
       // No genera factura real — registra el pending para conciliación.
       // La factura real requiere configuración de cuenta Alegra de Shelwi (Sprint 20).
       if (receivedAmount && receivedAmount > 0) {
-        await supabase.rpc('register_saas_invoice', {
-          p_payment_event_id: String(paymentId),
-          p_workspace_id:     workspaceId,
-          p_user_id:          userId,
-          p_plan_code:        planCode,
-          p_billing_cycle:    billingCycle,
-          p_amount:           receivedAmount,
-          p_currency:         currency,
-        }).then(() => {}).catch((e: unknown) => {
+        try {
+          await supabase.rpc('register_saas_invoice', {
+            p_payment_event_id: String(paymentId),
+            p_workspace_id:     workspaceId,
+            p_user_id:          userId,
+            p_plan_code:        planCode,
+            p_billing_cycle:    billingCycle,
+            p_amount:           receivedAmount,
+            p_currency:         currency,
+          });
+        } catch (e) {
           console.error('[mp-webhook] register_saas_invoice error:', e);
-        });
+        }
       }
 
       // ── 6g. Email de confirmación de pago al cliente ──────────────────────

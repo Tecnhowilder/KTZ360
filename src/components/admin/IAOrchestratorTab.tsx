@@ -12,7 +12,7 @@
  *
  * Acceso: solo super_admin
  */
-import { useState } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   getAIProviders,
@@ -41,7 +41,9 @@ import {
   getAIDynamicRanking,
   simulateAICosts,
   triggerBenchmark,
+  getAIRequestLogs,
   type AIProviderScore,
+  type AIRequestLogEntry,
   type AIOperationPricing,
   type AIModelCapability,
   type AIRoutingPolicy,
@@ -89,86 +91,275 @@ function ScoreBar({ value, max = 100 }: { value: number; max?: number }) {
   );
 }
 
-// ─── Sección: Estado de Proveedores ──────────────────────────────────────────
+// ─── Helpers: tiempo relativo ─────────────────────────────────────────────────
+
+function useRelativeTick() {
+  const [, tick] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => tick(t => t + 1), 30_000);
+    return () => clearInterval(id);
+  }, []);
+}
+
+function relativeTime(iso: string | null | undefined): string {
+  if (!iso) return '—';
+  const diff = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
+  if (diff < 10)    return 'hace un momento';
+  if (diff < 60)    return `hace ${diff}s`;
+  if (diff < 3600)  return `hace ${Math.floor(diff / 60)}min`;
+  if (diff < 86400) return `hace ${Math.floor(diff / 3600)}h`;
+  return `hace ${Math.floor(diff / 86400)}d`;
+}
+
+function getCheckedAt(score: AIProviderScore): string | null {
+  return (score as unknown as Record<string,string>)['last_check'] ?? score.checked_at ?? null;
+}
+
+// ─── Dot animado de estado ────────────────────────────────────────────────────
+
+function LiveDot({ status, checking }: { status: string; checking: boolean }) {
+  const c = ({ ok:'#10B981', degraded:'#F59E0B', down:'#EF4444', unknown:'#94A3B8', unconfigured:'#7C3AED', disabled:'#CBD5E1' } as Record<string,string>)[status] ?? '#94A3B8';
+  return (
+    <span style={{ position:'relative', display:'inline-flex', width:10, height:10, flexShrink:0 }}>
+      {status === 'ok' && !checking && (
+        <span style={{ position:'absolute', inset:0, borderRadius:'50%', background:c, animation:'ping-live 2s ease-in-out infinite' }} />
+      )}
+      <span style={{ width:10, height:10, borderRadius:'50%', background: checking ? '#7C3AED' : c, display:'inline-block', position:'relative', transition:'background .4s' }} />
+    </span>
+  );
+}
+
+// ─── Tarjeta enterprise por proveedor ─────────────────────────────────────────
+
+function ProviderCard({ score, checking }: { score: AIProviderScore; checking: boolean }) {
+  const STATUS_MAP: Record<string, { label: string; color: string }> = {
+    ok:           { label:'Online',        color:'#10B981' },
+    degraded:     { label:'Degradado',     color:'#F59E0B' },
+    down:         { label:'Offline',       color:'#EF4444' },
+    unknown:      { label:'Sin datos',     color:'#94A3B8' },
+    unconfigured: { label:'Sin API Key',   color:'#7C3AED' },
+    disabled:     { label:'Deshabilitado', color:'#CBD5E1' },
+  };
+  const { label, color } = STATUS_MAP[score.status] ?? STATUS_MAP['unknown'];
+  const composite = score.composite_score ?? 0;
+  const scoreColor = composite >= 80 ? '#10B981' : composite >= 60 ? '#F59E0B' : '#EF4444';
+
+  return (
+    <div style={{
+      position:'relative', overflow:'hidden',
+      background:'#fff',
+      border:'1.5px solid #E2E8F0',
+      borderTop:`3px solid ${checking ? '#7C3AED' : color}`,
+      borderRadius:14, padding:'18px 20px',
+      flex:'1 1 260px', minWidth:260,
+      boxShadow: checking ? '0 0 0 2px #7C3AED20, 0 4px 16px rgba(124,58,237,.08)' : '0 1px 4px rgba(0,0,0,.04)',
+      transition:'border-color .4s ease, box-shadow .4s ease',
+    }}>
+      {/* Scanning line durante check */}
+      {checking && (
+        <div style={{ position:'absolute', bottom:0, left:0, right:0, height:2, background:'#7C3AED20', overflow:'hidden' }}>
+          <div style={{ height:'100%', width:'55%', background:'#7C3AED', borderRadius:2, animation:'scan-bar 1.6s ease-in-out infinite' }} />
+        </div>
+      )}
+
+      {/* Header */}
+      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:14 }}>
+        <div>
+          <div style={{ fontWeight:800, fontSize:14, color:'#0F172A', marginBottom:2 }}>{score.name}</div>
+          <div style={{ fontSize:11, color:'#94A3B8', fontFamily:'monospace' }}>{score.provider_key}</div>
+        </div>
+        <div style={{ display:'flex', flexDirection:'column', alignItems:'flex-end', gap:4 }}>
+          <div style={{
+            display:'inline-flex', alignItems:'center', gap:5,
+            padding:'3px 10px', borderRadius:20,
+            background:(checking ? '#7C3AED' : color) + '18',
+            color: checking ? '#7C3AED' : color,
+            fontWeight:700, fontSize:11, transition:'all .3s',
+          }}>
+            <LiveDot status={score.status} checking={checking} />
+            {checking ? 'Verificando...' : label}
+          </div>
+          {score.is_circuit_open && !checking && (
+            <span style={{ fontSize:10, fontWeight:700, color:'#EF4444' }}>⚡ CIRCUITO ABIERTO</span>
+          )}
+        </div>
+      </div>
+
+      {/* Score compuesto */}
+      <div style={{ marginBottom:14 }}>
+        <div style={{ display:'flex', alignItems:'baseline', gap:4 }}>
+          <span style={{ fontSize:36, fontWeight:900, color: checking ? '#7C3AED60' : scoreColor, lineHeight:1, transition:'color .4s' }}>
+            {composite.toFixed(1)}
+          </span>
+          <span style={{ fontSize:12, color:'#94A3B8' }}>/100</span>
+        </div>
+        <div style={{ fontSize:10, color:'#94A3B8', marginTop:1 }}>Score compuesto</div>
+      </div>
+
+      {/* Métricas 2×2 */}
+      <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'8px 16px', marginBottom:12 }}>
+        {[
+          { label:'Latencia',         value: score.latency_ms != null ? `${score.latency_ms}ms` : '—',          ok: score.latency_ms == null || score.latency_ms < 2000 },
+          { label:'Disponibilidad',   value:`${(score.availability_score ?? 100).toFixed(0)}%`,                  ok:(score.availability_score ?? 100) >= 95 },
+          { label:'Calidad',          value:`${score.quality_score.toFixed(0)}/100`,                             ok: score.quality_score >= 80 },
+          { label:'Costo-eficiencia', value:`${score.cost_score.toFixed(0)}/100`,                                ok: score.cost_score >= 70 },
+        ].map(m => (
+          <div key={m.label}>
+            <div style={{ fontSize:10, color:'#94A3B8', marginBottom:1 }}>{m.label}</div>
+            <div style={{ fontSize:13, fontWeight:800, color: checking ? '#94A3B8' : m.ok ? '#0F172A' : '#F59E0B', transition:'color .3s' }}>{m.value}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Barra de disponibilidad */}
+      <div style={{ marginBottom:12 }}>
+        <div style={{ height:5, background:'#EEF2F7', borderRadius:3, overflow:'hidden' }}>
+          <div style={{
+            height:'100%',
+            width:`${score.availability_score ?? 100}%`,
+            background:(score.availability_score ?? 100) >= 95 ? '#10B981' : (score.availability_score ?? 100) >= 80 ? '#F59E0B' : '#EF4444',
+            borderRadius:3, transition:'width .6s ease',
+          }} />
+        </div>
+      </div>
+
+      {/* Footer */}
+      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', paddingTop:10, borderTop:'1px solid #F1F5F9', fontSize:11 }}>
+        <span style={{ color:'#94A3B8' }}>
+          {checking ? 'Verificando...' : relativeTime(getCheckedAt(score))}
+        </span>
+        <span style={{ color: score.is_circuit_open ? '#EF4444' : '#10B981', fontWeight:600 }}>
+          {score.is_circuit_open ? '⚡ Circuito abierto' : '✓ Circuito OK'}
+        </span>
+      </div>
+    </div>
+  );
+}
+
+// ─── Sección: Estado de Proveedores (Enterprise) ──────────────────────────────
 
 function ProviderHealthSection() {
-  const { data: scores, refetch, isFetching } = useQuery({
-    queryKey: ['ai_provider_scores'],
-    queryFn:  getAIProviderScores,
-    staleTime: 60_000,
+  useRelativeTick();
+  const qc = useQueryClient();
+  const { data: scores, isFetching } = useQuery({
+    queryKey:        ['ai_provider_scores'],
+    queryFn:         getAIProviderScores,
+    staleTime:       30_000,
+    refetchInterval: 120_000,
   });
   const { showToast } = useToast();
-  const [checking, setChecking] = useState(false);
+  const [checking,     setChecking]     = useState(false);
+  const [progress,     setProgress]     = useState(0);
+  const [progressDone, setProgressDone] = useState(false);
+
+  useEffect(() => {
+    if (!checking) return;
+    const start    = Date.now();
+    const DURATION = 9_000;
+    let raf: number;
+    const tick = () => {
+      setProgress(Math.min(88, ((Date.now() - start) / DURATION) * 100));
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [checking]);
 
   async function handleCheck() {
     setChecking(true);
+    setProgress(0);
     try {
-      const result = await triggerHealthCheck();
-      console.log('[health-check] result:', result);
-      await refetch();
+      await triggerHealthCheck();
+      setProgress(100);
+      setProgressDone(true);
+      await qc.invalidateQueries({ queryKey: ['ai_provider_scores'] });
+      await qc.invalidateQueries({ queryKey: ['ai_health_score'] });
       showToast('✓ Health check completado');
     } catch (e) {
-      console.error('[health-check] error:', e);
-      const msg = (e as Error)?.message ?? String(e);
-      showToast(`Error: ${msg.slice(0, 120)}`);
+      const msg = (e as Error)?.message ?? 'Error desconocido';
+      showToast(`Error: ${msg.slice(0, 80)}`);
     } finally {
       setChecking(false);
+      setTimeout(() => { setProgress(0); setProgressDone(false); }, 2000);
     }
   }
 
   return (
     <div style={card}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
-        <div>
-          <div style={{ fontWeight: 800, fontSize: 14, color: '#0F172A' }}>Estado de Proveedores IA</div>
-          <div style={{ fontSize: 12, color: '#64748B', marginTop: 2 }}>Score compuesto = Calidad 35% + Disponibilidad 30% + Costo 20% + Prioridad 15%</div>
+      {/* Animaciones CSS */}
+      <style>{`
+        @keyframes scan-bar   { 0%{transform:translateX(-120%)} 100%{transform:translateX(290%)} }
+        @keyframes ping-live  { 0%,100%{transform:scale(1);opacity:.6} 60%{transform:scale(2.2);opacity:0} }
+        @keyframes spin-fab   { to{transform:rotate(360deg)} }
+        @keyframes fade-in-up { from{opacity:0;transform:translateY(4px)} to{opacity:1;transform:translateY(0)} }
+      `}</style>
+
+      {/* Encabezado */}
+      <div style={{ marginBottom:16 }}>
+        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom: (checking || progressDone) ? 10 : 14 }}>
+          <div>
+            <div style={{ fontWeight:800, fontSize:15, color:'#0F172A' }}>Estado de Proveedores IA</div>
+            <div style={{ fontSize:11, color:'#64748B', marginTop:2 }}>
+              Score = Calidad 35% + Disponibilidad 30% + Costo 20% + Prioridad 15% · Auto-refresca cada 2 min
+            </div>
+          </div>
+          <div style={{ display:'flex', alignItems:'center', gap:10 }}>
+            {isFetching && !checking && (
+              <span style={{ fontSize:11, color:'#94A3B8' }}>Actualizando...</span>
+            )}
+            <button
+              onClick={handleCheck}
+              disabled={checking || isFetching}
+              style={{
+                padding:'8px 16px', borderRadius:10, border:'none',
+                background: checking ? '#7C3AED99' : '#7C3AED',
+                color:'#fff', fontWeight:700, fontSize:12,
+                cursor: checking ? 'not-allowed' : 'pointer',
+                display:'flex', alignItems:'center', gap:7,
+                transition:'background .2s',
+              }}
+            >
+              {checking && (
+                <span style={{
+                  width:12, height:12, borderRadius:'50%',
+                  border:'2px solid #ffffff55', borderTopColor:'#fff',
+                  display:'inline-block', animation:'spin-fab .7s linear infinite',
+                }} />
+              )}
+              {checking ? 'Verificando...' : '⚡ Verificar ahora'}
+            </button>
+          </div>
         </div>
-        <button
-          onClick={handleCheck} disabled={checking || isFetching}
-          style={{ padding: '7px 14px', borderRadius: 9, border: 'none', background: '#7C3AED', color: '#fff', fontWeight: 700, fontSize: 12, cursor: 'pointer' }}
-        >
-          {checking ? 'Verificando...' : '⚡ Verificar ahora'}
-        </button>
+
+        {/* Barra de progreso */}
+        {(checking || progressDone) && (
+          <>
+            <div style={{ height:4, background:'#EEF2F7', borderRadius:2, overflow:'hidden', marginBottom:4 }}>
+              <div style={{
+                height:'100%', width:`${progress}%`,
+                background: progressDone ? '#10B981' : '#7C3AED',
+                borderRadius:2,
+                transition: progressDone ? 'width .3s ease, background .3s ease' : 'none',
+              }} />
+            </div>
+            <div style={{ fontSize:11, textAlign:'center' as const, color: progressDone ? '#10B981' : '#7C3AED', animation:'fade-in-up .3s ease' }}>
+              {progressDone ? '✓ Todos los proveedores verificados' : 'Haciendo ping a los proveedores IA...'}
+            </div>
+          </>
+        )}
       </div>
 
+      {/* Cards */}
       {!scores?.length ? (
-        <div style={{ color: '#94A3B8', fontSize: 13, padding: 12 }}>Cargando...</div>
+        <div style={{ color:'#94A3B8', fontSize:13, padding:'24px 0', textAlign:'center' as const }}>
+          {isFetching ? 'Cargando...' : 'Sin datos — haz clic en "Verificar ahora" para ejecutar el primer health check.'}
+        </div>
       ) : (
-        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-          <thead>
-            <tr>
-              {['Proveedor','Estado','Latencia','Disponibilidad','Calidad','Costo','Score','Circuito','Última verificación'].map(h =>
-                <th key={h} style={th}>{h}</th>
-              )}
-            </tr>
-          </thead>
-          <tbody>
-            {scores.map((s: AIProviderScore) => (
-              <tr key={s.provider_key} style={{ borderBottom: '1px solid #F8FAFC' }}>
-                <td style={td}>
-                  <div style={{ fontWeight: 700, color: '#0F172A' }}>{s.name}</div>
-                  <div style={{ fontSize: 10, color: '#94A3B8' }}>{s.provider_key}</div>
-                </td>
-                <td style={td}><StatusBadge status={s.status} /></td>
-                <td style={td}>{s.latency_ms != null ? `${s.latency_ms}ms` : '—'}</td>
-                <td style={{ ...td, minWidth: 100 }}><ScoreBar value={s.availability_score ?? 100} /></td>
-                <td style={{ ...td, minWidth: 100 }}><ScoreBar value={s.quality_score} /></td>
-                <td style={{ ...td, minWidth: 100 }}><ScoreBar value={s.cost_score} /></td>
-                <td style={td}>
-                  <span style={{ fontWeight: 800, color: '#7C3AED', fontSize: 15 }}>{(s.composite_score ?? 0).toFixed(1)}</span>
-                </td>
-                <td style={td}>
-                  {s.is_circuit_open
-                    ? <span style={badge('#EF4444')}>ABIERTO</span>
-                    : <span style={badge('#10B981')}>CERRADO</span>}
-                </td>
-                <td style={{ ...td, fontSize: 11, color: '#94A3B8' }}>
-                  {s.checked_at ? new Date(s.checked_at).toLocaleTimeString('es-CO') : '—'}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <div style={{ display:'flex', gap:14, flexWrap:'wrap' }}>
+          {scores.map((s: AIProviderScore) => (
+            <ProviderCard key={s.provider_key} score={s} checking={checking} />
+          ))}
+        </div>
       )}
     </div>
   );
@@ -1101,12 +1292,305 @@ function BenchmarkSection() {
   );
 }
 
+// ─── Panel de diagnóstico automático ─────────────────────────────────────────
+
+interface DiagIssue {
+  id:       string;
+  severity: 'critical' | 'error' | 'warning' | 'info' | 'ok';
+  title:    string;
+  desc:     string;
+  impact:   string;
+  action?:  string;
+  tab?:     SubTab;
+}
+
+const SEV_STYLE: Record<string, { bg: string; border: string; text: string; tag: string }> = {
+  critical: { bg:'#FEF2F2', border:'#FECACA', text:'#DC2626', tag:'CRÍTICO'     },
+  error:    { bg:'#FEF2F2', border:'#FCA5A5', text:'#EF4444', tag:'ERROR'       },
+  warning:  { bg:'#FFFBEB', border:'#FDE68A', text:'#D97706', tag:'ADVERTENCIA' },
+  info:     { bg:'#EFF6FF', border:'#BFDBFE', text:'#2563EB', tag:'INFO'        },
+  ok:       { bg:'#F0FDF4', border:'#BBF7D0', text:'#16A34A', tag:'OK'          },
+};
+
+function DiagnosticsSection({ onNav }: { onNav: (tab: SubTab) => void }) {
+  const { data: providers }  = useQuery({ queryKey:['ai_providers'],         queryFn: getAIProviders,        staleTime:120_000 });
+  const { data: scores }     = useQuery({ queryKey:['ai_provider_scores'],   queryFn: getAIProviderScores,   staleTime:30_000  });
+  const { data: pricing }    = useQuery({ queryKey:['ai_operation_pricing'], queryFn: getAIOperationPricing, staleTime:120_000 });
+  const { data: governance } = useQuery({ queryKey:['ai_governance'],        queryFn: getAIGovernanceRules,  staleTime:120_000 });
+  const { data: policies }   = useQuery({ queryKey:['ai_policies'],          queryFn: getAIRoutingPolicies,  staleTime:120_000 });
+
+  const issues = useMemo<DiagIssue[]>(() => {
+    const list: DiagIssue[] = [];
+
+    const enabled = (providers ?? []).filter(p => p.enabled);
+    if (enabled.length === 0) {
+      list.push({ id:'no-providers', severity:'critical',
+        title:'Sin proveedores habilitados',
+        desc:'El Orchestrator no tiene ningún proveedor activo.',
+        impact:'Ninguna operación IA puede ejecutarse.',
+        action:'Ir a Proveedores', tab:'providers' });
+    }
+
+    const down = (scores ?? []).filter(s => s.status === 'down');
+    if (down.length > 0) {
+      list.push({ id:'down', severity:'error',
+        title:`${down.length} proveedor(es) sin respuesta`,
+        desc:`${down.map(s => s.name).join(', ')} reporta estado "down".`,
+        impact:'El Orchestrator usará fallback o fallará si no hay alternativa.',
+        action:'Ver salud', tab:'health' });
+    }
+
+    const unconfigured = (scores ?? []).filter(s => s.status === 'unconfigured');
+    if (unconfigured.length > 0) {
+      const keys = unconfigured.map(s => {
+        const p = (providers ?? []).find(p2 => p2.provider_key === s.provider_key);
+        return p?.api_key_secret ?? s.provider_key;
+      });
+      list.push({ id:'secrets', severity:'warning',
+        title:'API Key(s) no configuradas en Deno Secrets',
+        desc:`Secrets faltantes: ${keys.join(', ')}. Configurar en Supabase → Edge Functions → Secrets.`,
+        impact:'Los proveedores sin key no pueden procesar llamadas.',
+        action:'Ver proveedores', tab:'providers' });
+    }
+
+    const circuitOpen = (scores ?? []).filter(s => s.is_circuit_open);
+    if (circuitOpen.length > 0) {
+      list.push({ id:'circuit', severity:'warning',
+        title:'Circuit breaker activado',
+        desc:`${circuitOpen.map(s => s.name).join(', ')} tiene el circuit breaker abierto por errores repetidos.`,
+        impact:'El Orchestrator omite ese proveedor automáticamente hasta que se recupere.',
+        action:'Verificar salud', tab:'health' });
+    }
+
+    const stale = (scores ?? []).filter(s => {
+      const ts = getCheckedAt(s);
+      if (!ts) return true;
+      return Date.now() - new Date(ts).getTime() > 30 * 60_000;
+    });
+    if (stale.length > 0 && (scores ?? []).length > 0) {
+      list.push({ id:'stale', severity:'info',
+        title:'Health check desactualizado (>30 min)',
+        desc:`${stale.length} proveedor(es) sin verificación reciente.`,
+        impact:'El estado mostrado puede no reflejar la realidad actual.',
+        action:'Verificar ahora', tab:'health' });
+    }
+
+    const degraded = (scores ?? []).filter(s => s.status === 'degraded');
+    if (degraded.length > 0) {
+      list.push({ id:'degraded', severity:'warning',
+        title:`${degraded.length} proveedor(es) degradado(s)`,
+        desc:`${degraded.map(s => s.name).join(', ')} responde con latencia elevada (>5s).`,
+        impact:'Los usuarios experimentarán tiempos de respuesta mayores en operaciones IA.',
+        action:'Ver observabilidad', tab:'observability' });
+    }
+
+    if ((governance ?? []).length > 0 && !(governance ?? []).some(r => r.enabled)) {
+      list.push({ id:'gov', severity:'info',
+        title:'Sin reglas de gobernanza activas',
+        desc:'Todas las reglas GDPR/LGPD están desactivadas.',
+        impact:'Datos sensibles (PII) no son filtrados automáticamente.',
+        action:'Ver gobernanza', tab:'governance' });
+    }
+
+    if ((pricing ?? []).length > 0 && !(pricing ?? []).some(p => p.cache_enabled)) {
+      list.push({ id:'cache-off', severity:'info',
+        title:'Cache IA deshabilitada en todas las operaciones',
+        desc:'Ninguna operación tiene cache activo.',
+        impact:'Cada prompt consume créditos aunque el contenido sea idéntico al anterior.',
+        action:'Ver rentabilidad', tab:'pricing' });
+    }
+
+    if ((policies ?? []).length === 0) {
+      list.push({ id:'no-policies', severity:'info',
+        title:'Sin políticas de routing configuradas',
+        desc:'El Orchestrator usa scoring dinámico sin restricciones adicionales.',
+        impact:'Configuración válida — sin control granular por operación o workspace.',
+        action:'Ver políticas', tab:'policies' });
+    }
+
+    if (!list.some(i => ['critical','error','warning'].includes(i.severity))) {
+      list.push({ id:'ok', severity:'ok',
+        title:'✅ Sistema AI Orchestrator operando correctamente',
+        desc:'Todos los checks pasan. Sin problemas detectados.',
+        impact:'' });
+    }
+
+    const ORDER: Record<string,number> = { critical:0, error:1, warning:2, info:3, ok:4 };
+    return list.sort((a, b) => (ORDER[a.severity] ?? 9) - (ORDER[b.severity] ?? 9));
+  }, [providers, scores, pricing, governance, policies]);
+
+  return (
+    <div style={card}>
+      <div style={{ fontWeight:800, fontSize:15, color:'#0F172A', marginBottom:4 }}>🔬 Diagnóstico Automático</div>
+      <div style={{ fontSize:12, color:'#64748B', marginBottom:16 }}>
+        Detección automática de problemas en el AI Orchestrator. Se recalcula con los datos en caché.
+      </div>
+      <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
+        {issues.map(issue => {
+          const s = SEV_STYLE[issue.severity] ?? SEV_STYLE['info'];
+          return (
+            <div key={issue.id} style={{
+              background:s.bg, border:`1px solid ${s.border}`,
+              borderRadius:10, padding:'12px 16px',
+              display:'flex', justifyContent:'space-between', alignItems:'flex-start', gap:12,
+            }}>
+              <div style={{ flex:1 }}>
+                <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:4 }}>
+                  <span style={{ padding:'1px 7px', borderRadius:20, fontSize:10, fontWeight:800, color:s.text, background:s.text+'20' }}>{s.tag}</span>
+                  <span style={{ fontWeight:700, fontSize:13, color:'#0F172A' }}>{issue.title}</span>
+                </div>
+                <div style={{ fontSize:12, color:'#475569', marginBottom: issue.impact ? 4 : 0 }}>{issue.desc}</div>
+                {issue.impact && (
+                  <div style={{ fontSize:11, color:'#64748B', fontStyle:'italic' }}>Impacto: {issue.impact}</div>
+                )}
+              </div>
+              {issue.action && issue.tab && (
+                <button
+                  onClick={() => onNav(issue.tab!)}
+                  style={{ padding:'5px 12px', borderRadius:8, border:'none', background:s.text, color:'#fff', fontWeight:700, fontSize:11, cursor:'pointer', flexShrink:0, whiteSpace:'nowrap' as const }}
+                >
+                  {issue.action} →
+                </button>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ─── Visor de logs filtrable ──────────────────────────────────────────────────
+
+function LogsSection() {
+  const [filterProvider, setFilterProvider] = useState('');
+  const [filterOp,       setFilterOp]       = useState('');
+  const [filterSuccess,  setFilterSuccess]  = useState<''|'true'|'false'>('');
+  const [limit,          setLimit]          = useState(50);
+
+  const { data: logs, isLoading, refetch } = useQuery({
+    queryKey: ['ai_request_logs', filterProvider, filterOp, filterSuccess, limit],
+    queryFn:  () => getAIRequestLogs({
+      provider:  filterProvider  || undefined,
+      operation: filterOp        || undefined,
+      success:   filterSuccess === '' ? undefined : filterSuccess === 'true',
+      limit,
+    }),
+    staleTime: 30_000,
+  });
+
+  const fStyle: React.CSSProperties = {
+    border:'1.5px solid #E2E8F0', borderRadius:8, padding:'6px 10px',
+    fontSize:12, outline:'none', background:'#fff',
+  };
+
+  return (
+    <div style={card}>
+      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:14 }}>
+        <div>
+          <div style={{ fontWeight:800, fontSize:15, color:'#0F172A' }}>📋 Visor de Logs IA</div>
+          <div style={{ fontSize:12, color:'#64748B', marginTop:2 }}>
+            Historial de llamadas al AI Orchestrator. Sin credenciales expuestas.
+          </div>
+        </div>
+        <button
+          onClick={() => refetch()}
+          style={{ padding:'6px 12px', border:'1.5px solid #E2E8F0', borderRadius:8, background:'#fff', fontSize:12, cursor:'pointer', fontWeight:600 }}
+        >
+          ↻ Actualizar
+        </button>
+      </div>
+
+      {/* Filtros */}
+      <div style={{ display:'flex', gap:8, flexWrap:'wrap', marginBottom:16 }}>
+        <select value={filterProvider} onChange={e => setFilterProvider(e.target.value)} style={fStyle}>
+          <option value="">Todos los proveedores</option>
+          <option value="gemini">Gemini</option>
+          <option value="nvidia">NVIDIA</option>
+        </select>
+        <input
+          value={filterOp} onChange={e => setFilterOp(e.target.value)}
+          placeholder="Filtrar por operación..."
+          style={{ ...fStyle, width:200 }}
+        />
+        <select value={filterSuccess} onChange={e => setFilterSuccess(e.target.value as ''|'true'|'false')} style={fStyle}>
+          <option value="">Todos los estados</option>
+          <option value="true">Solo éxitos</option>
+          <option value="false">Solo errores</option>
+        </select>
+        <select value={limit} onChange={e => setLimit(+e.target.value)} style={fStyle}>
+          {[25, 50, 100, 200].map(l => <option key={l} value={l}>Últimos {l}</option>)}
+        </select>
+      </div>
+
+      {isLoading ? (
+        <div style={{ color:'#94A3B8', fontSize:13, padding:'24px 0', textAlign:'center' as const }}>Cargando logs...</div>
+      ) : !(logs?.length) ? (
+        <div style={{ color:'#94A3B8', fontSize:13, padding:'24px 0', textAlign:'center' as const }}>
+          Sin logs. Se generan con el primer tráfico IA procesado por el Orchestrator.
+        </div>
+      ) : (
+        <div style={{ overflowX:'auto' }}>
+          <table style={{ width:'100%', borderCollapse:'collapse', minWidth:860 }}>
+            <thead>
+              <tr>
+                {['Proveedor','Operación','Estado','Latencia','Tokens','Créditos','Cache','Fallback','Error','Hora'].map(h =>
+                  <th key={h} style={th}>{h}</th>
+                )}
+              </tr>
+            </thead>
+            <tbody>
+              {(logs as AIRequestLogEntry[]).map(log => (
+                <tr key={log.id} style={{ borderBottom:'1px solid #F8FAFC', opacity: log.success ? 1 : .88 }}>
+                  <td style={td}>
+                    <div style={{ fontWeight:600, fontSize:12 }}>{log.provider_selected}</div>
+                    {log.model_selected && <div style={{ fontSize:10, color:'#94A3B8' }}>{log.model_selected.split('/').pop()}</div>}
+                  </td>
+                  <td style={{ ...td, fontSize:11 }}><code>{log.operation}</code></td>
+                  <td style={td}>
+                    {log.success
+                      ? <span style={badge('#10B981')}>✓ OK</span>
+                      : <span style={badge('#EF4444')}>✗ Error</span>}
+                  </td>
+                  <td style={td}>
+                    {log.latency_ms != null
+                      ? <span style={{ fontWeight:700, color: log.latency_ms < 2000 ? '#10B981' : log.latency_ms < 5000 ? '#F59E0B' : '#EF4444' }}>
+                          {log.latency_ms}ms
+                        </span>
+                      : '—'}
+                  </td>
+                  <td style={{ ...td, color:'#64748B' }}>{log.tokens_total?.toLocaleString() ?? '—'}</td>
+                  <td style={{ ...td, fontWeight:700, color:'#7C3AED' }}>{log.credits_consumed}</td>
+                  <td style={td}>{log.cache_hit ? <span style={badge('#10B981')}>HIT</span> : <span style={{ color:'#CBD5E1', fontSize:11 }}>—</span>}</td>
+                  <td style={td}>{log.fallback_used ? <span style={badge('#F59E0B')}>sí</span> : <span style={{ color:'#CBD5E1', fontSize:11 }}>—</span>}</td>
+                  <td style={{ ...td, maxWidth:160 }}>
+                    {log.error_code && (
+                      <span title={log.error_message ?? ''} style={{ fontSize:10, color:'#EF4444', cursor:'help', wordBreak:'break-all' as const }}>
+                        {log.error_code}
+                      </span>
+                    )}
+                  </td>
+                  <td style={{ ...td, fontSize:11, color:'#94A3B8', whiteSpace:'nowrap' as const }}>
+                    {new Date(log.created_at).toLocaleTimeString('es-CO', { hour:'2-digit', minute:'2-digit', second:'2-digit' })}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Tab principal ────────────────────────────────────────────────────────────
 
-type SubTab = 'health' | 'providers' | 'pricing' | 'capabilities' | 'policies' | 'governance' | 'prompts' | 'observability' | 'simulator' | 'finops' | 'cache' | 'benchmark';
+type SubTab = 'health' | 'providers' | 'pricing' | 'capabilities' | 'policies' | 'governance' | 'prompts' | 'observability' | 'simulator' | 'finops' | 'cache' | 'benchmark' | 'diagnostics' | 'logs';
 
 const SUB_TABS: Array<{ key: SubTab; label: string }> = [
   { key: 'health',       label: '🏥 Salud' },
+  { key: 'diagnostics',  label: '🔬 Diagnóstico' },
+  { key: 'logs',         label: '📋 Logs' },
   { key: 'providers',    label: '🔌 Proveedores' },
   { key: 'pricing',      label: '💰 Rentabilidad' },
   { key: 'capabilities', label: '🧩 Capacidades' },
@@ -1122,6 +1606,7 @@ const SUB_TABS: Array<{ key: SubTab; label: string }> = [
 
 export function IAOrchestratorTab() {
   const [sub, setSub] = useState<SubTab>('health');
+  const navigate = setSub; // alias semántico para onNav
 
   return (
     <div>
@@ -1154,6 +1639,8 @@ export function IAOrchestratorTab() {
 
       {/* Contenido */}
       {sub === 'health'        && <ProviderHealthSection />}
+      {sub === 'diagnostics'   && <DiagnosticsSection onNav={navigate} />}
+      {sub === 'logs'          && <LogsSection />}
       {sub === 'providers'     && <ProvidersSection />}
       {sub === 'pricing'       && <OperationPricingSection />}
       {sub === 'capabilities'  && <CapabilitiesSection />}

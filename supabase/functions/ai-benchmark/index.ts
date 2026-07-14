@@ -152,19 +152,23 @@ async function runBenchmarkCase(
     }
 
     // Registrar resultado en DB (no bloquea el loop)
-    await adminClient.from('ai_benchmark_results').insert({
-      provider_key:  bc.provider_key,
-      model_id:      bc.model_id,
-      operation,
-      prompt_tokens:  0,
-      output_tokens:  tokensTotal,
-      latency_ms:     latencyMs,
-      quality_score:  qualityScore,
-      cost_usd:       costUsd,
-      success,
-      error_message:  errorMsg || null,
-      test_type:      'automated',
-    }).catch(e => console.error('[Benchmark] insert error:', e.message));
+    try {
+      await adminClient.from('ai_benchmark_results').insert({
+        provider_key:  bc.provider_key,
+        model_id:      bc.model_id,
+        operation,
+        prompt_tokens:  0,
+        output_tokens:  tokensTotal,
+        latency_ms:     latencyMs,
+        quality_score:  qualityScore,
+        cost_usd:       costUsd,
+        success,
+        error_message:  errorMsg || null,
+        test_type:      'automated',
+      });
+    } catch (e) {
+      console.error('[Benchmark] insert error:', (e as Error).message);
+    }
   }
 }
 

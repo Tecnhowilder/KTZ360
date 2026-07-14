@@ -1,15 +1,16 @@
 import { PricingFeaturesGrid } from './PricingBenefits';
 
 const INCLUDED = [
-  '10 cotizaciones por mes',
-  '20 clientes',
+  '50 cotizaciones por mes',
+  '50 clientes',
+  '100 items en catálogo',
   'PDF básico Shelwi',
   'Portal público de cotización',
   'Historial de cotizaciones',
   'Compartir por WhatsApp',
 ];
 
-const EXCLUDED = ['Plantillas', 'Branding corporativo', 'Edición de cotizaciones', 'Reportes', 'Multiusuario', 'Shelwi IA'];
+const EXCLUDED = ['Plantillas', 'Branding corporativo', 'Edición de cotizaciones', 'Reportes avanzados', 'Automatizaciones', 'Multiusuario', 'Shelwi IA'];
 
 export function PricingCardFree({ isCurrent }: { isCurrent: boolean }) {
   return (

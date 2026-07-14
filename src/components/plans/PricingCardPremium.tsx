@@ -4,15 +4,25 @@ import type { BillingCycle } from './BillingToggle';
 
 const ITEMS: PricingBenefitItem[] = [
   { label: 'Todo del plan PRO', included: true },
-  { label: 'Shelwi IA', included: true },
+  { label: 'Shelwi IA completa', included: true },
   { label: 'Cotización desde fotografía', included: true },
-  { label: 'Hasta 100 créditos IA al mes', included: true },
+  { label: '2.000 créditos IA al mes', included: true },
   { label: 'Reportes avanzados', included: true },
   { label: 'Dashboard avanzado', included: true },
   { label: 'Multiusuario (roles y permisos)', included: true },
   { label: '5 usuarios incluidos', included: true },
-  { label: 'Usuarios adicionales $11.999/mes', included: true },
+  { label: 'Usuarios adicionales $11.900/mes', included: true },
   { label: 'Soporte prioritario', included: true },
+  { label: 'Pedidos y Órdenes de Trabajo', included: true },
+  { label: 'GPS y evidencias fotográficas', included: true },
+  { label: 'Portal del cliente', included: true },
+  { label: 'Customer Success dedicado', included: true },
+  { label: 'Programa de fidelización', included: true },
+  { label: 'BI y análisis avanzado', included: true },
+  { label: 'Módulo financiero', included: true },
+  { label: 'Drive / OneDrive / Teams', included: true },
+  { label: 'WhatsApp Business API', included: true },
+  { label: 'Alegra Avanzado', included: true },
 ];
 
 function money(n: number): string {
@@ -28,7 +38,7 @@ export function PricingCardPremium({
   isCurrent: boolean;
   onUpgrade: () => void;
 }) {
-  const monthlyPrice = billing === 'yearly' ? 59900 : 69900;
+  const monthlyPrice = billing === 'yearly' ? 149900 : 179900;
 
   return (
     <article className="pricing-card pricing-card--premium">
@@ -42,8 +52,8 @@ export function PricingCardPremium({
             <span className="pricing-price-value">
               {money(monthlyPrice)}<span className="pricing-price-period">/mes</span>
             </span>
-            {billing === 'yearly' && <span className="pricing-price-annual">{money(718800)} cobrado anual</span>}
-            <span className="pricing-price-savings">Ahorra $120.000/año</span>
+            {billing === 'yearly' && <span className="pricing-price-annual">{money(1798800)} cobrado anual</span>}
+            <span className="pricing-price-savings">Ahorra $360.000/año</span>
           </div>
         </div>
 

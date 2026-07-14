@@ -88,24 +88,31 @@ async function checkStorage(): Promise<ServiceHealth> {
 async function checkEdgeFunctions(): Promise<ServiceHealth> {
   const t0 = Date.now();
   try {
-    // send-email tiene endpoint de health (sin credenciales necesarias)
-    const { data, error } = await supabase.functions.invoke('send-email', {
+    // Llamada GET intencionalmente — send-email devuelve 405 Method Not Allowed,
+    // lo que prueba que la función está desplegada y respondiendo.
+    const { error } = await supabase.functions.invoke('send-email', {
       method: 'GET',
       headers: {},
     });
     const ms = Date.now() - t0;
-    if (error && !String(error).includes('400') && !String(error).includes('401') && !String(error).includes('Method')) {
-      return { name: 'Edge Functions', status: 'down', latencyMs: ms, detail: String(error) };
+
+    if (error) {
+      // El cliente Supabase envuelve cualquier HTTP no-2xx como FunctionsHttpError.
+      // Un 4xx (400/401/405) significa que la EF está VIVA pero rechazó el request — correcto.
+      // Solo DOWN si hay error de red (sin status) o respuesta 5xx (crash de la función).
+      const httpStatus = (error as { context?: { status?: number } }).context?.status;
+      if (httpStatus && httpStatus >= 400 && httpStatus < 500) {
+        return { name: 'Edge Functions', status: ms > 3000 ? 'warning' : 'healthy', latencyMs: ms };
+      }
+      return {
+        name: 'Edge Functions', status: 'down', latencyMs: ms,
+        detail: String(error).slice(0, 120),
+      };
     }
-    // 400/401/405 = la EF está viva pero rechazó el request (esperado sin body/auth)
-    return {
-      name: 'Edge Functions',
-      status: ms > 3000 ? 'warning' : 'healthy',
-      latencyMs: ms,
-    };
-    void data;
+
+    return { name: 'Edge Functions', status: ms > 3000 ? 'warning' : 'healthy', latencyMs: ms };
   } catch (e) {
-    return { name: 'Edge Functions', status: 'down', detail: String(e) };
+    return { name: 'Edge Functions', status: 'down', detail: String(e).slice(0, 120) };
   }
 }
 
