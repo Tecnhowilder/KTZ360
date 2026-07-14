@@ -177,6 +177,93 @@ function GaugeBar({ pct, label, color }: { pct: number; label?: string; color?: 
 
 const PLATFORM_ICON: Record<string, string> = { ios: '🍎', android: '🤖', web: '🌐' };
 
+// ─── SLO de Edge Functions ────────────────────────────────────────────────────
+
+interface EfSloRow {
+  function_name:  string;
+  total_requests: number;
+  error_count:    number;
+  error_rate_pct: number;
+  p50_ms:         number | null;
+  p95_ms:         number | null;
+  p99_ms:         number | null;
+  max_ms:         number | null;
+}
+
+async function getEfSlo(): Promise<EfSloRow[]> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data, error } = await (supabase as any).rpc('get_ef_slo_dashboard');
+  if (error) throw error;
+  return (data ?? []) as EfSloRow[];
+}
+
+function sloStatus(errorRatePct: number, p95Ms: number | null): 'ok' | 'warning' | 'critical' {
+  if (errorRatePct >= 2 || (p95Ms != null && p95Ms >= 5_000)) return 'critical';
+  if (errorRatePct >= 0.5 || (p95Ms != null && p95Ms >= 1_000)) return 'warning';
+  return 'ok';
+}
+
+const STATUS_COLOR = { ok: '#10B981', warning: '#F59E0B', critical: '#EF4444' };
+const STATUS_LABEL = { ok: 'OK', warning: 'WARN', critical: 'CRIT' };
+
+function EfSloTable() {
+  const sloQ = useQuery({ queryKey: ['obs_ef_slo'], queryFn: getEfSlo, staleTime: 60_000, refetchInterval: 120_000 });
+  const rows = sloQ.data ?? [];
+
+  return (
+    <div>
+      <h3 style={{ fontSize: 13, fontWeight: 800, color: '#334155', marginBottom: 10, textTransform: 'uppercase', letterSpacing: '.5px' }}>
+        Edge Functions SLO · últimas 24 h
+        <span style={{ marginLeft: 8, fontSize: 10.5, color: '#94A3B8', fontWeight: 500 }}>
+          SLO: error &lt;0.5% · P95 &lt;1 s
+        </span>
+      </h3>
+      <div style={{ ...cardStyle, padding: 0, overflow: 'hidden' }}>
+        {sloQ.isLoading && <div style={{ padding: 20, color: '#94A3B8', fontSize: 13 }}>Cargando SLO…</div>}
+        {!sloQ.isLoading && rows.length === 0 && (
+          <div style={{ padding: 24, textAlign: 'center', color: '#94A3B8', fontSize: 13 }}>
+            Sin datos — activa EF_DB_LOGGING=true en las Edge Functions para ver métricas aquí.
+          </div>
+        )}
+        {rows.length > 0 && (
+          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <thead>
+              <tr>
+                {['STATUS', 'FUNCIÓN', 'TOTAL', 'ERRORES', 'ERROR %', 'P50', 'P95', 'P99', 'MAX'].map(h => (
+                  <th key={h} style={{ padding: '9px 12px', fontSize: 10.5, fontWeight: 800, color: '#94A3B8', borderBottom: '1px solid #EEF2F7', textAlign: 'left', whiteSpace: 'nowrap' }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map(r => {
+                const status = sloStatus(r.error_rate_pct, r.p95_ms);
+                const c = STATUS_COLOR[status];
+                return (
+                  <tr key={r.function_name} style={{ borderBottom: '1px solid #F8FAFC' }}>
+                    <td style={{ padding: '8px 12px' }}>
+                      <span style={{ background: c + '18', color: c, borderRadius: 6, fontSize: 10, fontWeight: 800, padding: '2px 7px' }}>
+                        {STATUS_LABEL[status]}
+                      </span>
+                    </td>
+                    <td style={{ padding: '8px 12px', fontSize: 12.5, fontWeight: 700, color: '#0F172A' }}>{r.function_name}</td>
+                    <td style={{ padding: '8px 12px', fontSize: 12, color: '#475569' }}>{r.total_requests.toLocaleString()}</td>
+                    <td style={{ padding: '8px 12px', fontSize: 12, color: r.error_count > 0 ? '#EF4444' : '#64748B' }}>{r.error_count}</td>
+                    <td style={{ padding: '8px 12px', fontSize: 12, fontWeight: 700, color: c }}>{r.error_rate_pct}%</td>
+                    <td style={{ padding: '8px 12px', fontSize: 12, color: '#475569' }}>{r.p50_ms != null ? `${r.p50_ms} ms` : '—'}</td>
+                    <td style={{ padding: '8px 12px', fontSize: 12, color: r.p95_ms != null && r.p95_ms >= 1000 ? '#F59E0B' : '#475569' }}>{r.p95_ms != null ? `${r.p95_ms} ms` : '—'}</td>
+                    <td style={{ padding: '8px 12px', fontSize: 12, color: '#475569' }}>{r.p99_ms != null ? `${r.p99_ms} ms` : '—'}</td>
+                    <td style={{ padding: '8px 12px', fontSize: 12, color: '#475569' }}>{r.max_ms != null ? `${r.max_ms} ms` : '—'}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ─── Componente principal ─────────────────────────────────────────────────────
 
 export function ObservabilityTab() {
@@ -334,6 +421,9 @@ export function ObservabilityTab() {
           )}
         </div>
       </div>
+
+      {/* ── SLO Edge Functions ──────────────────────────────────────────────── */}
+      <EfSloTable />
     </div>
   );
 }

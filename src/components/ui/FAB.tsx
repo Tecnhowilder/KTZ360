@@ -76,7 +76,8 @@ export function FabQuickActions({ actions = DEFAULT_FAB_ACTIONS }: FabQuickActio
     location.pathname.startsWith('/app/cotizaciones/nueva') ||
     !!location.pathname.match(/^\/app\/cotizaciones\/.+\/editar/) ||
     location.pathname.startsWith('/app/ordenes-trabajo/') ||
-    location.pathname.startsWith('/app/pedidos/');
+    location.pathname.startsWith('/app/pedidos/') ||
+    location.pathname.startsWith('/app/ia/desde-imagen');
 
   // ── Abrir
   function doOpen() {
@@ -98,7 +99,7 @@ export function FabQuickActions({ actions = DEFAULT_FAB_ACTIONS }: FabQuickActio
     setTimeout(() => {
       switch (id) {
         case 'ia':       navigate('/app/ia/crear'); break;
-        case 'photo':    navigate('/app/ia/crear?mode=photo'); break;
+        case 'photo':    navigate('/app/ia/desde-imagen'); break;
         case 'quote':    openQuoteFlow({ cfg: defaultQConfig(company) }); break;
         case 'order':    navigate('/app/pedidos/nuevo'); break;
         case 'template': navigate('/app/plantillas'); break;

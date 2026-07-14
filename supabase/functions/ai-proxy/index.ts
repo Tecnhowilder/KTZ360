@@ -1,149 +1,154 @@
 /**
- * ai-proxy — Edge Function Shelwi
- * Intermediario para Gemini con control de créditos IA (Zero Trust).
+ * ai-proxy — Edge Function Shelwi (AI Orchestrator Edition)
  *
- * FLUJO:
- *   1. Verificar JWT del usuario autenticado
- *   2. Obtener workspace_id del JWT
- *   3. Verificar créditos disponibles en DB (RPC check_ai_credits)
- *   4. Llamar a Gemini API
- *   5. Registrar consumo de créditos (RPC consume_ai_credits)
- *   6. Retornar resultado
+ * API SURFACE IDÉNTICA — Backward compatible al 100%.
+ * El frontend sigue llamando: supabase.functions.invoke('ai-proxy', ...)
  *
- * SEGURIDAD:
- *   - Nunca confiar en el workspace_id enviado por el cliente
- *   - Obtenerlo siempre del JWT verificado
- *   - Control de créditos ejecutado en DB (security definer)
+ * CAMBIOS INTERNOS:
+ *   - Ruta hacia AI Orchestrator (Gemini + NVIDIA NIM + futuros proveedores)
+ *   - Proveedor seleccionado dinámicamente (scoring + fallback)
+ *   - Cache inteligente (si la operación lo permite)
+ *   - Observabilidad completa en ai_request_log
+ *   - Límites por usuario/rol (check_ai_user_budget)
+ *   - Salud de proveedor registrada automáticamente
+ *
+ * SEGURIDAD (Zero Trust — sin cambios):
+ *   - JWT verificado en cada request
+ *   - workspace_id del JWT, nunca del cliente
+ *   - ai_mode y model del cliente son hints, la decisión final es del servidor
+ *   - Tokens, temperatura y modelo decididos por servidor (ai_operation_costs)
  */
-import { serve } from 'https://deno.land/std@0.201.0/http/server.ts';
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
-
-function logEdgeError(fnName: string, error: unknown): void {
-  const message = error instanceof Error ? error.message : String(error);
-  const stack   = error instanceof Error ? error.stack  : undefined;
-  console.error(JSON.stringify({ level: 'error', function: fnName, message, stack, timestamp: new Date().toISOString() }));
-}
+import { serve }          from 'https://deno.land/std@0.201.0/http/server.ts';
+import { createClient }   from 'https://esm.sh/@supabase/supabase-js@2';
+import { createLogger }   from '../_shared/logger.ts';
+import { orchestrate }    from '../_shared/orchestrator.ts';
+import type { OrchestratorRequest, RoutingConfig } from '../_shared/orchestrator.ts';
 
 const CORS_HEADERS = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Origin':  '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-request-id',
   'Content-Type': 'application/json',
 };
 
+function corsHeaders(extra: Record<string, string> = {}): Record<string, string> {
+  return { ...CORS_HEADERS, ...extra };
+}
+
+const _supabaseUrl  = Deno.env.get('SUPABASE_URL')!;
+const _supabaseKey  = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+const _supabaseAnon = Deno.env.get('SUPABASE_ANON_KEY')!;
+const adminClient   = createClient(_supabaseUrl, _supabaseKey);
+
 serve(async (req) => {
-  // Preflight CORS
-  if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: CORS_HEADERS });
-  }
+  const reqStart = Date.now();
+  const requestId = req.headers.get('x-request-id') ?? crypto.randomUUID();
+
+  if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS_HEADERS });
+
+  const log = createLogger('ai-proxy', requestId);
 
   if (req.method !== 'POST') {
     return new Response(JSON.stringify({ error: 'Method Not Allowed' }), {
-      status: 405, headers: CORS_HEADERS,
+      status: 405, headers: corsHeaders(log.responseHeaders()),
     });
   }
 
   try {
-    // ── 1. Verificar autenticación ──────────────────────────────────────────
+    // ── 1. Autenticar ────────────────────────────────────────────────────────
     const authHeader = req.headers.get('Authorization');
     if (!authHeader?.startsWith('Bearer ')) {
       return new Response(JSON.stringify({ error: 'unauthorized', code: 'no_token' }), {
-        status: 401, headers: CORS_HEADERS,
+        status: 401, headers: corsHeaders(log.responseHeaders()),
       });
     }
 
-    const supabaseUrl  = Deno.env.get('SUPABASE_URL')!;
-    const supabaseKey  = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    const supabaseAnon = Deno.env.get('SUPABASE_ANON_KEY')!;
-
-    // Verificar JWT con el token del usuario
-    const userClient = createClient(supabaseUrl, supabaseAnon, {
+    const userClient = createClient(_supabaseUrl, _supabaseAnon, {
       global: { headers: { Authorization: authHeader } },
     });
 
     const { data: { user }, error: authError } = await userClient.auth.getUser();
     if (authError || !user) {
       return new Response(JSON.stringify({ error: 'unauthorized', code: 'invalid_token' }), {
-        status: 401, headers: CORS_HEADERS,
+        status: 401, headers: corsHeaders(log.responseHeaders()),
       });
     }
 
-    // ── 2. Obtener workspace_id desde DB (nunca del cliente) ────────────────
-    const adminClient = createClient(supabaseUrl, supabaseKey);
-
+    // ── 2. workspace_id del DB — nunca del cliente ───────────────────────────
     const { data: profile, error: profileError } = await adminClient
-      .from('profiles')
-      .select('workspace_id')
-      .eq('id', user.id)
-      .single();
+      .from('profiles').select('workspace_id').eq('id', user.id).single();
 
     if (profileError || !profile?.workspace_id) {
       return new Response(JSON.stringify({ error: 'workspace_not_found' }), {
-        status: 403, headers: CORS_HEADERS,
+        status: 403, headers: corsHeaders(log.responseHeaders()),
       });
     }
+    const workspaceId = profile.workspace_id as string;
 
-    const workspaceId = profile.workspace_id;
-
-    // ── 3. Parsear body ─────────────────────────────────────────────────────
-    const body        = await req.json();
-    const prompt      = body.prompt;
-    const images      = body.images;
-    const operation   = body.operation ?? 'generate_description';
-    const maxTokens   = body.max_tokens ?? 800;
-    const temperature = body.temperature ?? 0.2;
+    // ── 3. Parsear body ──────────────────────────────────────────────────────
+    const body      = await req.json();
+    const prompt    = body.prompt as string;
+    const images    = body.images as string[] | undefined;
+    const operation = (body.operation as string) ?? 'generate_description';
+    // ai_mode: hint del cliente — el Orchestrator puede ignorarlo según configuración
+    const aiMode    = (['balanced','quality','economy','auto'].includes(body.ai_mode))
+      ? body.ai_mode as 'balanced' | 'quality' | 'economy' | 'auto'
+      : 'balanced';
 
     if (!prompt || typeof prompt !== 'string') {
       return new Response(JSON.stringify({ error: 'prompt is required' }), {
-        status: 400, headers: CORS_HEADERS,
+        status: 400, headers: corsHeaders(log.responseHeaders()),
       });
     }
 
-    // ── 4a. Rate limit: max 100 llamadas/hora por workspace ─────────────────
+    log.info('request_received', { workspace_id: workspaceId, operation, ai_mode: aiMode });
+
+    // ── 4a. Rate limit: 100 llamadas/hora por workspace ──────────────────────
     const oneHourAgo = new Date(Date.now() - 3_600_000).toISOString();
     const { count: callsLastHour } = await adminClient
-      .from('ai_usage')
-      .select('*', { count: 'exact', head: true })
-      .eq('workspace_id', workspaceId)
-      .gte('created_at', oneHourAgo);
+      .from('ai_usage').select('*', { count: 'exact', head: true })
+      .eq('workspace_id', workspaceId).gte('created_at', oneHourAgo);
 
     if ((callsLastHour ?? 0) >= 100) {
-      // Registrar evento de rate limit
-      adminClient.from('audit_log').insert({
-        workspace_id: workspaceId,
-        user_id:      user.id,
-        action:       'ai_rate_limit_exceeded',
-        entity_type:  'security',
-        metadata:     { calls_last_hour: callsLastHour },
-      }).then(() => {}).catch(() => {});
-
+      log.warn('rate_limit_exceeded', { workspace_id: workspaceId });
       return new Response(JSON.stringify({
-        error:   'rate_limit_exceeded',
+        error: 'rate_limit_exceeded',
         message: 'Has superado el límite de 100 llamadas IA por hora. Intenta más tarde.',
         retry_after_minutes: 60,
-      }), { status: 429, headers: CORS_HEADERS });
+      }), { status: 429, headers: corsHeaders(log.responseHeaders()) });
     }
 
-    // ── 4b. Obtener costo real de la operación desde DB ──────────────────────
+    // ── 4b. Obtener configuración del Orchestrator ───────────────────────────
+    const { data: routingCfg, error: routingErr } = await adminClient
+      .rpc('get_ai_routing_config', { p_operation: operation, p_ai_mode: aiMode });
+
+    // Config del servidor para tokens y temperatura (Zero Trust: ignora valores del cliente)
     const { data: opCost } = await adminClient
       .from('ai_operation_costs')
-      .select('credits_cost')
-      .eq('operation', operation)
-      .eq('active', true)
-      .maybeSingle();
+      .select('credits_cost, max_tokens, temperature')
+      .eq('operation', operation).eq('active', true).maybeSingle();
 
-    const creditsNeeded = opCost?.credits_cost ?? 1;
+    const maxTokens   = (opCost?.max_tokens   as number | null) ?? 800;
+    const temperature = (opCost?.temperature  as number | null) ?? 0.2;
+    const creditsNeeded = (opCost?.credits_cost as number | null) ?? 3;
 
-    // ── 4c. Verificar créditos IA disponibles ────────────────────────────────
+    // Routing config: usar resultado de RPC o defaults seguros
+    const config: RoutingConfig = routingErr || !routingCfg
+      ? {
+          operation, ai_mode: aiMode,
+          provider: 'gemini', model: 'gemini-2.5-flash',
+          fallback_provider: null, fallback_model: null,
+          cache_enabled: false, cache_ttl_minutes: 0,
+          requires_vision: (images?.length ?? 0) > 0,
+          credits_cost: creditsNeeded,
+          estimated_usd: 0.001, max_allowed_usd: 0.01, min_margin_pct: 40,
+        }
+      : { ...routingCfg as RoutingConfig, credits_cost: creditsNeeded };
+
+    // ── 4c. Verificar créditos del workspace ─────────────────────────────────
     const { data: creditCheck, error: creditErr } = await adminClient
-      .rpc('check_ai_credits', {
-        p_workspace_id:   workspaceId,
-        p_credits_needed: creditsNeeded,
-      });
+      .rpc('check_ai_credits', { p_workspace_id: workspaceId, p_credits_needed: creditsNeeded });
 
-    if (creditErr) {
-      console.error('check_ai_credits error:', creditErr);
-      // No bloquear por error interno — registrar y continuar
-    } else if (creditCheck && !creditCheck.allowed) {
+    if (!creditErr && creditCheck && !creditCheck.allowed) {
       const reason = creditCheck.reason;
       if (reason === 'ai_not_included') {
         return new Response(JSON.stringify({
@@ -155,123 +160,95 @@ serve(async (req) => {
       if (reason === 'limit_reached') {
         return new Response(JSON.stringify({
           error: 'ai_credits_exhausted',
-          message: `Has agotado tus créditos IA de este mes. Se reinician el 1 del próximo mes.`,
-          credits_used:      creditCheck.credits_used,
-          credits_max:       creditCheck.credits_max,
+          message: 'Has agotado tus créditos IA de este mes. Se reinician el 1 del próximo mes.',
+          credits_used: creditCheck.credits_used,
+          credits_max:  creditCheck.credits_max,
           credits_remaining: 0,
         }), { status: 429, headers: CORS_HEADERS });
       }
     }
 
-    // ── 5. Llamar a Gemini API ──────────────────────────────────────────────
-    const apiKey = Deno.env.get('GEMINI_API_KEY');
-    if (!apiKey) {
-      return new Response(JSON.stringify({ error: 'GEMINI_API_KEY is not configured' }), {
-        status: 500, headers: CORS_HEADERS,
+    // ── 4d. Verificar presupuesto por usuario (si tiene límites configurados) ─
+    const { data: userBudget } = await adminClient
+      .rpc('check_ai_user_budget', {
+        p_workspace_id:   workspaceId,
+        p_user_id:        user.id,
+        p_credits_needed: creditsNeeded,
       });
+
+    if (userBudget && !userBudget.allowed) {
+      const reasonMap: Record<string, string> = {
+        per_op_exceeded:          `Esta operación supera tu límite por operación (${userBudget.per_op_max} créditos).`,
+        daily_limit_reached:      `Has alcanzado tu límite diario de créditos IA (${userBudget.daily_remaining ?? 0} restantes hoy).`,
+        user_monthly_limit_reached: `Has alcanzado tu límite mensual de créditos IA.`,
+      };
+      return new Response(JSON.stringify({
+        error: 'user_budget_exceeded',
+        message: reasonMap[userBudget.reason] ?? 'Límite de créditos IA alcanzado.',
+        reason:  userBudget.reason,
+      }), { status: 429, headers: corsHeaders(log.responseHeaders()) });
     }
 
-    // gemini-2.5-flash: usa extracción multi-part para manejar el thinking mode
-    const modelId   = body.model ?? 'gemini-2.5-flash';
-    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${modelId}:generateContent?key=${apiKey}`;
-
-    const geminiBody: Record<string, unknown> = {
-      contents: [{ parts: [{ text: prompt }] }],
-      generationConfig: {
-        maxOutputTokens: maxTokens,
-        temperature,
-      },
+    // ── 5. Orchestrator: seleccionar proveedor y ejecutar ────────────────────
+    const orchReq: OrchestratorRequest = {
+      prompt, images, operation, aiMode,
+      requestId, workspaceId, userId: user.id,
     };
 
-    // Agregar imágenes si las hay
-    if (images?.length) {
-      (geminiBody.contents as unknown[])[0] = {
-        parts: [
-          { text: prompt },
-          ...images.map((img: string) => ({
-            inlineData: { mimeType: 'image/jpeg', data: img },
-          })),
-        ],
-      };
-    }
+    const orchResult = await orchestrate(orchReq, config, adminClient, maxTokens, temperature);
 
-    const geminiStartMs = Date.now();
-    let geminiRes: Response;
-    try {
-      geminiRes = await fetch(geminiUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(geminiBody),
-      });
-    } catch (fetchErr) {
-      console.error('Gemini fetch error:', String(fetchErr));
-      return new Response(JSON.stringify({
-        error: 'gemini_network_error',
-        message: 'No se pudo conectar con Gemini API.',
-      }), { status: 502, headers: CORS_HEADERS });
-    }
-    const executionTimeMs = Date.now() - geminiStartMs;
-
-    let geminiData: unknown;
-    try {
-      geminiData = await geminiRes.json();
-    } catch {
-      const raw = await geminiRes.text().catch(() => '');
-      console.error('Gemini non-JSON response:', geminiRes.status, raw.slice(0, 200));
-      return new Response(JSON.stringify({
-        error: 'gemini_parse_error',
-        message: `Gemini devolvió una respuesta inesperada (HTTP ${geminiRes.status}).`,
-      }), { status: 502, headers: CORS_HEADERS });
-    }
-
-    if (!geminiRes.ok) {
-      console.error('Gemini API error:', geminiData);
-      return new Response(JSON.stringify({
-        error: 'gemini_error',
-        details: geminiData,
-      }), { status: 502, headers: CORS_HEADERS });
-    }
-
-    // Extraer tokens usados de la respuesta de Gemini
-    const tokensUsed = (geminiData.usageMetadata?.totalTokenCount ?? 0) as number;
-    const estimatedCostUSD = (tokensUsed / 1_000_000) * 0.15; // $0.15 USD/1M tokens entrada
-
-    // ── 6. Registrar consumo de créditos — Sprint 24: incluye model + exec_time ─
+    // ── 6. Registrar consumo de créditos ─────────────────────────────────────
     const { data: consumeResult, error: consumeErr } = await adminClient
       .rpc('consume_ai_credits', {
         p_workspace_id:   workspaceId,
         p_operation:      operation,
-        p_tokens_used:    tokensUsed,
-        p_estimated_cost: estimatedCostUSD,
-        p_model:          modelId,         // Sprint 24: modelo real usado
-        p_exec_ms:        executionTimeMs, // Sprint 24: tiempo de respuesta Gemini
+        p_tokens_used:    orchResult.tokensTotal,
+        p_estimated_cost: orchResult.costUsd,
+        p_model:          orchResult.modelUsed,
+        p_exec_ms:        orchResult.latencyMs,
       });
 
-    if (consumeErr) {
-      console.error('consume_ai_credits error:', consumeErr);
-      // No bloquear la respuesta por error de registro
-    }
+    if (consumeErr) console.error('consume_ai_credits error:', consumeErr);
 
-    // Extraer texto generado — combinar partes reales (excluye partes thought de modelos con thinking)
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const parts = (geminiData.candidates?.[0]?.content?.parts ?? []) as Array<any>;
-    const text = parts
-      .filter((p: any) => !p.thought && typeof p.text === 'string')
-      .map((p: any) => p.text as string)
-      .join('') || '';
+    const totalMs = Date.now() - reqStart;
+    log.finish(200, totalMs, {
+      workspace_id:  workspaceId,
+      operation,
+      provider_used: orchResult.providerUsed,
+      fallback:      String(orchResult.fallbackUsed),
+      cache_hit:     String(orchResult.cacheHit),
+      tokens:        String(orchResult.tokensTotal),
+    });
 
+    // Respuesta idéntica a la versión anterior (backward compatible)
     return new Response(JSON.stringify({
-      text,
-      tokens_used:       tokensUsed,
-      credits_consumed:  consumeResult?.credits_consumed ?? 1,
+      text:              orchResult.text,
+      tokens_used:       orchResult.tokensTotal,
+      credits_consumed:  consumeResult?.credits_consumed ?? creditsNeeded,
       credits_remaining: consumeResult?.credits_remaining ?? null,
-    }), { status: 200, headers: CORS_HEADERS });
+      // Campos adicionales (no rompen nada — clientes anteriores los ignoran)
+      provider_used:     orchResult.providerUsed,
+      fallback_used:     orchResult.fallbackUsed,
+      cache_hit:         orchResult.cacheHit,
+      latency_ms:        orchResult.latencyMs,
+    }), { status: 200, headers: corsHeaders(log.responseHeaders()) });
 
   } catch (error) {
-    logEdgeError('ai-proxy', error);
+    const totalMs = Date.now() - reqStart;
+    log.error('unhandled_error', error);
+    log.finish(500, totalMs);
     const msg = error instanceof Error ? `${error.name}: ${error.message}` : String(error);
+
+    // Distinguir errores de configuración de proveedor
+    if (msg.includes('NVIDIA_API_KEY no configurada')) {
+      return new Response(JSON.stringify({
+        error:   'provider_not_configured',
+        message: 'El proveedor de IA alternativo no está configurado. Usa el proveedor principal.',
+      }), { status: 503, headers: corsHeaders() });
+    }
+
     return new Response(JSON.stringify({ error: msg }), {
-      status: 500, headers: CORS_HEADERS,
+      status: 500, headers: corsHeaders(log.responseHeaders()),
     });
   }
 });

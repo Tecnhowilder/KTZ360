@@ -40,14 +40,31 @@ export async function createOrder(input: CreateOrderInput): Promise<{ orderId: s
 
 // ─── Listar pedidos ───────────────────────────────────────────────────────────
 
-export async function listOrders(status?: string, search?: string): Promise<OrderWithRelations[]> {
+export interface ListOrdersResult {
+  orders:      OrderWithRelations[];
+  has_more:    boolean;
+  next_cursor: string | null;
+}
+
+export async function listOrders(
+  status?:  string,
+  search?:  string,
+  cursor?:  string,
+  limit?:   number,
+): Promise<ListOrdersResult> {
   const { data, error } = await rpc('list_orders', {
     p_status: status ?? null,
     p_search: search?.trim() || null,
+    p_cursor: cursor ?? null,
+    p_limit:  limit  ?? 50,
   });
   if (error) throw error;
   if (!data.ok) throw new Error(data.error ?? 'Error al listar pedidos');
-  return (data.orders ?? []) as OrderWithRelations[];
+  return {
+    orders:      (data.orders ?? []) as OrderWithRelations[],
+    has_more:    data.has_more  ?? false,
+    next_cursor: data.next_cursor ?? null,
+  };
 }
 
 // ─── Obtener detalle de pedido ────────────────────────────────────────────────

@@ -1,5 +1,6 @@
 import { supabase } from '../lib/supabaseClient';
 import { unregisterDeviceToken } from './pushNotifications';
+import { clearPersistedCache } from '../lib/queryPersister';
 // Sprint 22: getAppBaseUrl importado via DeepLinks
 
 import { DeepLinks } from '../lib/deepLinks';
@@ -48,6 +49,7 @@ export async function signOut() {
   }
 
   clearSessionStorage();
+  clearPersistedCache();
 
   const { error } = await supabase.auth.signOut();
   if (error) throw error;

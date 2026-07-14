@@ -20,11 +20,18 @@
 
 import { serve } from 'https://deno.land/std@0.201.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { createLogger } from '../_shared/logger.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
+
+// ─── Clientes Supabase a nivel de módulo (reutilizados entre invocaciones) ────
+const _supabaseUrl    = Deno.env.get('SUPABASE_URL')!;
+const _serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+const _anonKey        = Deno.env.get('SUPABASE_ANON_KEY')!;
+const _admin          = createClient(_supabaseUrl, _serviceRoleKey);
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
@@ -196,9 +203,6 @@ serve(async (req) => {
     return new Response('ok', { headers: corsHeaders });
   }
 
-  const supabaseUrl    = Deno.env.get('SUPABASE_URL')!;
-  const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-  const anonKey        = Deno.env.get('SUPABASE_ANON_KEY')!;
   const serviceAccountJson = Deno.env.get('FIREBASE_SERVICE_ACCOUNT_JSON');
 
   if (!serviceAccountJson) {
@@ -223,7 +227,7 @@ serve(async (req) => {
     );
   }
 
-  const isServiceCall = bearerToken === serviceRoleKey;
+  const isServiceCall = bearerToken === _serviceRoleKey;
 
   try {
     const body = (await req.json()) as SendPushBody;
@@ -236,11 +240,9 @@ serve(async (req) => {
       );
     }
 
-    const admin = createClient(supabaseUrl, serviceRoleKey);
-
     // ── Verificar rol del caller si es JWT de usuario ─────────────────────
     if (!isServiceCall) {
-      const callerClient = createClient(supabaseUrl, anonKey, {
+      const callerClient = createClient(_supabaseUrl, _anonKey, {
         global: { headers: { Authorization: `Bearer ${bearerToken}` } },
       });
       const { data: { user: caller }, error: authErr } = await callerClient.auth.getUser();
@@ -250,7 +252,7 @@ serve(async (req) => {
           { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
-      const { data: callerProfile } = await admin
+      const { data: callerProfile } = await _admin
         .from('profiles')
         .select('role')
         .eq('id', caller.id)
@@ -266,7 +268,7 @@ serve(async (req) => {
     }
 
     // ── Obtener notificación ──────────────────────────────────────────────
-    const { data: notif, error: notifErr } = await admin
+    const { data: notif, error: notifErr } = await _admin
       .from('notifications')
       .select('id, title, message, type, metadata')
       .eq('id', notification_id)
@@ -281,7 +283,7 @@ serve(async (req) => {
     }
 
     // ── Obtener tokens activos del usuario ────────────────────────────────
-    const { data: tokens, error: tokensErr } = await admin
+    const { data: tokens, error: tokensErr } = await _admin
       .from('push_tokens')
       .select('id, token, platform')
       .eq('workspace_id', workspace_id)
@@ -296,7 +298,7 @@ serve(async (req) => {
     }
 
     // ── Deduplicación (ventana 60 s) ──────────────────────────────────────
-    const { data: recentDelivery } = await admin
+    const { data: recentDelivery } = await _admin
       .from('notification_delivery_log')
       .select('id')
       .eq('notification_id', notification_id)
@@ -332,7 +334,7 @@ serve(async (req) => {
         accessToken, projectId, t.token, title, message, fcmData
       );
 
-      await admin.from('notification_delivery_log').insert({
+      await _admin.from('notification_delivery_log').insert({
         workspace_id,
         user_id,
         notification_id,
@@ -346,7 +348,7 @@ serve(async (req) => {
       });
 
       if (result.deactivateToken) {
-        await admin.from('push_tokens')
+        await _admin.from('push_tokens')
           .update({ is_active: false })
           .eq('id', t.id);
       }
@@ -354,14 +356,42 @@ serve(async (req) => {
       if (result.messageId) {
         sent++;
         // Registrar último uso del token
-        await admin.from('push_tokens')
+        await _admin.from('push_tokens')
           .update({ last_used_at: new Date().toISOString() })
           .eq('id', t.id);
       }
     }
 
+    // ── Fallback in-app: si 0 pushes entregados, asegurar visibilidad en inbox ─
+    if (sent === 0 && (tokens as FcmToken[]).length > 0) {
+      // La notificación ya existe en la tabla; registrar el fallo para trazabilidad.
+      // El in-app inbox (NotificationBell) la leerá en el próximo mount/refetch.
+      await _admin
+        .from('notifications')
+        .update({
+          metadata: {
+            ...(notif.metadata as Record<string, unknown> | null ?? {}),
+            push_failed: true,
+            push_failed_at: new Date().toISOString(),
+            in_app_fallback: true,
+          },
+        })
+        .eq('id', notification_id);
+
+      // Broadcast Realtime para usuarios conectados (entrega inmediata sin push)
+      // El canal debe coincidir con el que escucha usePresence/useNotifications.
+      await _admin
+        .channel(`user:${user_id}`)
+        .send({
+          type:    'broadcast',
+          event:   'notification:new',
+          payload: { notification_id, workspace_id, fallback: true },
+        })
+        .catch(() => {}); // best-effort
+    }
+
     return new Response(
-      JSON.stringify({ ok: true, sent, total: tokens.length }),
+      JSON.stringify({ ok: true, sent, total: (tokens as FcmToken[]).length, fallback: sent === 0 }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
 

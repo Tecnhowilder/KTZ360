@@ -26,3 +26,9 @@ verify_jwt = false
 
 [functions.connect-integration]
 verify_jwt = true
+
+[functions.ai-health-check]
+verify_jwt = true
+
+[functions.ai-benchmark]
+verify_jwt = true

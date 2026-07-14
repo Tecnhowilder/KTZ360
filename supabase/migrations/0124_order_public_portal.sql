@@ -164,7 +164,7 @@ BEGIN
 
   -- Registrar visualización
   INSERT INTO public.order_events (workspace_id, order_id, event_type)
-  VALUES (v_order.workspace_id, v_order.id, 'order_viewed')
+  VALUES (v_token_row.workspace_id, v_order.id, 'order_viewed')
   ON CONFLICT DO NOTHING;
 
   RETURN jsonb_build_object(

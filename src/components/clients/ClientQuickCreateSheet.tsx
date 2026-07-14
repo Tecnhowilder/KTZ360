@@ -8,7 +8,7 @@
  * Reutiliza exactamente: createClient() + useInvalidateClients() + validaciones.
  * Zero Trust: workspace_id del JWT, nunca del frontend.
  */
-import { useState, type FormEvent } from 'react';
+import { useState, useEffect, type FormEvent } from 'react';
 import { X } from 'lucide-react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useWorkspace } from '../../features/auth/WorkspaceProvider';
@@ -27,9 +27,11 @@ interface Props {
   onCreated?: (client: Client) => void;
   /** Texto personalizable en el header del sheet */
   title?: string;
+  /** Valores iniciales para prellenar el formulario (ej: desde IA Vision) */
+  initialValues?: { name?: string; phone?: string; email?: string; meta?: string };
 }
 
-export function ClientQuickCreateSheet({ open, onClose, onCreated, title = 'Nuevo cliente' }: Props) {
+export function ClientQuickCreateSheet({ open, onClose, onCreated, title = 'Nuevo cliente', initialValues }: Props) {
   const { workspace } = useWorkspace();
   const { user }      = useAuth();
   const invalidate    = useInvalidateClients();
@@ -41,6 +43,17 @@ export function ClientQuickCreateSheet({ open, onClose, onCreated, title = 'Nuev
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
   const [meta,  setMeta]  = useState('');
+
+  // Prellenar formulario cuando se abre con valores iniciales (ej: desde IA Vision)
+  useEffect(() => {
+    if (open && initialValues) {
+      if (initialValues.name)  setName(initialValues.name);
+      if (initialValues.phone) setPhone(initialValues.phone);
+      if (initialValues.email) setEmail(initialValues.email);
+      if (initialValues.meta)  setMeta(initialValues.meta);
+    }
+    if (!open) resetForm();
+  }, [open]); // eslint-disable-line
 
   function resetForm() {
     setName(''); setPhone(''); setEmail(''); setMeta('');

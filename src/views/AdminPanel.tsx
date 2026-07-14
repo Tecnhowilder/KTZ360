@@ -32,11 +32,13 @@ import {
 import { PlansEditor }              from '../components/admin/PlansEditor';
 import { FounderTab }              from '../components/admin/FounderTab';
 import { IAAdminTab }              from '../components/admin/IAAdminTab';
+import { IAOrchestratorTab }       from '../components/admin/IAOrchestratorTab';
 import { StorageAdminTab }         from '../components/admin/StorageAdminTab';
 import { CustomerExperienceTab }   from '../components/admin/CustomerExperienceTab';
 import { FeatureFlagsTab }         from '../components/admin/FeatureFlagsTab';
 import { PushTemplatesTab }        from '../components/admin/PushTemplatesTab';
 import { ObservabilityTab }        from '../components/admin/ObservabilityTab';
+import { HealthChecksTab }         from '../components/admin/HealthChecksTab';
 import { UserSupportPanel }        from '../components/admin/UserSupportPanel';
 import { EmailTemplatesTab }       from '../components/admin/EmailTemplatesTab';
 import type { SubscriptionRow, SystemConfigurationRow, AdminSettingRow } from '../lib/database.types';
@@ -57,29 +59,31 @@ const tdStyle:     React.CSSProperties = { padding: '10px 12px', verticalAlign: 
 
 // ─── Tabs ─────────────────────────────────────────────────────────────────────
 
-type Tab = 'dashboard' | 'subscriptions' | 'plans' | 'founder' | 'ia' | 'storage'
+type Tab = 'dashboard' | 'subscriptions' | 'plans' | 'founder' | 'ia' | 'orchestrator' | 'storage'
          | 'users' | 'workspaces' | 'invitations' | 'audit' | 'system' | 'support'
-         | 'finanzas' | 'cx' | 'flags' | 'push_templates' | 'observability' | 'email_templates';
+         | 'finanzas' | 'cx' | 'flags' | 'push_templates' | 'observability' | 'email_templates' | 'health';
 
 const TAB_LABELS: Record<Tab, string> = {
-  dashboard:      'Dashboard',
-  subscriptions:  'Suscripciones',
-  plans:          'Planes & Features',
-  founder:        'Founder Program',
-  ia:             'IA Admin',
-  storage:        'Storage',
-  users:          'Usuarios',
-  workspaces:     'Workspaces',
-  invitations:    'Invitaciones',
-  audit:          'Auditoría',
-  system:         'Configuración',
-  support:        'Soporte',
-  finanzas:       'Finanzas Shelwi',
-  cx:             'Customer Experience',
+  dashboard:       'Dashboard',
+  subscriptions:   'Suscripciones',
+  plans:           'Planes & Features',
+  founder:         'Founder Program',
+  ia:              'IA Admin',
+  orchestrator:    '🤖 Orchestrator',
+  storage:         'Storage',
+  users:           'Usuarios',
+  workspaces:      'Workspaces',
+  invitations:     'Invitaciones',
+  audit:           'Auditoría',
+  system:          'Configuración',
+  support:         'Soporte',
+  finanzas:        'Finanzas Shelwi',
+  cx:              'Customer Experience',
   flags:           '⚑ Feature Flags',
   push_templates:  '🔔 Push Templates',
   observability:   '📊 Observabilidad',
   email_templates: '✉️ Email Templates',
+  health:          '🟢 Salud',
 };
 
 // ─── AdminPanel root ──────────────────────────────────────────────────────────
@@ -88,7 +92,7 @@ const PLAN_LABELS: Record<string, string> = { free: 'FREE', pro: 'PRO', premium:
 
 export function AdminPanel() {
   const adminQuery      = useQuery({ queryKey: ['isSuperAdmin'],       queryFn: isSuperAdmin });
-  const superAdminQuery = useQuery({ queryKey: ['isStrictSuperAdmin'], queryFn: () => supabase.rpc('is_super_admin').then(r => Boolean(r.data)) });
+  const superAdminQuery = useQuery({ queryKey: ['isStrictSuperAdmin'], queryFn: async () => { const r = await supabase.rpc('is_super_admin'); return Boolean(r.data); } });
   const [searchParams, setSearchParams] = useSearchParams();
   const tab = (searchParams.get('tab') as Tab) ?? 'dashboard';
 
@@ -102,7 +106,7 @@ export function AdminPanel() {
 
   const canEdit      = adminQuery.data === true;
   const isSuperAdm   = superAdminQuery.data === true;
-  const tabs: Tab[]  = ['dashboard','subscriptions','plans','founder','ia','storage','users','workspaces','invitations','audit','system','support','finanzas','cx','flags','push_templates','observability','email_templates'];
+  const tabs: Tab[]  = ['dashboard','subscriptions','plans','founder','ia','orchestrator','storage','users','workspaces','invitations','audit','system','support','finanzas','cx','flags','push_templates','observability','email_templates','health'];
 
   return (
     <div>
@@ -128,6 +132,7 @@ export function AdminPanel() {
       {tab === 'plans'         && <PlansEditor canEdit={canEdit} />}
       {tab === 'founder'       && <FounderTab  canEdit={canEdit} />}
       {tab === 'ia'            && <IAAdminTab  canEdit={canEdit} />}
+      {tab === 'orchestrator'  && <IAOrchestratorTab />}
       {tab === 'storage'       && <StorageAdminTab />}
       {tab === 'users'         && <UsersTab    canEdit={canEdit} isSuperAdmin={isSuperAdm} />}
       {tab === 'workspaces'    && <WorkspacesTab canEdit={canEdit} />}
@@ -141,6 +146,7 @@ export function AdminPanel() {
       {tab === 'push_templates'&& <PushTemplatesTab  canEdit={canEdit} />}
       {tab === 'observability'   && <ObservabilityTab />}
       {tab === 'email_templates' && <EmailTemplatesTab canEdit={canEdit} />}
+      {tab === 'health'          && <HealthChecksTab />}
     </div>
   );
 }

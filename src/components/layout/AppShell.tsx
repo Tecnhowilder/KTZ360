@@ -34,7 +34,8 @@ export function AppShell() {
 
   // Rutas full-screen (sin header mobile, pero SÍ con bottom nav)
   const isInnerFlow = location.pathname.startsWith('/app/cotizaciones/nueva')
-    || location.pathname.match(/^\/app\/cotizaciones\/.+/) !== null;
+    || location.pathname.match(/^\/app\/cotizaciones\/.+/) !== null
+    || location.pathname.startsWith('/app/ia/desde-imagen');
 
   // Dashboard gestiona su propio header compacto — no usar el global
   const [drawerOpen, setDrawerOpen] = useState(false);

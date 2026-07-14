@@ -114,7 +114,7 @@ export function CotizacionesMobile() {
   function doCreate(action: string) {
     switch (action) {
       case 'ia':       navigate('/app/ia/crear'); break;
-      case 'photo':    navigate('/app/ia/crear?mode=photo'); break;
+      case 'photo':    navigate('/app/ia/desde-imagen'); break;
       case 'quote':    openQuoteFlow({ cfg: defaultQConfig(company) }); break;
       case 'template': navigate('/app/plantillas'); break;
     }

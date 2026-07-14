@@ -149,7 +149,7 @@ export function MobileDashboard() {
                 label: 'Desde foto',
                 desc: 'Extrae datos de una imagen',
                 bg: '#F0FFF4',
-                action: () => navigate('/app/ia/crear?mode=photo'),
+                action: () => navigate('/app/ia/desde-imagen'),
               },
               {
                 img: '/icons/clientes (2).png',
