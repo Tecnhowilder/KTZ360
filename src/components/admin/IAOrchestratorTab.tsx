@@ -103,11 +103,14 @@ function ProviderHealthSection() {
   async function handleCheck() {
     setChecking(true);
     try {
-      await triggerHealthCheck();
+      const result = await triggerHealthCheck();
+      console.log('[health-check] result:', result);
       await refetch();
       showToast('✓ Health check completado');
-    } catch {
-      showToast('Error al ejecutar health check');
+    } catch (e) {
+      console.error('[health-check] error:', e);
+      const msg = (e as Error)?.message ?? String(e);
+      showToast(`Error: ${msg.slice(0, 120)}`);
     } finally {
       setChecking(false);
     }

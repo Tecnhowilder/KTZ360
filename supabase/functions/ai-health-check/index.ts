@@ -34,87 +34,94 @@ const adminClient = createClient(
 serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS_HEADERS });
 
-  // Seguridad: aceptar invocación de pg_cron (sin auth) o de admin autenticado
-  const authHeader = req.headers.get('Authorization');
-  const isAdmin    = !!authHeader; // Si viene con header → verificar rol admin
-  // Para pg_cron el header viene vacío — se acepta desde service_role internamente
+  try {
+    const results: Array<{
+      provider: string;
+      status: string;
+      latencyMs: number | null;
+      error?: string;
+    }> = [];
 
-  const results: Array<{
-    provider: string;
-    status: string;
-    latencyMs: number | null;
-    error?: string;
-  }> = [];
+    // ── Obtener proveedores habilitados ──────────────────────────────────────
+    const { data: providers, error: dbError } = await adminClient
+      .from('ai_providers')
+      .select('provider_key, api_key_secret, enabled')
+      .order('priority');
 
-  // ── Obtener proveedores habilitados ────────────────────────────────────────
-  const { data: providers } = await adminClient
-    .from('ai_providers')
-    .select('provider_key, api_key_secret, enabled')
-    .order('priority');
-
-  for (const p of (providers ?? [])) {
-    if (!p.enabled) {
-      results.push({ provider: p.provider_key, status: 'disabled', latencyMs: null });
-      continue;
+    if (dbError) {
+      console.error('[ai-health-check] DB error fetching providers:', dbError);
+      return new Response(JSON.stringify({ ok: false, error: dbError.message, results: [] }), {
+        status: 200, headers: CORS_HEADERS,
+      });
     }
 
-    const apiKey = Deno.env.get(p.api_key_secret);
-
-    if (!apiKey) {
-      // Proveedor habilitado pero sin API key configurada → registrar como 'unconfigured'
-      await adminClient.rpc('record_provider_health', {
-        p_provider_key:   p.provider_key,
-        p_status:         'unconfigured',
-        p_latency_ms:     null,
-        p_error_count:    0,
-        p_success_count:  0,
-        p_is_circuit_open: false,
-        p_last_error:     `Secret ${p.api_key_secret} no configurado en Deno secrets`,
-      }).catch(() => {});
-      results.push({ provider: p.provider_key, status: 'unconfigured', latencyMs: null, error: `${p.api_key_secret} not set` });
-      continue;
-    }
-
-    // Ping al proveedor
-    let pingResult: { ok: boolean; latencyMs: number; error?: string };
-
-    try {
-      if (p.provider_key === 'gemini') {
-        pingResult = await pingGemini(apiKey);
-      } else if (p.provider_key === 'nvidia') {
-        pingResult = await pingNvidianim(apiKey);
-      } else {
-        pingResult = { ok: false, latencyMs: 0, error: 'Proveedor no implementado' };
+    for (const p of (providers ?? [])) {
+      if (!p.enabled) {
+        results.push({ provider: p.provider_key, status: 'disabled', latencyMs: null });
+        continue;
       }
-    } catch (e) {
-      pingResult = { ok: false, latencyMs: 0, error: (e as Error).message };
+
+      const apiKey = Deno.env.get(p.api_key_secret);
+
+      if (!apiKey) {
+        await adminClient.rpc('record_provider_health', {
+          p_provider_key:    p.provider_key,
+          p_status:          'unconfigured',
+          p_latency_ms:      null,
+          p_error_count:     0,
+          p_success_count:   0,
+          p_is_circuit_open: false,
+          p_last_error:      `Secret ${p.api_key_secret} no configurado en Deno secrets`,
+        }).catch(() => {});
+        results.push({ provider: p.provider_key, status: 'unconfigured', latencyMs: null, error: `${p.api_key_secret} not set` });
+        continue;
+      }
+
+      let pingResult: { ok: boolean; latencyMs: number; error?: string };
+      try {
+        if (p.provider_key === 'gemini') {
+          pingResult = await pingGemini(apiKey);
+        } else if (p.provider_key === 'nvidia') {
+          pingResult = await pingNvidianim(apiKey);
+        } else {
+          pingResult = { ok: false, latencyMs: 0, error: 'Proveedor no implementado' };
+        }
+      } catch (e) {
+        pingResult = { ok: false, latencyMs: 0, error: (e as Error).message };
+      }
+
+      const status = pingResult.ok
+        ? (pingResult.latencyMs > 5000 ? 'degraded' : 'ok')
+        : 'down';
+
+      await adminClient.rpc('record_provider_health', {
+        p_provider_key:    p.provider_key,
+        p_status:          status,
+        p_latency_ms:      pingResult.latencyMs,
+        p_error_count:     pingResult.ok ? 0 : 1,
+        p_success_count:   pingResult.ok ? 1 : 0,
+        p_is_circuit_open: status === 'down',
+        p_last_error:      pingResult.error ?? null,
+      }).catch(() => {});
+
+      results.push({
+        provider:  p.provider_key,
+        status,
+        latencyMs: pingResult.latencyMs,
+        error:     pingResult.error,
+      });
     }
 
-    const status = pingResult.ok
-      ? (pingResult.latencyMs > 5000 ? 'degraded' : 'ok')
-      : 'down';
+    console.log('[ai-health-check] completed:', JSON.stringify(results));
 
-    await adminClient.rpc('record_provider_health', {
-      p_provider_key:   p.provider_key,
-      p_status:         status,
-      p_latency_ms:     pingResult.latencyMs,
-      p_error_count:    pingResult.ok ? 0 : 1,
-      p_success_count:  pingResult.ok ? 1 : 0,
-      p_is_circuit_open: status === 'down',
-      p_last_error:     pingResult.error ?? null,
-    }).catch(() => {});
+    return new Response(JSON.stringify({ ok: true, checked_at: new Date().toISOString(), results }), {
+      status: 200, headers: CORS_HEADERS,
+    });
 
-    results.push({
-      provider:  p.provider_key,
-      status,
-      latencyMs: pingResult.latencyMs,
-      error:     pingResult.error,
+  } catch (err) {
+    console.error('[ai-health-check] unhandled error:', err);
+    return new Response(JSON.stringify({ ok: false, error: (err as Error).message ?? String(err), results: [] }), {
+      status: 200, headers: CORS_HEADERS,
     });
   }
-
-  console.log('[ai-health-check] completed:', JSON.stringify(results));
-
-  return new Response(JSON.stringify({ ok: true, checked_at: new Date().toISOString(), results }), {
-    status: 200, headers: CORS_HEADERS,
-  });
 });

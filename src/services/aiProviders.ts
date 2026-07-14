@@ -164,6 +164,7 @@ export async function getAIProviderScores(): Promise<AIProviderScore[]> {
 export async function triggerHealthCheck(): Promise<{ ok: boolean; results: AIProviderHealth[] }> {
   const { data, error } = await supabase.functions.invoke('ai-health-check', { method: 'POST' });
   if (error) throw error;
+  if (data && !data.ok) throw new Error(data.error ?? 'Health check falló sin detalles');
   return data as { ok: boolean; results: AIProviderHealth[] };
 }
 
