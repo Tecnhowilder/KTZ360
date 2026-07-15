@@ -65,18 +65,6 @@ const badge = (color: string): React.CSSProperties => ({
   fontSize: 11, fontWeight: 700, background: color + '20', color,
 });
 
-function StatusBadge({ status }: { status: string }) {
-  const map: Record<string, string> = {
-    ok:           '#10B981',
-    degraded:     '#F59E0B',
-    down:         '#EF4444',
-    unknown:      '#94A3B8',
-    unconfigured: '#7C3AED',
-    disabled:     '#CBD5E1',
-  };
-  const color = map[status] ?? '#94A3B8';
-  return <span style={badge(color)}>{status.toUpperCase()}</span>;
-}
 
 function ScoreBar({ value, max = 100 }: { value: number; max?: number }) {
   const pct = Math.min(100, (value / max) * 100);
